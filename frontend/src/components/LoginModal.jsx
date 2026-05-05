@@ -1,31 +1,61 @@
 import React, { useState } from 'react';
-import '../css/modal.css';
 
-export default function LoginModal({ isOpen, onClose }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
   const [isRegister, setIsRegister] = useState(false);
-  const [passwords, setPasswords] = useState({ p1: '', p2: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', role: 'tourist' });
+  const [message, setMessage] = useState('');
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const update = (key, value) => setForm({ ...form, [key]: value });
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isRegister && passwords.p1 !== passwords.p2) return alert("Passwords match error!");
-    alert("Success!");
+    setMessage('Processing...');
+    if (isRegister && form.password !== form.confirmPassword) {
+      setMessage('Passwords do not match.');
+      return;
+    }
+    const endpoint = isRegister ? 'register' : 'login';
+    const payload = isRegister
+      ? { name: form.name, email: form.email, password: form.password, role: form.role }
+      : { email: form.email, password: form.password };
+
+    try {
+      const res = await fetch(`${api}/${endpoint}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Request failed.');
+      setMessage(data.message);
+      onLoginSuccess(data.user);
+    } catch (err) {
+      setMessage(err.message);
+    }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
-        <h2>{isRegister ? "Register" : "Login"}</h2>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <h2>{isRegister ? 'Register' : 'Login'}</h2>
         <form className="auth-form" onSubmit={handleSubmit}>
-          <input type="email" placeholder="Email" required />
-          <input type="password" placeholder="Password" required onChange={e => setPasswords({...passwords, p1: e.target.value})} />
-          {isRegister && <input type="password" placeholder="Confirm Password" required onChange={e => setPasswords({...passwords, p2: e.target.value})} />}
-          <button type="submit" className="primary-btn">{isRegister ? "Sign Up" : "Sign In"}</button>
+          {isRegister && <input placeholder="Full Name" value={form.name} onChange={(e) => update('name', e.target.value)} required />}
+          <input type="email" placeholder="Email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
+          <input type="password" placeholder="Password" value={form.password} onChange={(e) => update('password', e.target.value)} required />
+          {isRegister && <input type="password" placeholder="Confirm Password" value={form.confirmPassword} onChange={(e) => update('confirmPassword', e.target.value)} required />}
+          {isRegister && (
+            <select value={form.role} onChange={(e) => update('role', e.target.value)}>
+              <option value="tourist">Tourist</option>
+              <option value="admin">Admin</option>
+            </select>
+          )}
+          <button type="submit" className="primary-btn">{isRegister ? 'Sign Up' : 'Sign In'}</button>
         </form>
-        <p>{isRegister ? "Have an account?" : "No account?"} 
-          <span className="toggle-link" onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? " Login now" : " Register now"}
+        <p className="helper-text">Admin test account: admin@stms.com / admin123</p>
+        {message && <p className="message">{message}</p>}
+        <p>{isRegister ? 'Have an account?' : 'No account?'}
+          <span className="toggle-link" onClick={() => { setIsRegister(!isRegister); setMessage(''); }}>
+            {isRegister ? ' Login now' : ' Register now'}
           </span>
         </p>
       </div>

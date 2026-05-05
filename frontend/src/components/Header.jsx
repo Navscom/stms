@@ -1,16 +1,20 @@
-export default function Header({ advice, onLogin, theme, onToggleTheme }) {
+export default function Header({ advice, onLogin, onLogout, user, theme, onToggleTheme, onUseLocation }) {
   return (
-    <header style={{ textAlign: "center", marginBottom: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
+    <header className="header">
+      <div className="header-actions">
         <button onClick={onToggleTheme} className="primary-btn">
           {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
         </button>
-        <button onClick={onLogin} className="primary-btn">Login / Register</button>
+        <button onClick={onUseLocation} className="secondary-btn">📍 Use My Location</button>
+        {user ? (
+          <button onClick={onLogout} className="primary-btn">Logout {user.name}</button>
+        ) : (
+          <button onClick={onLogin} className="primary-btn">Login / Register</button>
+        )}
       </div>
-      <h1 style={{ color: "var(--accent)" }}>STMS</h1>
-      <div style={{ padding: "15px", backgroundColor: "var(--card-bg)", borderLeft: "5px solid var(--accent)", borderRadius: "4px" }}>
-        <strong>AI Insight:</strong> {advice}
-      </div>
+      <h1>Smart Tourism Management System</h1>
+      <p className="subtitle">AI-Based Geolocation Guidance and Crowd Monitoring</p>
+      <div className="ai-card"><strong>AI Insight:</strong> {advice}</div>
     </header>
   );
 }
