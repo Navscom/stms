@@ -7,6 +7,8 @@ import AdminPanel from './components/AdminPanel';
 
 const API = 'http://127.0.0.1:8000';
 
+const MARKER_TYPES = ['Danger Area', 'Dark Area', 'Crowdy Area', 'Dangerous Animals', 'Hazard on Area'];
+
 function App() {
   const [advice, setAdvice] = useState('Click anywhere in the Philippines for AI geolocation guidance.');
   const [nearest, setNearest] = useState([]);
@@ -19,11 +21,19 @@ function App() {
   const [routeNote, setRouteNote] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [theme, setTheme] = useState('light');
-  const [nightMode, setNightMode] = useState(false);
   const [pinMode, setPinMode] = useState(false);
   const [routeMode, setRouteMode] = useState(false);
   const [user, setUser] = useState(null);
   const [report, setReport] = useState(null);
+  const [captchaChecked, setCaptchaChecked] = useState(false);
+  const [selectedMarkerType, setSelectedMarkerType] = useState('Danger Area');
+  const [pendingMarkerLocation, setPendingMarkerLocation] = useState(null);
+  const [markerForm, setMarkerForm] = useState({
+    title: '',
+    severity: 'Moderate',
+    radius_meters: 300,
+    description: '',
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -54,7 +64,7 @@ function App() {
   }, []);
 
   const checkSafety = async (lat, lng) => {
-    const res = await fetch(`${API}/safety-check?lat=${lat}&lng=${lng}&night_mode=${nightMode}`);
+    const res = await fetch(`${API}/safety-check?lat=${lat}&lng=${lng}`);
     const data = await res.json();
     setNearbyDangers(data.nearby_dangers || []);
     return data;
@@ -67,7 +77,7 @@ function App() {
     setRouteEnd(null);
     setRouteNote('');
     try {
-      const res = await fetch(`${API}/ai-advice?lat=${lat}&lng=${lng}&night_mode=${nightMode}`);
+      const res = await fetch(`${API}/ai-advice?lat=${lat}&lng=${lng}`);
       const data = await res.json();
       const safety = await checkSafety(lat, lng);
       setAdvice(`${data.advice} ${safety.alerts?.join(' ') || ''}`);
@@ -78,34 +88,71 @@ function App() {
     }
   };
 
-  const addDangerPin = async (lat, lng) => {
-    const title = prompt('Warning title:', 'Danger / Warning Area');
-    if (!title) return;
-    const danger_type = prompt('Type: Danger Zone, Wildlife / Animal, Dark Area, General Warning', 'Danger Zone') || 'Danger Zone';
-    const severity = prompt('Severity: Low, Moderate, High', 'Moderate') || 'Moderate';
-    const radius_meters = Number(prompt('Radius in meters:', '300') || 300);
-    const description = prompt('Description:', 'User reported warning area. Please avoid this area.') || 'User reported warning area.';
+  const startMarkerPlacement = (lat, lng) => {
+    if (!captchaChecked) {
+      alert('Please check the CAPTCHA box first before placing a marker.');
+      return;
+    }
+    if (!selectedMarkerType) {
+      alert('Please choose a marker type first.');
+      return;
+    }
+    setPendingMarkerLocation({ lat, lng });
+    setMarkerForm({
+      title: selectedMarkerType,
+      severity: 'Moderate',
+      radius_meters: 300,
+      description: '',
+    });
+  };
+
+  const submitMarker = async (e) => {
+    e.preventDefault();
+    if (!captchaChecked) return alert('Please check the CAPTCHA box.');
+    if (!pendingMarkerLocation) return alert('Click the map location first.');
+    if (!markerForm.description.trim()) return alert('Description is required. Explain why you put this marker.');
 
     try {
       const res = await fetch(`${API}/danger-pins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title,
-          danger_type,
-          lat,
-          lng,
-          severity,
-          radius_meters,
-          description,
-          reported_by: user?.name || 'Anonymous Tourist'
-        })
+          title: markerForm.title || selectedMarkerType,
+          danger_type: selectedMarkerType,
+          lat: pendingMarkerLocation.lat,
+          lng: pendingMarkerLocation.lng,
+          severity: markerForm.severity,
+          radius_meters: Number(markerForm.radius_meters),
+          description: markerForm.description,
+          reported_by: user?.name || 'Anonymous Tourist',
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Unable to add danger pin.');
+      if (!res.ok) throw new Error(data.detail || 'Unable to add marker.');
       await loadDangerPins();
       await loadReport();
-      setAdvice('Danger/warning pin added successfully. It will now appear on the map as a warning zone.');
+      setPendingMarkerLocation(null);
+      setMarkerForm({ title: '', severity: 'Moderate', radius_meters: 300, description: '' });
+      setAdvice(`${selectedMarkerType} marker added successfully. Other users can now see and comment on it.`);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const addMarkerComment = async (pinId, comment) => {
+    try {
+      const res = await fetch(`${API}/danger-pins/${pinId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comment,
+          commented_by: user?.name || 'Anonymous Tourist',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Unable to add comment.');
+      await loadDangerPins();
+      setAdvice('Comment added to marker.');
     } catch (err) {
       alert(err.message);
     }
@@ -126,8 +173,7 @@ function App() {
           start_lng: selectedLocation.lng,
           end_lat: endLat,
           end_lng: endLng,
-          night_mode: nightMode
-        })
+        }),
       });
       const data = await res.json();
       setRoutePoints(data.route_points || []);
@@ -140,7 +186,7 @@ function App() {
   };
 
   const handleMapClick = (lat, lng) => {
-    if (pinMode) return addDangerPin(lat, lng);
+    if (pinMode) return startMarkerPlacement(lat, lng);
     if (routeMode) return recommendRoute(lat, lng);
     return fetchAdvice(lat, lng);
   };
@@ -174,16 +220,65 @@ function App() {
       />
 
       <section className="safety-toolbar">
-        <button className={pinMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => { setPinMode(!pinMode); setRouteMode(false); }}>
-          📍 {pinMode ? 'Pin Mode ON' : 'Add Danger Pin'}
+        <button className={pinMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => { setPinMode(!pinMode); setRouteMode(false); setPendingMarkerLocation(null); }}>
+          📍 {pinMode ? 'Add Marker ON' : 'Add Marker'}
         </button>
-        <button className={routeMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => { setRouteMode(!routeMode); setPinMode(false); }}>
+        <button className={routeMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => { setRouteMode(!routeMode); setPinMode(false); setPendingMarkerLocation(null); }}>
           🧭 {routeMode ? 'Route Mode ON' : 'Recommend Safer Route'}
         </button>
-        <button className={nightMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => setNightMode(!nightMode)}>
-          🌙 {nightMode ? 'Night Warnings ON' : 'Night Mode / Dark Areas'}
-        </button>
       </section>
+
+      {pinMode && (
+        <section className="marker-panel">
+          <h2>Add Safety Marker</h2>
+          <p>Choose one marker type, check the CAPTCHA, then click the map location.</p>
+          <div className="marker-type-buttons">
+            {MARKER_TYPES.map((type) => (
+              <button
+                key={type}
+                className={selectedMarkerType === type ? 'primary-btn active' : 'secondary-btn'}
+                onClick={() => setSelectedMarkerType(type)}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+          <label className="captcha-box">
+            <input type="checkbox" checked={captchaChecked} onChange={(e) => setCaptchaChecked(e.target.checked)} />
+            I am not a robot and I understand that fake reports are not allowed.
+          </label>
+          {pendingMarkerLocation && (
+            <form className="marker-form" onSubmit={submitMarker}>
+              <strong>Selected location:</strong> {pendingMarkerLocation.lat.toFixed(5)}, {pendingMarkerLocation.lng.toFixed(5)}
+              <input
+                placeholder="Marker title"
+                value={markerForm.title}
+                onChange={(e) => setMarkerForm({ ...markerForm, title: e.target.value })}
+              />
+              <select value={markerForm.severity} onChange={(e) => setMarkerForm({ ...markerForm, severity: e.target.value })}>
+                <option>Low</option>
+                <option>Moderate</option>
+                <option>High</option>
+              </select>
+              <input
+                type="number"
+                min="50"
+                max="5000"
+                placeholder="Radius in meters"
+                value={markerForm.radius_meters}
+                onChange={(e) => setMarkerForm({ ...markerForm, radius_meters: e.target.value })}
+              />
+              <textarea
+                required
+                placeholder="Required: describe why you put this marker"
+                value={markerForm.description}
+                onChange={(e) => setMarkerForm({ ...markerForm, description: e.target.value })}
+              />
+              <button className="primary-btn" type="submit">Submit Marker</button>
+            </form>
+          )}
+        </section>
+      )}
 
       <section className="dashboard-grid">
         <div className="map-card">
@@ -195,6 +290,7 @@ function App() {
             routeEnd={routeEnd}
             routePoints={routePoints}
             onLocationClick={handleMapClick}
+            onAddComment={addMarkerComment}
           />
           {routeNote && <div className="route-note">🧭 {routeNote}</div>}
         </div>
@@ -203,7 +299,7 @@ function App() {
 
       <section className="warning-panel">
         <h2>Safety Alerts</h2>
-        {nearbyDangers.length === 0 ? <p>No nearby danger, wildlife, or dark-area report detected.</p> : nearbyDangers.map((d) => (
+        {nearbyDangers.length === 0 ? <p>No nearby marker report detected.</p> : nearbyDangers.map((d) => (
           <div key={d.id} className={`warning-card ${d.severity?.toLowerCase()}`}>
             <strong>{d.danger_type}: {d.title}</strong>
             <p>{d.description}</p>

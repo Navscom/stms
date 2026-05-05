@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -11,8 +12,29 @@ const blueIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-const warningIcon = new L.Icon({
+const redIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+const orangeIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+const yellowIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+const violetIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -34,12 +56,50 @@ function MapClickHandler({ onLocationClick }) {
   return null;
 }
 
-function dangerColor(pin) {
-  if (pin.danger_type === 'Dark Area') return '#111827';
-  if (pin.danger_type === 'Wildlife / Animal') return '#f97316';
-  if (pin.severity === 'High') return '#dc2626';
-  if (pin.severity === 'Moderate') return '#f59e0b';
-  return '#22c55e';
+function markerStyle(pin) {
+  switch (pin.danger_type) {
+    case 'Danger Area':
+      return { color: '#dc2626', icon: redIcon };
+    case 'Dark Area':
+      return { color: '#111827', icon: violetIcon };
+    case 'Crowdy Area':
+      return { color: '#f59e0b', icon: yellowIcon };
+    case 'Dangerous Animals':
+      return { color: '#f97316', icon: orangeIcon };
+    case 'Hazard on Area':
+      return { color: '#7c3aed', icon: violetIcon };
+    default:
+      return { color: '#dc2626', icon: redIcon };
+  }
+}
+
+function CommentBox({ pin, onAddComment }) {
+  const [comment, setComment] = useState('');
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!comment.trim()) return alert('Please type a comment first.');
+    onAddComment(pin.id, comment.trim());
+    setComment('');
+  };
+
+  return (
+    <div className="popup-comments">
+      <strong>Comments</strong>
+      <div className="comment-list">
+        {pin.comments?.length ? pin.comments.map((c) => (
+          <div key={c.id} className="comment-item">
+            <p>{c.comment}</p>
+            <small>— {c.commented_by}</small>
+          </div>
+        )) : <small>No comments yet.</small>}
+      </div>
+      <form onSubmit={submit} className="comment-form">
+        <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment" />
+        <button type="submit">Comment</button>
+      </form>
+    </div>
+  );
 }
 
 export default function MapView({
@@ -50,6 +110,7 @@ export default function MapView({
   selectedLocation,
   routeEnd,
   routePoints,
+  onAddComment,
 }) {
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
 
@@ -70,24 +131,28 @@ export default function MapView({
           </Marker>
         ))}
 
-        {dangerPins.map((pin) => (
-          <>
-            <Circle
-              center={[pin.lat, pin.lng]}
-              radius={pin.radius_meters}
-              pathOptions={{ color: dangerColor(pin), fillColor: dangerColor(pin), fillOpacity: nearbyIds.has(pin.id) ? 0.35 : 0.16 }}
-            />
-            <Marker key={`danger-${pin.id}`} position={[pin.lat, pin.lng]} icon={warningIcon}>
-              <Popup>
-                <strong>{pin.danger_type}: {pin.title}</strong><br />
-                Severity: <b>{pin.severity}</b><br />
-                Radius: {pin.radius_meters}m<br />
-                {pin.description}<br />
-                <small>Reported by: {pin.reported_by}</small>
-              </Popup>
-            </Marker>
-          </>
-        ))}
+        {dangerPins.map((pin) => {
+          const style = markerStyle(pin);
+          return (
+            <>
+              <Circle
+                center={[pin.lat, pin.lng]}
+                radius={pin.radius_meters}
+                pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: nearbyIds.has(pin.id) ? 0.35 : 0.16 }}
+              />
+              <Marker key={`danger-${pin.id}`} position={[pin.lat, pin.lng]} icon={style.icon}>
+                <Popup maxWidth={320}>
+                  <strong>{pin.danger_type}: {pin.title}</strong><br />
+                  Severity: <b>{pin.severity}</b><br />
+                  Radius: {pin.radius_meters}m<br />
+                  <p>{pin.description}</p>
+                  <small>Reported by: {pin.reported_by}</small>
+                  <CommentBox pin={pin} onAddComment={onAddComment} />
+                </Popup>
+              </Marker>
+            </>
+          );
+        })}
 
         {selectedLocation && (
           <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={greenIcon}>

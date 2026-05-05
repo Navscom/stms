@@ -124,3 +124,88 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
 @media (max-width: 900px) {
   .safety-toolbar { flex-direction: column; }
 }
+.marker-panel {
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+.marker-panel h2 { margin-top: 0; }
+.marker-panel p { color: var(--muted); }
+.marker-type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+.captcha-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  margin: 12px 0;
+  background: rgba(29, 114, 184, 0.06);
+}
+.marker-form {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.marker-form strong { grid-column: 1 / -1; }
+.marker-form input,
+.marker-form select,
+.marker-form textarea {
+  padding: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.marker-form textarea {
+  grid-column: 1 / -1;
+  min-height: 90px;
+}
+.marker-form button { grid-column: 1 / -1; }
+.popup-comments {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #ddd;
+}
+.comment-list {
+  max-height: 120px;
+  overflow-y: auto;
+  margin: 6px 0;
+}
+.comment-item {
+  padding: 6px;
+  margin-bottom: 5px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+.comment-item p { margin: 0 0 3px; }
+.comment-form {
+  display: flex;
+  gap: 5px;
+}
+.comment-form input {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+.comment-form button {
+  border: none;
+  border-radius: 6px;
+  background: #1d72b8;
+  color: white;
+  padding: 7px 9px;
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .marker-form { grid-template-columns: 1fr; }
+}

@@ -45,3 +45,10 @@ admin123
 3. Click **Night Mode / Dark Areas** to include dark-area warnings.
 4. Click **Recommend Safer Route**, then click your destination on the map.
 5. The system will show a direct route or a safer detour if danger is detected.
+
+## Latest Marker Update
+- The old Night Mode / automatic dark-area toggle was removed.
+- Users now click **Add Marker**, choose one marker type, check the CAPTCHA box, then click the map.
+- Marker types: Danger Area, Dark Area, Crowdy Area, Dangerous Animals, Hazard on Area.
+- A description is required before the marker can be submitted.
+- Users can click any marker popup and add comments.

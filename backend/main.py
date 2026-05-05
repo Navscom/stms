@@ -24,7 +24,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role: str = "tourist"
- 
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -45,13 +45,17 @@ class CrowdUpdateRequest(BaseModel):
 
 class DangerPinRequest(BaseModel):
     title: str
-    danger_type: str = "General Warning"
+    danger_type: str = "Danger Area"
     lat: float
     lng: float
     severity: str = "Moderate"
     radius_meters: int = 300
-    description: str = "User reported warning area."
+    description: str
     reported_by: str = "Anonymous"
+
+class MarkerCommentRequest(BaseModel):
+    comment: str
+    commented_by: str = "Anonymous"
 
 class RouteRequest(BaseModel):
     start_lat: float
@@ -151,6 +155,16 @@ def init_db():
             created_at TEXT NOT NULL
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS marker_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pin_id INTEGER NOT NULL,
+            comment TEXT NOT NULL,
+            commented_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(pin_id) REFERENCES danger_pins(id) ON DELETE CASCADE
+        )
+    """)
     conn.commit()
 
     admin_email = "admin@stms.com"
@@ -181,10 +195,11 @@ def init_db():
     cur.execute("SELECT COUNT(*) AS total FROM danger_pins")
     if cur.fetchone()["total"] == 0:
         sample_pins = [
-            ("Low-light walkway", "Dark Area", 16.4126, 120.5953, "Moderate", 350, "Reported dark path at night. Use a brighter route or travel with a group.", "System"),
-            ("Stray dogs reported", "Wildlife / Animal", 14.5810, 120.9805, "High", 250, "Users reported aggressive stray dogs nearby. Avoid the area and notify local authorities.", "System"),
-            ("Slippery trail section", "Danger Zone", 13.2589, 123.6871, "Moderate", 400, "Possible slippery path during rain. Wear proper footwear and avoid steep areas.", "System"),
-            ("Snake sighting", "Wildlife / Animal", 9.9178, 124.1650, "High", 300, "Possible snake/wildlife sighting. Stay on marked paths and avoid tall grass.", "System")
+            ("Low-light walkway", "Dark Area", 16.4126, 120.5953, "Moderate", 350, "Reported dark path. Use a brighter route or travel with a group.", "System"),
+            ("Stray dogs reported", "Dangerous Animals", 14.5810, 120.9805, "High", 250, "Users reported aggressive stray dogs nearby. Avoid the area and notify local authorities.", "System"),
+            ("Slippery trail section", "Hazard on Area", 13.2589, 123.6871, "Moderate", 400, "Possible slippery path during rain. Wear proper footwear and avoid steep areas.", "System"),
+            ("Snake sighting", "Dangerous Animals", 9.9178, 124.1650, "High", 300, "Possible snake/wildlife sighting. Stay on marked paths and avoid tall grass.", "System"),
+            ("Crowded entrance", "Crowdy Area", 11.9674, 121.9248, "Moderate", 300, "Heavy crowd near the entrance. Keep belongings secure and consider another route.", "System")
         ]
         cur.executemany(
             """INSERT INTO danger_pins
@@ -280,6 +295,9 @@ def get_danger_pins():
     cur = conn.cursor()
     cur.execute("SELECT * FROM danger_pins ORDER BY created_at DESC")
     rows = [dict(row) for row in cur.fetchall()]
+    for row in rows:
+        cur.execute("SELECT * FROM marker_comments WHERE pin_id=? ORDER BY created_at DESC", (row["id"],))
+        row["comments"] = [dict(comment) for comment in cur.fetchall()]
     conn.close()
     return rows
 
@@ -288,9 +306,11 @@ def add_danger_pin(data: DangerPinRequest):
     allowed_severity = ["Low", "Moderate", "High"]
     if data.severity not in allowed_severity:
         raise HTTPException(status_code=400, detail="Severity must be Low, Moderate, or High.")
-    allowed_types = ["Danger Zone", "Wildlife / Animal", "Dark Area", "General Warning"]
+    allowed_types = ["Danger Area", "Dark Area", "Crowdy Area", "Dangerous Animals", "Hazard on Area"]
     if data.danger_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="Invalid danger type.")
+        raise HTTPException(status_code=400, detail="Invalid marker type.")
+    if not data.description or len(data.description.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Description is required and must explain why you put the marker.")
     if data.radius_meters < 50 or data.radius_meters > 5000:
         raise HTTPException(status_code=400, detail="Radius must be between 50 and 5000 meters.")
     conn = db()
@@ -306,10 +326,31 @@ def add_danger_pin(data: DangerPinRequest):
     conn.close()
     return {"message": "Danger pin added", "id": new_id}
 
+
+@app.post("/danger-pins/{pin_id}/comments")
+def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
+    if not data.comment or len(data.comment.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Comment is required.")
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM danger_pins WHERE id=?", (pin_id,))
+    if not cur.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Marker not found.")
+    cur.execute(
+        "INSERT INTO marker_comments (pin_id,comment,commented_by,created_at) VALUES (?,?,?,?)",
+        (pin_id, data.comment.strip(), data.commented_by, datetime.now().isoformat())
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return {"message": "Comment added", "id": new_id}
+
 @app.delete("/danger-pins/{pin_id}")
 def delete_danger_pin(pin_id: int):
     conn = db()
     cur = conn.cursor()
+    cur.execute("DELETE FROM marker_comments WHERE pin_id=?", (pin_id,))
     cur.execute("DELETE FROM danger_pins WHERE id=?", (pin_id,))
     if cur.rowcount == 0:
         conn.close()
@@ -319,7 +360,7 @@ def delete_danger_pin(pin_id: int):
     return {"message": "Danger pin deleted"}
 
 @app.get("/safety-check")
-def safety_check(lat: float, lng: float, night_mode: bool = False):
+def safety_check(lat: float, lng: float):
     conn = db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM danger_pins")
@@ -337,11 +378,13 @@ def safety_check(lat: float, lng: float, night_mode: bool = False):
     nearby.sort(key=lambda p: p["distance_km"])
     alerts = []
     for pin in nearby:
-        if pin["danger_type"] == "Wildlife / Animal":
-            alerts.append(f"Wildlife alert: {pin['title']} is {pin['distance_km']} km away. Stay on marked paths and do not approach animals.")
-        elif pin["danger_type"] == "Dark Area" and night_mode:
-            alerts.append(f"Dark-area alert: {pin['title']} is near your location. Use a brighter path or travel with a companion.")
-        elif pin["danger_type"] in ["Danger Zone", "General Warning"]:
+        if pin["danger_type"] == "Dangerous Animals":
+            alerts.append(f"Dangerous animal alert: {pin['title']} is {pin['distance_km']} km away. Stay on marked paths and do not approach animals.")
+        elif pin["danger_type"] == "Dark Area":
+            alerts.append(f"Dark-area report: {pin['title']} is near your location. Use a brighter path or travel with a companion.")
+        elif pin["danger_type"] == "Crowdy Area":
+            alerts.append(f"Crowd alert: {pin['title']} is {pin['distance_km']} km away. Expect congestion and secure your belongings.")
+        else:
             alerts.append(f"Warning: {pin['title']} is {pin['distance_km']} km away. {pin['description']}")
 
     risk_level = "Low"
@@ -368,8 +411,6 @@ def recommend_route(data: RouteRequest):
     for pin in pins:
         radius_km = max(pin["radius_meters"] / 1000, 0.25)
         if route_intersects_zone(data.start_lat, data.start_lng, data.end_lat, data.end_lng, pin["lat"], pin["lng"], radius_km):
-            if pin["danger_type"] == "Dark Area" and not data.night_mode:
-                continue
             hazards.append(pin)
 
     if hazards:
@@ -387,7 +428,7 @@ def recommend_route(data: RouteRequest):
     }
 
 @app.get("/ai-advice")
-def get_ai_advice(lat: float, lng: float, location_type: str = "general", night_mode: bool = False):
+def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
     conn = db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM destinations")
@@ -427,10 +468,6 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general", night_
     if danger_nearby:
         first = danger_nearby[0]
         advice += f" Safety alert: {first['title']} ({first['danger_type']}) is {first['distance_km']} km away. {first['description']}"
-    if night_mode:
-        dark_count = len([p for p in danger_nearby if p["danger_type"] == "Dark Area"])
-        if dark_count:
-            advice += " Night mode warning: dark area detected nearby. Choose a brighter route."
 
     return {
         "latitude": lat,
@@ -458,5 +495,5 @@ def reports_summary():
         "total_users": total_users,
         "crowd_summary": crowd,
         "danger_summary": danger,
-        "ai_report": "The system recommends less crowded destinations, warns users near wildlife/danger/dark areas, and suggests safer routes when hazards are detected ahead."
+        "ai_report": "The system recommends less crowded destinations, warns users near danger, crowd, animal, hazard, and dark-area reports, and suggests safer routes when hazards are detected ahead."
     }
