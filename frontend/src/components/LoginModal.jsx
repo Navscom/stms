@@ -51,7 +51,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
           )}
           <button type="submit" className="primary-btn">{isRegister ? 'Sign Up' : 'Sign In'}</button>
         </form>
-        <p className="helper-text">Admin test account: admin@stms.com / admin123</p>
+        <p className="helper-text">The Login Page is case sensitive.</p>
         {message && <p className="message">{message}</p>}
         <p>{isRegister ? 'Have an account?' : 'No account?'}
           <span className="toggle-link" onClick={() => { setIsRegister(!isRegister); setMessage(''); }}>
