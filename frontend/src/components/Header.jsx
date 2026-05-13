@@ -1,11 +1,10 @@
-export default function Header({ advice, onLogin, onLogout, user, theme, onToggleTheme, onUseLocation }) {
+export default function Header({ advice, onLogin, onLogout, user, theme, onToggleTheme }) {
   return (
     <header className="header">
       <div className="header-actions">
         <button onClick={onToggleTheme} className="primary-btn">
           {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
         </button>
-        <button onClick={onUseLocation} className="secondary-btn">📍 Use My Location</button>
         {user ? (
           <button onClick={onLogout} className="primary-btn">Logout {user.name}</button>
         ) : (

@@ -16,11 +16,13 @@ function App() {
   const [dangerPins, setDangerPins] = useState([]);
   const [nearbyDangers, setNearbyDangers] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [lastClickLocation, setLastClickLocation] = useState(null);
   const [routeEnd, setRouteEnd] = useState(null);
   const [routePoints, setRoutePoints] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [pinMode, setPinMode] = useState(false);
+  const [locationMode, setLocationMode] = useState(false);
   const [showDestinations, setShowDestinations] = useState(true);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [user, setUser] = useState(null);
@@ -88,10 +90,6 @@ function App() {
   };
 
   const startMarkerPlacement = (lat, lng) => {
-    if (!captchaChecked) {
-      alert('Please check the CAPTCHA box first before placing a marker.');
-      return;
-    }
     if (!selectedMarkerType) {
       alert('Please choose a marker type first.');
       return;
@@ -157,8 +155,27 @@ function App() {
     }
   };
 
+  const deletePin = async (pinId) => {
+    try {
+      const res = await fetch(`${API}/danger-pins/${pinId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Unable to delete marker.');
+      await loadDangerPins();
+      setAdvice('Your marker was deleted successfully.');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const handleMapClick = (lat, lng) => {
     if (pinMode) return startMarkerPlacement(lat, lng);
+    if (locationMode) {
+      setAdvice('My Location ON. Turn it off to select another spot.');
+      return;
+    }
+    setLastClickLocation({ lat, lng });
     return fetchAdvice(lat, lng);
   };
 
@@ -166,7 +183,12 @@ function App() {
     setPendingMarkerLocation(null);
     setPinMode((prev) => {
       const next = !prev;
-      if (next) setShowDestinations(false);
+      if (next) {
+        setShowDestinations(false);
+        if (lastClickLocation) {
+          startMarkerPlacement(lastClickLocation.lat, lastClickLocation.lng);
+        }
+      }
       return next;
     });
   };
@@ -176,18 +198,37 @@ function App() {
     setShowDestinations((prev) => !prev);
   };
 
-  const useMyLocation = () => {
+  const toggleLocationMode = () => {
+    if (locationMode) {
+      setLocationMode(false);
+      setAdvice('Location mode is off. Click the map to select another spot.');
+      return;
+    }
+
     if (!navigator.geolocation) {
       setAdvice('Geolocation is not supported by your browser.');
       return;
     }
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => fetchAdvice(pos.coords.latitude, pos.coords.longitude),
+      async (pos) => {
+        setLocationMode(true);
+        setShowDestinations(false);
+        await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
+        setAdvice('My Location ON');
+      },
       () => setAdvice('Location permission denied. You can still click on the map.')
     );
   };
 
   const handleSelectDestination = (destination) => {
+    if (selectedDestinationId === destination.id) {
+      setSelectedDestinationId(null);
+      setSelectedLocation(null);
+      setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
+      return;
+    }
+
     setSelectedDestinationId(destination.id);
     setSelectedLocation({ lat: destination.lat, lng: destination.lng });
     setAdvice(`Showing ${destination.name} on the map. Click the map for AI safety advice.`);
@@ -197,6 +238,7 @@ function App() {
 
   const clearSelectedDestination = () => {
     setSelectedDestinationId(null);
+    setSelectedLocation(null);
     setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
   };
 
@@ -214,7 +256,6 @@ function App() {
         onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         onLogin={() => setIsModalOpen(true)}
         onLogout={() => setUser(null)}
-        onUseLocation={useMyLocation}
       />
 
       <section className="dashboard-grid">
@@ -223,6 +264,9 @@ function App() {
             <div className="safety-toolbar">
               <button className={pinMode ? 'primary-btn active' : 'secondary-btn'} onClick={togglePinMode}>
                 📍 {pinMode ? 'Add Marker ON' : 'Add Marker'}
+              </button>
+              <button className={locationMode ? 'primary-btn active' : 'secondary-btn'} onClick={toggleLocationMode}>
+                📍 {locationMode ? 'My Location ON' : 'Use My Location'}
               </button>
               <button className={showDestinations ? 'primary-btn active' : 'secondary-btn'} onClick={toggleShowDestinations}>
                 🧳 {showDestinations ? 'Destinations ON' : 'Tourist Destinations'}
@@ -302,8 +346,10 @@ function App() {
             selectedLocation={selectedLocation}
             routeEnd={routeEnd}
             routePoints={routePoints}
+            user={user}
             onLocationClick={handleMapClick}
             onAddComment={addMarkerComment}
+            onDeletePin={deletePin}
           />
         </div>
       </section>

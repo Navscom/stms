@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -102,6 +102,31 @@ function CommentBox({ pin, onAddComment }) {
   );
 }
 
+function DeletePinBox({ pin, user, onDeletePin }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const hasDeletePermission = user?.role === 'admin' || (user?.name && pin.reported_by === user.name);
+
+  if (!hasDeletePermission) {
+    return (
+      <div className="delete-pin-note">
+        <small>Only the user who added this pin can delete it.</small>
+      </div>
+    );
+  }
+
+  return (
+    <div className="delete-pin-box">
+      <label>
+        <input type="checkbox" checked={confirmDelete} onChange={(e) => setConfirmDelete(e.target.checked)} />
+        Confirm delete this pin
+      </label>
+      <button type="button" className="secondary-btn" disabled={!confirmDelete} onClick={() => onDeletePin(pin.id)}>
+        Delete pin
+      </button>
+    </div>
+  );
+}
+
 export default function MapView({
   onLocationClick,
   destinations,
@@ -110,7 +135,9 @@ export default function MapView({
   selectedLocation,
   routeEnd,
   routePoints,
+  user,
   onAddComment,
+  onDeletePin,
 }) {
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
 
@@ -134,13 +161,13 @@ export default function MapView({
         {dangerPins.map((pin) => {
           const style = markerStyle(pin);
           return (
-            <>
+            <Fragment key={`danger-${pin.id}`}>
               <Circle
                 center={[pin.lat, pin.lng]}
                 radius={pin.radius_meters}
                 pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: nearbyIds.has(pin.id) ? 0.35 : 0.16 }}
               />
-              <Marker key={`danger-${pin.id}`} position={[pin.lat, pin.lng]} icon={style.icon}>
+              <Marker position={[pin.lat, pin.lng]} icon={style.icon}>
                 <Popup maxWidth={320}>
                   <strong>{pin.danger_type}: {pin.title}</strong><br />
                   Severity: <b>{pin.severity}</b><br />
@@ -148,9 +175,10 @@ export default function MapView({
                   <p>{pin.description}</p>
                   <small>Reported by: {pin.reported_by}</small>
                   <CommentBox pin={pin} onAddComment={onAddComment} />
+                  <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
                 </Popup>
               </Marker>
-            </>
+            </Fragment>
           );
         })}
 

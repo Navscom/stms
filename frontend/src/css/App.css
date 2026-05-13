@@ -59,6 +59,10 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
 [data-theme='dark'] .destination-card.selected { background: rgba(21, 28, 38, 0.98); border-color: rgba(148, 163, 184, 0.68); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.40); }
 .destination-button { display: block; width: 100%; border: none; background: transparent; padding: 0; text-align: left; }
 .destination-button:focus { outline: none; }
+.delete-pin-box, .delete-pin-note { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); display: grid; gap: 10px; }
+.delete-pin-box label { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.delete-pin-box button { width: fit-content; }
+.delete-pin-box .secondary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .destination-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .destination-card h3 { margin: 0; font-size: 1.05rem; color: var(--accent); }
 .destination-card p { margin: 10px 0 0; line-height: 1.5; }
