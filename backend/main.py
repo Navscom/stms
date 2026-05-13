@@ -96,6 +96,13 @@ def make_detour(start_lat, start_lng, end_lat, end_lng, danger_lat, danger_lng):
     offset_lng = 0.015 if mid_lng <= danger_lng else -0.015
     return [[start_lat, start_lng], [mid_lat + offset_lat, mid_lng + offset_lng], [end_lat, end_lng]]
 
+def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance_meters: int = 70) -> bool:
+    try:
+        radius = float(radius_meters)
+    except (TypeError, ValueError):
+        radius = 0.0
+    return distance_km <= (radius + allowance_meters) / 1000
+
 # ------------------ ENDPOINTS ------------------
 
 @app.get("/")
@@ -187,11 +194,8 @@ def safety_check(lat: float, lng: float):
         distance_km = haversine(lat, lng, pin.get("lat", 0), pin.get("lng", 0))
         pin["distance_km"] = round(distance_km, 2)
         radius = pin.get("radius_meters", 300)
-        if isinstance(radius, (int, float)):
-            pin["inside_zone"] = distance_km <= (radius / 1000)
-        else:
-            pin["inside_zone"] = False
-        if distance_km <= 1.5 or pin.get("inside_zone", False):
+        pin["inside_zone"] = is_within_pin_warning_zone(distance_km, radius)
+        if pin["inside_zone"]:
             nearby.append(pin)
     nearby.sort(key=lambda p: p.get("distance_km", 0))
     risk_level = "Low"
@@ -249,23 +253,23 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         dist = haversine(lat, lng, p.get("lat", 0), p.get("lng", 0))
         p["distance_km"] = round(dist, 2)
         radius = p.get("radius_meters", 300)
-        if isinstance(radius, (int, float)):
-            p["inside_zone"] = dist <= (radius / 1000)
-        else:
-            p["inside_zone"] = False
-        if dist <= 1.5 or p.get("inside_zone", False):
+        p["inside_zone"] = is_within_pin_warning_zone(dist, radius)
+        if p["inside_zone"]:
             danger_nearby.append(p)
     danger_nearby.sort(key=lambda x: x.get("distance_km", 0))
 
     if nearest:
         top = nearest[0] if isinstance(nearest[0], dict) else {}
-        crowd_level = top.get("crowd_level")
-        crowd_note = {
-            "Low": "Crowd level is low, good time to visit.",
-            "Moderate": "Crowd level is moderate, expect some waiting.",
-            "High": "Crowd level is high, consider alternatives."
-        }.get(crowd_level, "Crowd status unavailable.") if isinstance(crowd_level, str) else "Crowd status unavailable."
-        advice = f"Nearest spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
+        if top.get("distance_km", 999) <= 1.0:
+            crowd_level = top.get("crowd_level")
+            crowd_note = {
+                "Low": "Crowd level is low, good time to visit.",
+                "Moderate": "Crowd level is moderate, expect some waiting.",
+                "High": "Crowd level is high, consider alternatives."
+            }.get(crowd_level, "Crowd status unavailable.") if isinstance(crowd_level, str) else "Crowd status unavailable."
+            advice = f"Nearest spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
+        else:
+            advice = "No tourist destination found."
     else:
         advice = "No tourist destination found."
 

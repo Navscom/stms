@@ -18,11 +18,11 @@ function App() {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [routeEnd, setRouteEnd] = useState(null);
   const [routePoints, setRoutePoints] = useState([]);
-  const [routeNote, setRouteNote] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [pinMode, setPinMode] = useState(false);
-  const [routeMode, setRouteMode] = useState(false);
+  const [showDestinations, setShowDestinations] = useState(true);
+  const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [user, setUser] = useState(null);
   const [report, setReport] = useState(null);
   const [captchaChecked, setCaptchaChecked] = useState(false);
@@ -75,7 +75,6 @@ function App() {
     setAdvice('Analyzing location, nearby spots, crowd condition, and safety warnings...');
     setRoutePoints([]);
     setRouteEnd(null);
-    setRouteNote('');
     try {
       const res = await fetch(`${API}/ai-advice?lat=${lat}&lng=${lng}`);
       const data = await res.json();
@@ -158,37 +157,23 @@ function App() {
     }
   };
 
-  const recommendRoute = async (endLat, endLng) => {
-    if (!selectedLocation) {
-      setAdvice('Select your starting location first before using route mode.');
-      return;
-    }
-    setRouteEnd({ lat: endLat, lng: endLng });
-    try {
-      const res = await fetch(`${API}/recommend-route`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          start_lat: selectedLocation.lat,
-          start_lng: selectedLocation.lng,
-          end_lat: endLat,
-          end_lng: endLng,
-        }),
-      });
-      const data = await res.json();
-      setRoutePoints(data.route_points || []);
-      setRouteNote(data.recommendation || 'Route generated.');
-      setAdvice(data.recommendation || 'Route generated.');
-      setNearbyDangers(data.hazards_ahead || []);
-    } catch (err) {
-      setAdvice('Unable to recommend route. Check backend connection.');
-    }
-  };
-
   const handleMapClick = (lat, lng) => {
     if (pinMode) return startMarkerPlacement(lat, lng);
-    if (routeMode) return recommendRoute(lat, lng);
     return fetchAdvice(lat, lng);
+  };
+
+  const togglePinMode = () => {
+    setPendingMarkerLocation(null);
+    setPinMode((prev) => {
+      const next = !prev;
+      if (next) setShowDestinations(false);
+      return next;
+    });
+  };
+
+  const toggleShowDestinations = () => {
+    setPinMode(false);
+    setShowDestinations((prev) => !prev);
   };
 
   const useMyLocation = () => {
@@ -200,6 +185,19 @@ function App() {
       (pos) => fetchAdvice(pos.coords.latitude, pos.coords.longitude),
       () => setAdvice('Location permission denied. You can still click on the map.')
     );
+  };
+
+  const handleSelectDestination = (destination) => {
+    setSelectedDestinationId(destination.id);
+    setSelectedLocation({ lat: destination.lat, lng: destination.lng });
+    setAdvice(`Showing ${destination.name} on the map. Click the map for AI safety advice.`);
+    setRoutePoints([]);
+    setRouteEnd(null);
+  };
+
+  const clearSelectedDestination = () => {
+    setSelectedDestinationId(null);
+    setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
   };
 
   const handleLoginSuccess = (loggedInUser) => {
@@ -219,71 +217,86 @@ function App() {
         onUseLocation={useMyLocation}
       />
 
-      <section className="safety-toolbar">
-        <button className={pinMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => { setPinMode(!pinMode); setRouteMode(false); setPendingMarkerLocation(null); }}>
-          📍 {pinMode ? 'Add Marker ON' : 'Add Marker'}
-        </button>
-        <button className={routeMode ? 'primary-btn active' : 'secondary-btn'} onClick={() => { setRouteMode(!routeMode); setPinMode(false); setPendingMarkerLocation(null); }}>
-          🧭 {routeMode ? 'Route Mode ON' : 'Recommend Safer Route'}
-        </button>
-      </section>
-
-      {pinMode && (
-        <section className="marker-panel">
-          <h2>Add Safety Marker</h2>
-          <p>Choose one marker type, check the CAPTCHA, then click the map location.</p>
-          <div className="marker-type-buttons">
-            {MARKER_TYPES.map((type) => (
-              <button
-                key={type}
-                className={selectedMarkerType === type ? 'primary-btn active' : 'secondary-btn'}
-                onClick={() => setSelectedMarkerType(type)}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-          <label className="captcha-box">
-            <input type="checkbox" checked={captchaChecked} onChange={(e) => setCaptchaChecked(e.target.checked)} />
-            I am not a robot and I understand that fake reports are not allowed.
-          </label>
-          {pendingMarkerLocation && (
-            <form className="marker-form" onSubmit={submitMarker}>
-              <strong>Selected location:</strong> {pendingMarkerLocation.lat.toFixed(5)}, {pendingMarkerLocation.lng.toFixed(5)}
-              <input
-                placeholder="Marker title"
-                value={markerForm.title}
-                onChange={(e) => setMarkerForm({ ...markerForm, title: e.target.value })}
-              />
-              <select value={markerForm.severity} onChange={(e) => setMarkerForm({ ...markerForm, severity: e.target.value })}>
-                <option>Low</option>
-                <option>Moderate</option>
-                <option>High</option>
-              </select>
-              <input
-                type="number"
-                min="50"
-                max="5000"
-                placeholder="Radius in meters"
-                value={markerForm.radius_meters}
-                onChange={(e) => setMarkerForm({ ...markerForm, radius_meters: e.target.value })}
-              />
-              <textarea
-                required
-                placeholder="Required: describe why you put this marker"
-                value={markerForm.description}
-                onChange={(e) => setMarkerForm({ ...markerForm, description: e.target.value })}
-              />
-              <button className="primary-btn" type="submit">Submit Marker</button>
-            </form>
-          )}
-        </section>
-      )}
-
       <section className="dashboard-grid">
+        <div className="map-side-panel">
+          <div className="control-card">
+            <div className="safety-toolbar">
+              <button className={pinMode ? 'primary-btn active' : 'secondary-btn'} onClick={togglePinMode}>
+                📍 {pinMode ? 'Add Marker ON' : 'Add Marker'}
+              </button>
+              <button className={showDestinations ? 'primary-btn active' : 'secondary-btn'} onClick={toggleShowDestinations}>
+                🧳 {showDestinations ? 'Destinations ON' : 'Tourist Destinations'}
+              </button>
+            </div>
+
+            {pinMode && (
+              <section className="marker-panel">
+                <h2>Add Safety Marker</h2>
+                <p>Choose one marker type, check the CAPTCHA, then click the map location.</p>
+                <div className="marker-type-buttons">
+                  {MARKER_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      className={selectedMarkerType === type ? 'primary-btn active' : 'secondary-btn'}
+                      onClick={() => setSelectedMarkerType(type)}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+                <label className="captcha-box">
+                  <input type="checkbox" checked={captchaChecked} onChange={(e) => setCaptchaChecked(e.target.checked)} />
+                  I am not a robot and I understand that fake reports are not allowed.
+                </label>
+                {pendingMarkerLocation && (
+                  <form className="marker-form" onSubmit={submitMarker}>
+                    <strong>Selected location:</strong> {pendingMarkerLocation.lat.toFixed(5)}, {pendingMarkerLocation.lng.toFixed(5)}
+                    <input
+                      placeholder="Marker title"
+                      value={markerForm.title}
+                      onChange={(e) => setMarkerForm({ ...markerForm, title: e.target.value })}
+                    />
+                    <select value={markerForm.severity} onChange={(e) => setMarkerForm({ ...markerForm, severity: e.target.value })}>
+                      <option>Low</option>
+                      <option>Moderate</option>
+                      <option>High</option>
+                    </select>
+                    <input
+                      type="number"
+                      min="50"
+                      max="5000"
+                      placeholder="Radius in meters"
+                      value={markerForm.radius_meters}
+                      onChange={(e) => setMarkerForm({ ...markerForm, radius_meters: e.target.value })}
+                    />
+                    <textarea
+                      required
+                      placeholder="Required: describe why you put this marker"
+                      value={markerForm.description}
+                      onChange={(e) => setMarkerForm({ ...markerForm, description: e.target.value })}
+                    />
+                    <button className="primary-btn" type="submit">Submit Marker</button>
+                  </form>
+                )}
+              </section>
+            )}
+          </div>
+
+          {showDestinations && (
+            <DestinationList
+              destinations={destinations}
+              nearest={nearest}
+              selectedDestinationId={selectedDestinationId}
+              onSelectDestination={handleSelectDestination}
+              onClearSelection={clearSelectedDestination}
+              inline
+            />
+          )}
+        </div>
+
         <div className="map-card">
           <MapView
-            destinations={destinations}
+            destinations={destinations.filter((d) => !selectedDestinationId || d.id === selectedDestinationId)}
             dangerPins={dangerPins}
             nearbyDangers={nearbyDangers}
             selectedLocation={selectedLocation}
@@ -292,9 +305,7 @@ function App() {
             onLocationClick={handleMapClick}
             onAddComment={addMarkerComment}
           />
-          {routeNote && <div className="route-note">🧭 {routeNote}</div>}
         </div>
-        <DestinationList destinations={destinations} nearest={nearest} />
       </section>
 
       <section className="warning-panel">
@@ -311,7 +322,6 @@ function App() {
       {report && (
         <section className="report-grid">
           <div className="stat-card"><h3>{report.total_destinations}</h3><p>Total Destinations</p></div>
-          <div className="stat-card"><h3>{report.total_users}</h3><p>Registered Users</p></div>
           <div className="stat-card"><h3>{report.crowd_summary.High || 0}</h3><p>High Crowd Areas</p></div>
           <div className="stat-card"><h3>{report.danger_summary?.High || 0}</h3><p>High Danger Reports</p></div>
         </section>
