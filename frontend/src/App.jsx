@@ -6,8 +6,17 @@ import DestinationList from './components/DestinationList';
 import AdminPanel from './components/AdminPanel';
 
 const API = 'http://127.0.0.1:8000';
-
 const MARKER_TYPES = ['Danger Area', 'Dark Area', 'Crowdy Area', 'Dangerous Animals', 'Hazard on Area'];
+const DEFAULT_MARKER_FORM = { title: '', severity: 'Moderate', radius_meters: 300, description: '' };
+
+async function fetchJson(path, options) {
+  const response = await fetch(`${API}${path}`, options);
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(payload?.detail || 'Server error.');
+  }
+  return payload;
+}
 
 function App() {
   const [advice, setAdvice] = useState('Click anywhere in the Philippines for AI geolocation guidance.');
@@ -17,8 +26,6 @@ function App() {
   const [nearbyDangers, setNearbyDangers] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [lastClickLocation, setLastClickLocation] = useState(null);
-  const [routeEnd, setRouteEnd] = useState(null);
-  const [routePoints, setRoutePoints] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [pinMode, setPinMode] = useState(false);
@@ -30,33 +37,22 @@ function App() {
   const [captchaChecked, setCaptchaChecked] = useState(false);
   const [selectedMarkerType, setSelectedMarkerType] = useState('Danger Area');
   const [pendingMarkerLocation, setPendingMarkerLocation] = useState(null);
-  const [markerForm, setMarkerForm] = useState({
-    title: '',
-    severity: 'Moderate',
-    radius_meters: 300,
-    description: '',
-  });
+  const [markerForm, setMarkerForm] = useState(DEFAULT_MARKER_FORM);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
   const loadDestinations = async () => {
-    const res = await fetch(`${API}/destinations`);
-    const data = await res.json();
-    setDestinations(data);
+    setDestinations((await fetchJson('/destinations')) || []);
   };
 
   const loadDangerPins = async () => {
-    const res = await fetch(`${API}/danger-pins`);
-    const data = await res.json();
-    setDangerPins(data);
+    setDangerPins((await fetchJson('/danger-pins')) || []);
   };
 
   const loadReport = async () => {
-    const res = await fetch(`${API}/reports/summary`);
-    const data = await res.json();
-    setReport(data);
+    setReport((await fetchJson('/reports/summary')) || null);
   };
 
   useEffect(() => {
@@ -66,8 +62,7 @@ function App() {
   }, []);
 
   const checkSafety = async (lat, lng) => {
-    const res = await fetch(`${API}/safety-check?lat=${lat}&lng=${lng}`);
-    const data = await res.json();
+    const data = await fetchJson(`/safety-check?lat=${lat}&lng=${lng}`);
     setNearbyDangers(data.nearby_dangers || []);
     return data;
   };
@@ -75,16 +70,14 @@ function App() {
   const fetchAdvice = async (lat, lng) => {
     setSelectedLocation({ lat, lng });
     setAdvice('Analyzing location, nearby spots, crowd condition, and safety warnings...');
-    setRoutePoints([]);
-    setRouteEnd(null);
+
     try {
-      const res = await fetch(`${API}/ai-advice?lat=${lat}&lng=${lng}`);
-      const data = await res.json();
+      const adviceData = await fetchJson(`/ai-advice?lat=${lat}&lng=${lng}`);
       const safety = await checkSafety(lat, lng);
-      setAdvice(`${data.advice} ${safety.alerts?.join(' ') || ''}`);
-      setNearest(data.nearest_destinations || []);
-      setNearbyDangers(data.nearby_dangers || []);
-    } catch (e) {
+      setAdvice(`${adviceData.advice} ${safety.alerts?.join(' ') || ''}`);
+      setNearest(adviceData.nearest_destinations || []);
+      setNearbyDangers(adviceData.nearby_dangers || []);
+    } catch (error) {
       setAdvice('Backend error. Make sure FastAPI is running on http://127.0.0.1:8000');
     }
   };
@@ -95,22 +88,26 @@ function App() {
       return;
     }
     setPendingMarkerLocation({ lat, lng });
-    setMarkerForm({
-      title: selectedMarkerType,
-      severity: 'Moderate',
-      radius_meters: 300,
-      description: '',
-    });
+    setMarkerForm({ ...DEFAULT_MARKER_FORM, title: selectedMarkerType });
   };
 
   const submitMarker = async (e) => {
     e.preventDefault();
-    if (!captchaChecked) return alert('Please check the CAPTCHA box.');
-    if (!pendingMarkerLocation) return alert('Click the map location first.');
-    if (!markerForm.description.trim()) return alert('Description is required. Explain why you put this marker.');
+    if (!captchaChecked) {
+      alert('Please check the CAPTCHA box.');
+      return;
+    }
+    if (!pendingMarkerLocation) {
+      alert('Click the map location first.');
+      return;
+    }
+    if (!markerForm.description.trim()) {
+      alert('Description is required. Explain why you put this marker.');
+      return;
+    }
 
     try {
-      const res = await fetch(`${API}/danger-pins`, {
+      await fetchJson('/danger-pins', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,15 +121,14 @@ function App() {
           reported_by: user?.name || 'Anonymous Tourist',
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Unable to add marker.');
+
       await loadDangerPins();
       await loadReport();
       setPendingMarkerLocation(null);
-      setMarkerForm({ title: '', severity: 'Moderate', radius_meters: 300, description: '' });
+      setMarkerForm(DEFAULT_MARKER_FORM);
       setAdvice(`${selectedMarkerType} marker added successfully. Other users can now see and comment on it.`);
-    } catch (err) {
-      alert(err.message);
+    } catch (error) {
+      alert(error.message);
     }
   };
 
@@ -232,8 +228,6 @@ function App() {
     setSelectedDestinationId(destination.id);
     setSelectedLocation({ lat: destination.lat, lng: destination.lng });
     setAdvice(`Showing ${destination.name} on the map. Click the map for AI safety advice.`);
-    setRoutePoints([]);
-    setRouteEnd(null);
   };
 
   const clearSelectedDestination = () => {
@@ -344,8 +338,6 @@ function App() {
             dangerPins={dangerPins}
             nearbyDangers={nearbyDangers}
             selectedLocation={selectedLocation}
-            routeEnd={routeEnd}
-            routePoints={routePoints}
             user={user}
             onLocationClick={handleMapClick}
             onAddComment={addMarkerComment}

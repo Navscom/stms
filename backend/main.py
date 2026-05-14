@@ -1,22 +1,23 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from supabase import create_client, Client
+from supabase import Client, create_client
 import hashlib
 import math
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Supabase connection
-SUPABASE_URL = "https://wadbanidenbapkgoejug.supabase.co"
-SUPABASE_KEY = "sb_publishable_fU17IEKiviMfCc-WWpmdGA_VAMSl413"
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://wadbanidenbapkgoejug.supabase.co')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY', 'sb_publishable_fU17IEKiviMfCc-WWpmdGA_VAMSl413')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Smart Tourism Management System API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -103,6 +104,9 @@ def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance
         radius = 0.0
     return distance_km <= (radius + allowance_meters) / 1000
 
+def safe_data(response: Any) -> List[Dict[str, Any]]:
+    return getattr(response, 'data', []) or []
+
 # ------------------ ENDPOINTS ------------------
 
 @app.get("/")
@@ -133,14 +137,15 @@ def register(data: RegisterRequest):
 def login(data: LoginRequest):
     hashed_pw = hash_password(data.password)
     response = supabase.table("users").select("*").eq("email", data.email).eq("password", hashed_pw).execute()
-    if not response.data:
+    users = safe_data(response)
+    if not users:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
-    return {"message": "Login successful", "user": response.data[0]}
+    return {"message": "Login successful", "user": users[0]}
 
 @app.get("/destinations")
 def get_destinations():
     response = supabase.table("destinations").select("*").order("name").execute()
-    return response.data
+    return safe_data(response)
 
 @app.post("/destinations")
 def add_destination(data: DestinationRequest):
@@ -156,7 +161,7 @@ def add_destination(data: DestinationRequest):
         "crowd_level": data.crowd_level,
         "updated_at": datetime.now().isoformat()
     }).execute()
-    data_list: List[Dict[str, Any]] = response.data or []  # type: ignore
+    data_list: List[Dict[str, Any]] = safe_data(response)
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add destination")
     return {"message": "Destination added", "id": data_list[0]["id"]}
@@ -172,7 +177,7 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
         "updated_at": datetime.now().isoformat()
     }).eq("id", destination_id).execute()
 
-    if not response.data:
+    if not safe_data(response):
         raise HTTPException(status_code=404, detail="Destination not found.")
 
     supabase.table("crowd_reports").insert({
@@ -186,7 +191,7 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
 @app.get("/safety-check")
 def safety_check(lat: float, lng: float):
     response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = response.data if response.data else []  # type: ignore
+    pins: List[Dict[str, Any]] = safe_data(response)
     nearby = []
     for pin in pins:
         if not isinstance(pin, dict):
@@ -208,7 +213,7 @@ def safety_check(lat: float, lng: float):
 @app.post("/recommend-route")
 def recommend_route(data: RouteRequest):
     response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = response.data if response.data else []  # type: ignore
+    pins: List[Dict[str, Any]] = safe_data(response)
     hazards = []
     for pin in pins:
         if not isinstance(pin, dict):
@@ -289,12 +294,12 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
 def reports_summary():
     # Count destinations
     dest_response = supabase.table("destinations").select("crowd_level").execute()
-    destinations: List[Dict[str, Any]] = dest_response.data if dest_response.data else []  # type: ignore
+    destinations: List[Dict[str, Any]] = safe_data(dest_response)
     total_destinations = len(destinations)
 
     # Count users
     user_response = supabase.table("users").select("id").execute()
-    users: List[Dict[str, Any]] = user_response.data if user_response.data else []  # type: ignore
+    users: List[Dict[str, Any]] = safe_data(user_response)
     total_users = len(users)
 
     # Crowd summary
@@ -307,7 +312,7 @@ def reports_summary():
 
     # Danger summary
     danger_response = supabase.table("danger_pins").select("severity").execute()
-    danger_pins: List[Dict[str, Any]] = danger_response.data if danger_response.data else []  # type: ignore
+    danger_pins: List[Dict[str, Any]] = safe_data(danger_response)
     danger_summary = {}
     for p in danger_pins:
         if isinstance(p, dict):
@@ -327,14 +332,14 @@ def reports_summary():
 @app.get("/danger-pins")
 def get_danger_pins():
     response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = response.data if response.data else []  # type: ignore
+    pins: List[Dict[str, Any]] = safe_data(response)
     for pin in pins:
         if not isinstance(pin, dict):
             continue
         pin_id = pin.get("id")
         if pin_id is not None:
             comments_response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
-            comments = comments_response.data if comments_response.data else []
+            comments = safe_data(comments_response)
             pin["comments"] = comments
     return pins
 
@@ -351,7 +356,7 @@ def add_danger_pin(data: DangerPinRequest):
         "reported_by": data.reported_by,
         "created_at": datetime.now().isoformat()
     }).execute()
-    data_list: List[Dict[str, Any]] = response.data or []  # type: ignore
+    data_list: List[Dict[str, Any]] = safe_data(response)
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add danger pin")
     return {"message": "Danger pin added", "id": data_list[0]["id"]}
@@ -364,7 +369,7 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
         "commented_by": data.commented_by,
         "created_at": datetime.now().isoformat()
     }).execute()
-    data_list: List[Dict[str, Any]] = response.data or []  # type: ignore
+    data_list: List[Dict[str, Any]] = safe_data(response)
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add comment")
     return {"message": "Comment added", "id": data_list[0]["id"]}
@@ -373,6 +378,6 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
 def delete_danger_pin(pin_id: int):
     supabase.table("marker_comments").delete().eq("pin_id", pin_id).execute()
     response = supabase.table("danger_pins").delete().eq("id", pin_id).execute()
-    if not response.data:
+    if not safe_data(response):
         raise HTTPException(status_code=404, detail="Danger pin not found.")
     return {"message": "Danger pin deleted"}
