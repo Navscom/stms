@@ -32,7 +32,13 @@ function App() {
   const [locationMode, setLocationMode] = useState(false);
   const [showDestinations, setShowDestinations] = useState(true);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(window.sessionStorage.getItem('stms_user')) || null;
+    } catch {
+      return null;
+    }
+  });
   const [report, setReport] = useState(null);
   const [captchaChecked, setCaptchaChecked] = useState(false);
   const [captchaWarning, setCaptchaWarning] = useState('');
@@ -40,10 +46,27 @@ function App() {
   const [selectedMarkerType, setSelectedMarkerType] = useState('Danger Area');
   const [pendingMarkerLocation, setPendingMarkerLocation] = useState(null);
   const [markerForm, setMarkerForm] = useState(DEFAULT_MARKER_FORM);
+  const [loginPromptMessage, setLoginPromptMessage] = useState('');
+  const [showNotification, setShowNotification] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (showNotification) {
+      const timer = setTimeout(() => setShowNotification(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showNotification]);
+
+  useEffect(() => {
+    if (user) {
+      window.sessionStorage.setItem('stms_user', JSON.stringify(user));
+    } else {
+      window.sessionStorage.removeItem('stms_user');
+    }
+  }, [user]);
 
   const loadDestinations = async () => {
     setDestinations((await fetchJson('/destinations')) || []);
@@ -85,6 +108,12 @@ function App() {
   };
 
   const startMarkerPlacement = (lat, lng) => {
+    if (!user) {
+      setLoginPromptMessage('You need to login first before adding a new marker.');
+      setIsModalOpen(true);
+      setPinMode(false);
+      return;
+    }
     if (!selectedMarkerType) {
       alert('Please choose a marker type first.');
       return;
@@ -95,6 +124,11 @@ function App() {
 
   const submitMarker = async (e) => {
     e.preventDefault();
+    if (!user) {
+      setLoginPromptMessage('You need to login first before adding a new marker.');
+      setIsModalOpen(true);
+      return;
+    }
     if (!captchaChecked) {
       setCaptchaWarning('Check the CAPTCHA box before submitting your marker.');
       return;
@@ -141,6 +175,7 @@ function App() {
       await loadReport();
       setPendingMarkerLocation(null);
       setMarkerForm(DEFAULT_MARKER_FORM);
+      setShowNotification(true);
       setAdvice(`${selectedMarkerType} marker added successfully. Other users can now see and comment on it.`);
     } catch (error) {
       alert(error.message);
@@ -191,6 +226,11 @@ function App() {
   };
 
   const togglePinMode = () => {
+    if (!user) {
+      setLoginPromptMessage('You need to login first before adding a new marker.');
+      setIsModalOpen(true);
+      return;
+    }
     setPendingMarkerLocation(null);
     setPinMode((prev) => {
       const next = !prev;
@@ -254,17 +294,64 @@ function App() {
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);
     setIsModalOpen(false);
+    setLoginPromptMessage('');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setIsModalOpen(false);
+    setPinMode(false);
+    setPendingMarkerLocation(null);
+    setLoginPromptMessage('');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user?.email) {
+      setAdvice('Unable to delete account: no logged in user.');
+      return;
+    }
+
+    try {
+      await fetchJson('/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+      window.localStorage.removeItem('stms_remembered_login');
+      setUser(null);
+      setIsModalOpen(false);
+      setPinMode(false);
+      setPendingMarkerLocation(null);
+      setLoginPromptMessage('Your account has been deleted.');
+      setAdvice('Your account has been deleted. Login or register again to continue.');
+    } catch (error) {
+      setAdvice(error.message || 'Failed to delete account.');
+    }
+  };
+
+  const closeLoginModal = () => {
+    setIsModalOpen(false);
+    setLoginPromptMessage('');
   };
 
   return (
     <div className="app-shell">
+      {showNotification && (
+        <div className="notification-overlay">
+          <div className="notification-success">
+            <span className="notification-icon">✓</span>
+            <span className="notification-text">Marker Successfully Added</span>
+          </div>
+        </div>
+      )}
       <Header
         advice={advice}
         theme={theme}
         user={user}
         onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         onLogin={() => setIsModalOpen(true)}
-        onLogout={() => setUser(null)}
+        onLogout={handleLogout}
+        onDeleteAccount={handleDeleteAccount}
       />
 
       <section className="dashboard-grid">
@@ -419,7 +506,13 @@ function App() {
         <AdminPanel api={API} destinations={destinations} onRefresh={() => { loadDestinations(); loadDangerPins(); loadReport(); }} />
       )}
 
-      <LoginModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onLoginSuccess={handleLoginSuccess} api={API} />
+      <LoginModal
+        isOpen={isModalOpen}
+        onClose={closeLoginModal}
+        onLoginSuccess={handleLoginSuccess}
+        api={API}
+        infoMessage={loginPromptMessage}
+      />
     </div>
   );
 }

@@ -29,6 +29,14 @@ const dangerStyles = {
   'Hazard on Area': { color: '#7c3aed', icon: ICONS.violet },
 };
 
+const DESTINATION_ICON = new L.DivIcon({
+  html: '<div class="destination-pin"><span>🧭</span></div>',
+  className: 'destination-pin-icon',
+  iconSize: [44, 58],
+  iconAnchor: [22, 58],
+  popupAnchor: [0, -48],
+});
+
 const dangerMarkerMeta = {
   'Danger Area': { color: '#dc2626', emoji: '❗', extraClass: 'danger-area' },
   'Dark Area': { color: '#111827', emoji: '🌙', extraClass: 'dark-area' },
@@ -205,7 +213,7 @@ export default function MapView({
         <MapClickHandler onLocationClick={onLocationClick} />
 
         {destinations.map((d) => (
-          <Marker key={`dest-${d.id}`} position={[d.lat, d.lng]} icon={ICONS.blue}>
+          <Marker key={`dest-${d.id}`} position={[d.lat, d.lng]} icon={DESTINATION_ICON}>
             <Popup>
               <strong>{d.name}</strong><br />
               {d.city}, {d.province}<br />

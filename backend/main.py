@@ -35,6 +35,9 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class DeleteAccountRequest(BaseModel):
+    email: EmailStr
+
 class DestinationRequest(BaseModel):
     name: str
     category: str
@@ -268,6 +271,16 @@ def login(data: LoginRequest):
     if not users:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     return {"message": "Login successful", "user": users[0]}
+
+@app.post("/delete-account")
+def delete_account(data: DeleteAccountRequest):
+    response = supabase.table("users").delete().eq("email", data.email).execute()
+    if getattr(response, 'error', None):
+        raise HTTPException(status_code=500, detail="Failed to delete account.")
+    deleted_rows = safe_data(response)
+    if not deleted_rows:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return {"message": "Account deleted successfully."}
 
 @app.get("/destinations")
 def get_destinations():
