@@ -29,6 +29,43 @@ const dangerStyles = {
   'Hazard on Area': { color: '#7c3aed', icon: ICONS.violet },
 };
 
+const dangerMarkerMeta = {
+  'Danger Area': { color: '#dc2626', emoji: '❗', extraClass: 'danger-area' },
+  'Dark Area': { color: '#111827', emoji: '🌙', extraClass: 'dark-area' },
+  'Crowdy Area': { color: '#f59e0b', emoji: '👥', extraClass: 'crowdy-area' },
+  'Dangerous Animals': { color: '#f97316', emoji: '🐾', extraClass: 'dangerous-animals' },
+  'Hazard on Area': { color: '#7c3aed', emoji: '⚠️', extraClass: 'hazard-area' },
+};
+
+const createDangerIcon = ({ color, emoji, extraClass, isNearby = false }) => new L.DivIcon({
+  html: `<div class="danger-pin danger-pin--${extraClass}${isNearby ? ' danger-pin--nearby' : ''}" style="background: ${color};">` +
+    `<span>${emoji}</span></div>`,
+  className: 'danger-pin-icon',
+  iconSize: [38, 46],
+  iconAnchor: [19, 46],
+  popupAnchor: [0, -38],
+});
+
+const getDangerIcon = (pin, isNearby) => {
+  const meta = dangerMarkerMeta[pin.danger_type] || dangerMarkerMeta['Danger Area'];
+  return createDangerIcon({ ...meta, isNearby });
+};
+
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return 'Unknown';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+const PERSON_ICON = new L.DivIcon({
+  html: '<div class="person-pin"><span>YOU</span><div class="person-pin-tail"></div></div>',
+  className: 'person-pin-icon',
+  iconSize: [48, 64],
+  iconAnchor: [24, 64],
+  popupAnchor: [0, -52],
+});
+
 function MapClickHandler({ onLocationClick }) {
   useMapEvents({
     click(e) {
@@ -101,11 +138,54 @@ export default function MapView({
   dangerPins,
   nearbyDangers,
   selectedLocation,
+  pendingMarkerLocation,
+  selectedMarkerType,
   user,
   onAddComment,
   onDeletePin,
 }) {
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
+
+  const getDurationHours = (pin) => {
+    const hoursValue = Number(pin?.duration_hours ?? NaN);
+    if (!Number.isNaN(hoursValue) && hoursValue > 0) {
+      return hoursValue;
+    }
+    const minutes = Number(pin?.duration_minutes ?? pin?.duration ?? 0);
+    if (minutes > 0) {
+      return minutes / 60;
+    }
+    return 0;
+  };
+
+  const renderDuration = (pin) => {
+    const totalHours = getDurationHours(pin);
+    if (!totalHours) return null;
+    const days = Math.floor(totalHours / 24);
+    const hours = Math.floor(totalHours % 24);
+    if (days) {
+      return `${days} day${days !== 1 ? 's' : ''}${hours ? ` ${hours} hour${hours !== 1 ? 's' : ''}` : ''}`;
+    }
+    if (totalHours >= 1) {
+      return `${Math.round(totalHours)} hour${Math.round(totalHours) !== 1 ? 's' : ''}`;
+    }
+    return `${Math.round(totalHours * 60)} minute${Math.round(totalHours * 60) !== 1 ? 's' : ''}`;
+  };
+
+  const isPinExpired = (pin) => {
+    try {
+      const durationHours = getDurationHours(pin);
+      if (!durationHours || !pin?.created_at) return false;
+      const created = new Date(pin.created_at);
+      if (Number.isNaN(created.getTime())) return false;
+      const expireTime = created.getTime() + durationHours * 60 * 60 * 1000;
+      return Date.now() > expireTime;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const visibleDangerPins = (dangerPins || []).filter((p) => !isPinExpired(p));
 
   return (
     <div className="map-container-wrapper">
@@ -135,8 +215,9 @@ export default function MapView({
           </Marker>
         ))}
 
-        {dangerPins.map((pin) => {
+        {visibleDangerPins.map((pin) => {
           const style = dangerStyles[pin.danger_type] || dangerStyles['Danger Area'];
+          const icon = getDangerIcon(pin, nearbyIds.has(pin.id));
           return (
             <Fragment key={`danger-${pin.id}`}>
               <Circle
@@ -148,13 +229,15 @@ export default function MapView({
                   fillOpacity: nearbyIds.has(pin.id) ? 0.35 : 0.16,
                 }}
               />
-              <Marker position={[pin.lat, pin.lng]} icon={style.icon}>
+              <Marker position={[pin.lat, pin.lng]} icon={icon}>
                 <Popup maxWidth={320}>
                   <strong>{pin.danger_type}: {pin.title}</strong><br />
                   Severity: <b>{pin.severity}</b><br />
                   Radius: {pin.radius_meters}m<br />
+                  {renderDuration(pin) && <>Duration: {renderDuration(pin)}<br /></>}
+                  <small>Reported by: {pin.reported_by}</small><br />
+                  <small>Reported on: {formatTimestamp(pin.created_at)}</small>
                   <p>{pin.description}</p>
-                  <small>Reported by: {pin.reported_by}</small>
                   <CommentBox pin={pin} onAddComment={onAddComment} />
                   <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
                 </Popup>
@@ -164,8 +247,17 @@ export default function MapView({
         })}
 
         {selectedLocation && (
-          <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={ICONS.green}>
+          <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={PERSON_ICON}>
             <Popup>Your selected location</Popup>
+          </Marker>
+        )}
+
+        {pendingMarkerLocation && (
+          <Marker
+            position={[pendingMarkerLocation.lat, pendingMarkerLocation.lng]}
+            icon={getDangerIcon({ danger_type: selectedMarkerType || 'Danger Area' }, false)}
+          >
+            <Popup>Pending {selectedMarkerType || 'Danger Area'} marker. Click anywhere else on the map to move it.</Popup>
           </Marker>
         )}
       </MapContainer>

@@ -1,11 +1,12 @@
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, root_validator
 from supabase import Client, create_client
 import hashlib
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
+import asyncio
 from typing import Any, Dict, List
 
 # Supabase connection
@@ -17,7 +18,7 @@ app = FastAPI(title="Smart Tourism Management System API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,7 +57,19 @@ class DangerPinRequest(BaseModel):
     severity: str = "Moderate"
     radius_meters: int = 300
     description: str
+    duration_hours: float = 0
     reported_by: str = "Anonymous"
+
+    @root_validator(pre=True)
+    def normalize_duration(cls, values):
+        if values.get("duration_hours") is None:
+            minutes = values.get("duration")
+            if minutes is not None:
+                try:
+                    values["duration_hours"] = float(minutes) / 60.0
+                except Exception:
+                    values["duration_hours"] = 0
+        return values
 
 class MarkerCommentRequest(BaseModel):
     comment: str
@@ -106,6 +119,120 @@ def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance
 
 def safe_data(response: Any) -> List[Dict[str, Any]]:
     return getattr(response, 'data', []) or []
+
+
+def parse_timestamp(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+
+def _get_duration_hours(pin: Dict[str, Any]) -> float:
+    if not isinstance(pin, dict):
+        return 0.0
+    try:
+        if pin.get("duration_hours") is not None:
+            return float(pin.get("duration_hours") or 0)
+        if pin.get("minutes") is not None:
+            return float(pin.get("minutes") or 0) / 60.0
+        if pin.get("duration_minutes") is not None:
+            return float(pin.get("duration_minutes") or 0) / 60.0
+        if pin.get("duration") is not None:
+            return float(pin.get("duration") or 0) / 60.0
+    except Exception:
+        return 0.0
+    return 0.0
+
+
+def _pin_inactive(pin: Dict[str, Any]) -> bool:
+    # returns True if pin is expired or soft-deleted
+    if not isinstance(pin, dict):
+        return True
+    # removed flag
+    if pin.get("removed_at"):
+        return True
+    # duration expiry
+    duration = _get_duration_hours(pin)
+    if duration:
+        created = parse_timestamp(pin.get("created_at"))
+        if created and datetime.now() > (created + timedelta(hours=duration)):
+            return True
+    return False
+
+
+def _is_duration_expired(pin: Dict[str, Any]) -> bool:
+    # True only if expired by duration (not soft-deleted)
+    if not isinstance(pin, dict):
+        return False
+    duration = _get_duration_hours(pin)
+    if not duration:
+        return False
+    created = parse_timestamp(pin.get("created_at"))
+    if not created:
+        return False
+    return datetime.now() > (created + timedelta(hours=duration))
+
+def move_expired_pins() -> int:
+    """Move duration-expired pins from `danger_pins` into `expired_pins` table.
+    Returns number of pins moved.
+    """
+    resp = supabase.table("danger_pins").select("*").execute()
+    pins: List[Dict[str, Any]] = safe_data(resp)
+    expired = [p for p in pins if _is_duration_expired(p)]
+    if not expired:
+        return 0
+
+    # Prepare rows for insertion into expired_pins
+    insert_rows = []
+    ids_to_delete = []
+    for p in expired:
+        row = dict(p)
+        row["moved_at"] = datetime.now().isoformat()
+        insert_rows.append(row)
+        if p.get("id") is not None:
+            ids_to_delete.append(p.get("id"))
+
+    # Insert into expired_pins, preserving original ids (use upsert to avoid new ids)
+    try:
+        supabase.table("expired_pins").upsert(insert_rows).execute()
+    except Exception:
+        # If insert fails, do not delete originals
+        return 0
+
+    # Delete moved pins from danger_pins
+    try:
+        supabase.table("danger_pins").delete().in_("id", ids_to_delete).execute()
+    except Exception:
+        # deletion failure is non-fatal here
+        pass
+
+    return len(ids_to_delete)
+
+@app.post("/danger-pins/move-expired")
+def move_expired_endpoint():
+    count = move_expired_pins()
+    return {"moved": count}
+
+
+@app.on_event("startup")
+async def start_periodic_expiry_move():
+    async def _periodic():
+        while True:
+            try:
+                # run blocking move in threadpool
+                await asyncio.to_thread(move_expired_pins)
+            except Exception:
+                pass
+            await asyncio.sleep(60)
+    asyncio.create_task(_periodic())
 
 # ------------------ ENDPOINTS ------------------
 
@@ -192,6 +319,8 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
 def safety_check(lat: float, lng: float):
     response = supabase.table("danger_pins").select("*").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
+    # filter out expired or removed pins
+    pins = [p for p in pins if not _pin_inactive(p)]
     nearby = []
     for pin in pins:
         if not isinstance(pin, dict):
@@ -214,6 +343,7 @@ def safety_check(lat: float, lng: float):
 def recommend_route(data: RouteRequest):
     response = supabase.table("danger_pins").select("*").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
+    pins = [p for p in pins if not _pin_inactive(p)]
     hazards = []
     for pin in pins:
         if not isinstance(pin, dict):
@@ -240,6 +370,7 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
     destinations: List[Dict[str, Any]] = dest_response.data if dest_response.data else []  # type: ignore
     pin_response = supabase.table("danger_pins").select("*").execute()
     pins: List[Dict[str, Any]] = pin_response.data if pin_response.data else []  # type: ignore
+    pins = [p for p in pins if not _pin_inactive(p)]
 
     ranked = []
     for d in destinations:
@@ -292,56 +423,72 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
 
 @app.get("/reports/summary")
 def reports_summary():
-    # Count destinations
-    dest_response = supabase.table("destinations").select("crowd_level").execute()
-    destinations: List[Dict[str, Any]] = safe_data(dest_response)
-    total_destinations = len(destinations)
+    try:
+        # Count destinations
+        dest_response = supabase.table("destinations").select("crowd_level").execute()
+        destinations: List[Dict[str, Any]] = safe_data(dest_response)
+        total_destinations = len(destinations)
 
-    # Count users
-    user_response = supabase.table("users").select("id").execute()
-    users: List[Dict[str, Any]] = safe_data(user_response)
-    total_users = len(users)
+        # Count users
+        user_response = supabase.table("users").select("id").execute()
+        users: List[Dict[str, Any]] = safe_data(user_response)
+        total_users = len(users)
 
-    # Crowd summary
-    crowd_summary = {}
-    for d in destinations:
-        if isinstance(d, dict):
-            level = d.get("crowd_level", "Unknown")
-            if isinstance(level, str):
-                crowd_summary[level] = crowd_summary.get(level, 0) + 1
+        # Crowd summary
+        crowd_summary = {}
+        for d in destinations:
+            if isinstance(d, dict):
+                level = d.get("crowd_level", "Unknown")
+                if isinstance(level, str):
+                    crowd_summary[level] = crowd_summary.get(level, 0) + 1
 
-    # Danger summary
-    danger_response = supabase.table("danger_pins").select("severity").execute()
-    danger_pins: List[Dict[str, Any]] = safe_data(danger_response)
-    danger_summary = {}
-    for p in danger_pins:
-        if isinstance(p, dict):
+        # Danger summary
+        try:
+            danger_response = supabase.table("danger_pins").select("*").execute()
+            danger_pins: List[Dict[str, Any]] = safe_data(danger_response)
+        except Exception:
+            danger_pins = []
+        
+        danger_summary = {}
+        for p in danger_pins:
+            if not isinstance(p, dict):
+                continue
+            # skip expired
+            duration = _get_duration_hours(p)
+            if duration:
+                created = parse_timestamp(p.get("created_at"))
+                if created and datetime.now() > (created + timedelta(hours=duration)):
+                    continue
             severity = p.get("severity", "Unknown")
             if isinstance(severity, str):
                 danger_summary[severity] = danger_summary.get(severity, 0) + 1
 
-    return {
-        "total_destinations": total_destinations,
-        "total_users": total_users,
-        "crowd_summary": crowd_summary,
-        "danger_summary": danger_summary,
-        "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes."
-    }
+        return {
+            "total_destinations": total_destinations,
+            "total_users": total_users,
+            "crowd_summary": crowd_summary,
+            "danger_summary": danger_summary,
+            "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
 
 # DANGER PIN AND COMMENTS
 @app.get("/danger-pins")
 def get_danger_pins():
     response = supabase.table("danger_pins").select("*").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
+    visible = []
     for pin in pins:
-        if not isinstance(pin, dict):
+        if _pin_inactive(pin):
             continue
         pin_id = pin.get("id")
         if pin_id is not None:
             comments_response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
             comments = safe_data(comments_response)
             pin["comments"] = comments
-    return pins
+        visible.append(pin)
+    return visible
 
 @app.post("/danger-pins")
 def add_danger_pin(data: DangerPinRequest):
@@ -352,13 +499,17 @@ def add_danger_pin(data: DangerPinRequest):
         "lng": data.lng,
         "severity": data.severity,
         "radius_meters": data.radius_meters,
+        "duration_minutes": int(data.duration_hours * 60),  # ✅ match schema
         "description": data.description,
         "reported_by": data.reported_by,
+        "removed_at": None,                                # ✅ optional column
         "created_at": datetime.now().isoformat()
     }).execute()
+
     data_list: List[Dict[str, Any]] = safe_data(response)
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add danger pin")
+
     return {"message": "Danger pin added", "id": data_list[0]["id"]}
 
 @app.post("/danger-pins/{pin_id}/comments")
@@ -376,8 +527,9 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
 
 @app.delete("/danger-pins/{pin_id}")
 def delete_danger_pin(pin_id: int):
-    supabase.table("marker_comments").delete().eq("pin_id", pin_id).execute()
-    response = supabase.table("danger_pins").delete().eq("id", pin_id).execute()
-    if not safe_data(response):
+    # soft-delete: mark removed_at so we keep record
+    response = supabase.table("danger_pins").update({"removed_at": datetime.now().isoformat()}).eq("id", pin_id).execute()
+    data_list = safe_data(response)
+    if not data_list:
         raise HTTPException(status_code=404, detail="Danger pin not found.")
-    return {"message": "Danger pin deleted"}
+    return {"message": "Danger pin removed", "id": pin_id}

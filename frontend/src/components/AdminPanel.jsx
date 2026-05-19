@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 export default function AdminPanel({ api, destinations, onRefresh }) {
   const [form, setForm] = useState({
-    name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '8:00 AM - 5:00 PM', crowd_level: 'Low'
+    name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '', crowd_level: 'Low'
   });
 
   const updateForm = (key, value) => setForm({ ...form, [key]: value });
@@ -15,7 +15,7 @@ export default function AdminPanel({ api, destinations, onRefresh }) {
     });
     if (res.ok) {
       alert('Destination added successfully.');
-      setForm({ name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '8:00 AM - 5:00 PM', crowd_level: 'Low' });
+      setForm({ name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '', crowd_level: 'Low' });
       onRefresh();
     } else {
       const data = await res.json();
@@ -39,6 +39,7 @@ export default function AdminPanel({ api, destinations, onRefresh }) {
           <input key={field} placeholder={field.toUpperCase()} value={form[field]} onChange={(e) => updateForm(field, e.target.value)} required />
         ))}
         <input placeholder="Opening Hours" value={form.opening_hours} onChange={(e) => updateForm('opening_hours', e.target.value)} />
+          <input placeholder="Opening Hours (e.g., 8:00 AM - 5:00 PM)" value={form.opening_hours} onChange={(e) => updateForm('opening_hours', e.target.value)} />
         <select value={form.crowd_level} onChange={(e) => updateForm('crowd_level', e.target.value)}>
           <option>Low</option><option>Moderate</option><option>High</option>
         </select>

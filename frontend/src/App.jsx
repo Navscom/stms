@@ -7,7 +7,7 @@ import AdminPanel from './components/AdminPanel';
 
 const API = 'http://127.0.0.1:8000';
 const MARKER_TYPES = ['Danger Area', 'Dark Area', 'Crowdy Area', 'Dangerous Animals', 'Hazard on Area'];
-const DEFAULT_MARKER_FORM = { title: '', severity: 'Moderate', radius_meters: 300, description: '' };
+const DEFAULT_MARKER_FORM = { title: '', severity: 'Moderate', radius_meters: '', description: '', duration_days: '', duration_hours: '' };
 
 async function fetchJson(path, options) {
   const response = await fetch(`${API}${path}`, options);
@@ -35,6 +35,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [report, setReport] = useState(null);
   const [captchaChecked, setCaptchaChecked] = useState(false);
+  const [captchaWarning, setCaptchaWarning] = useState('');
+  const [markerWarning, setMarkerWarning] = useState('');
   const [selectedMarkerType, setSelectedMarkerType] = useState('Danger Area');
   const [pendingMarkerLocation, setPendingMarkerLocation] = useState(null);
   const [markerForm, setMarkerForm] = useState(DEFAULT_MARKER_FORM);
@@ -88,24 +90,36 @@ function App() {
       return;
     }
     setPendingMarkerLocation({ lat, lng });
-    setMarkerForm({ ...DEFAULT_MARKER_FORM, title: selectedMarkerType });
+    setMarkerForm(DEFAULT_MARKER_FORM);
   };
 
   const submitMarker = async (e) => {
     e.preventDefault();
     if (!captchaChecked) {
-      alert('Please check the CAPTCHA box.');
+      setCaptchaWarning('Check the CAPTCHA box before submitting your marker.');
       return;
     }
+    setCaptchaWarning('');
     if (!pendingMarkerLocation) {
       alert('Click the map location first.');
       return;
     }
     if (!markerForm.description.trim()) {
-      alert('Description is required. Explain why you put this marker.');
+      setMarkerWarning('Description is required. Explain why you put this marker.');
       return;
     }
 
+    // Calculate total duration in hours from days and hours
+    const days = Number(markerForm.duration_days || 0);
+    const hours = Number(markerForm.duration_hours || 0);
+    const totalHours = days * 24 + hours;
+
+    if (totalHours < 1) {
+      setMarkerWarning('Please specify at least 1 hour of duration.');
+      return;
+    }
+
+    setMarkerWarning('');
     try {
       await fetchJson('/danger-pins', {
         method: 'POST',
@@ -116,7 +130,8 @@ function App() {
           lat: pendingMarkerLocation.lat,
           lng: pendingMarkerLocation.lng,
           severity: markerForm.severity,
-          radius_meters: Number(markerForm.radius_meters),
+          radius_meters: Number(markerForm.radius_meters || 300),
+          duration_hours: totalHours,
           description: markerForm.description,
           reported_by: user?.name || 'Anonymous Tourist',
         }),
@@ -270,7 +285,7 @@ function App() {
             {pinMode && (
               <section className="marker-panel">
                 <h2>Add Safety Marker</h2>
-                <p>Choose one marker type, check the CAPTCHA, then click the map location.</p>
+                <p>Choose one marker type, then click the map location and check the CAPTCHA confirmation box before submitting.</p>
                 <div className="marker-type-buttons">
                   {MARKER_TYPES.map((type) => (
                     <button
@@ -283,11 +298,22 @@ function App() {
                   ))}
                 </div>
                 <label className="captcha-box">
-                  <input type="checkbox" checked={captchaChecked} onChange={(e) => setCaptchaChecked(e.target.checked)} />
-                  I am not a robot and I understand that fake reports are not allowed.
+                  <input
+                    type="checkbox"
+                    checked={captchaChecked}
+                    onChange={(e) => {
+                      setCaptchaChecked(e.target.checked);
+                      if (e.target.checked) setCaptchaWarning('');
+                    }}
+                  />
+                  <div className="captcha-label">
+                    <strong>Please note:</strong> the information given is being used by authority. Check the box if you understand and confirm the information is true.
+                  </div>
                 </label>
+                {captchaWarning && <div className="captcha-warning">{captchaWarning}</div>}
+                {markerWarning && <div className="captcha-warning">{markerWarning}</div>}
                 {pendingMarkerLocation && (
-                  <form className="marker-form" onSubmit={submitMarker}>
+                  <form className="marker-form" onSubmit={submitMarker} noValidate>
                     <strong>Selected location:</strong> {pendingMarkerLocation.lat.toFixed(5)}, {pendingMarkerLocation.lng.toFixed(5)}
                     <input
                       placeholder="Marker title"
@@ -301,17 +327,39 @@ function App() {
                     </select>
                     <input
                       type="number"
-                      min="50"
+                      min="20"
                       max="5000"
-                      placeholder="Radius in meters"
+                      placeholder="Radius/Area affected (20-5000 meters)"
                       value={markerForm.radius_meters}
                       onChange={(e) => setMarkerForm({ ...markerForm, radius_meters: e.target.value })}
                     />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="30"
+                        placeholder="Days"
+                        value={markerForm.duration_days}
+                        onChange={(e) => setMarkerForm({ ...markerForm, duration_days: e.target.value })}
+                        style={{ flex: 1 }}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="23"
+                        placeholder="Hours"
+                        value={markerForm.duration_hours}
+                        onChange={(e) => setMarkerForm({ ...markerForm, duration_hours: e.target.value })}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
                     <textarea
-                      required
                       placeholder="Required: describe why you put this marker"
                       value={markerForm.description}
-                      onChange={(e) => setMarkerForm({ ...markerForm, description: e.target.value })}
+                      onChange={(e) => {
+                        setMarkerForm({ ...markerForm, description: e.target.value });
+                        if (markerWarning) setMarkerWarning('');
+                      }}
                     />
                     <button className="primary-btn" type="submit">Submit Marker</button>
                   </form>
@@ -338,6 +386,8 @@ function App() {
             dangerPins={dangerPins}
             nearbyDangers={nearbyDangers}
             selectedLocation={selectedLocation}
+            pendingMarkerLocation={pendingMarkerLocation}
+            selectedMarkerType={selectedMarkerType}
             user={user}
             onLocationClick={handleMapClick}
             onAddComment={addMarkerComment}
