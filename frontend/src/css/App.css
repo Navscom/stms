@@ -193,11 +193,18 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
 .side-nav:not(.side-nav-expanded) .nav-action,
 .side-nav:not(.side-nav-expanded) .nav-toggle {
   justify-content: center;
-  padding: 10px 12px;
+  width: 48px;
+  min-width: 0;
+  padding: 10px;
+}
+.side-nav:not(.side-nav-expanded) .nav-label {
+  display: none;
 }
 .side-nav-expanded .nav-action,
 .side-nav-expanded .nav-toggle {
   justify-content: flex-start;
+  width: 100%;
+  padding: 10px 12px;
 }
 .nav-action.active {
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
