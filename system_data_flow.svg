@@ -1,0 +1,59 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .box { fill: #f5f7fa; stroke: #4a5568; stroke-width: 2; rx: 16; ry: 16; }
+    .section { fill: #edf2f7; stroke: #2d3748; stroke-width: 2; rx: 18; ry: 18; }
+    .text-title { font: bold 20px Arial, sans-serif; fill: #1a202c; }
+    .text-label { font: 16px Arial, sans-serif; fill: #2d3748; }
+    .arrow { stroke: #2d3748; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2d3748" />
+    </marker>
+  </defs>
+
+  <rect class="section" x="40" y="80" width="320" height="220" />
+  <text class="text-title" x="70" y="120">User</text>
+  <text class="text-label" x="70" y="150">Tourist / Admin</text>
+  <text class="text-label" x="70" y="175">Map click, login, reports</text>
+
+  <rect class="section" x="430" y="40" width="330" height="320" />
+  <text class="text-title" x="460" y="80">React Frontend</text>
+  <text class="text-label" x="460" y="115">App.jsx, Header, MapView</text>
+  <text class="text-label" x="460" y="140">LoginModal, DestinationList, AdminPanel</text>
+  <text class="text-label" x="460" y="165">Fetch / POST to backend API</text>
+
+  <rect class="section" x="860" y="80" width="320" height="320" />
+  <text class="text-title" x="890" y="120">FastAPI Backend</text>
+  <text class="text-label" x="890" y="150">main.py</text>
+  <text class="text-label" x="890" y="175">Auth, Destinations, Danger Pins</text>
+  <text class="text-label" x="890" y="200">Safety checks, AI advice</text>
+  <text class="text-label" x="890" y="225">Route / danger analysis</text>
+
+  <rect class="section" x="430" y="420" width="750" height="300" />
+  <text class="text-title" x="460" y="460">Supabase Database</text>
+  <text class="text-label" x="460" y="495">users</text>
+  <text class="text-label" x="460" y="520">destinations</text>
+  <text class="text-label" x="460" y="545">danger_pins</text>
+  <text class="text-label" x="460" y="570">expired_pins</text>
+  <text class="text-label" x="460" y="595">comments / related data</text>
+
+  <line class="arrow" x1="360" y1="180" x2="430" y2="180" />
+  <text class="text-label" x="390" y="170">User actions</text>
+
+  <line class="arrow" x1="760" y1="160" x2="860" y2="160" />
+  <text class="text-label" x="780" y="150">API calls</text>
+
+  <line class="arrow" x1="1010" y1="380" x2="1010" y2="420" />
+  <text class="text-label" x="945" y="400">Queries / writes</text>
+
+  <line class="arrow" x1="765" y1="635" x2="540" y2="635" />
+  <text class="text-label" x="650" y="645">Data persistence</text>
+
+  <rect class="box" x="50" y="340" width="320" height="120" />
+  <text class="text-title" x="70" y="380">Core data flow</text>
+  <text class="text-label" x="70" y="410">1. User clicks map / logs in</text>
+  <text class="text-label" x="70" y="435">2. Frontend sends API request</text>
+  <text class="text-label" x="70" y="460">3. Backend reads/writes Supabase</text>
+  <text class="text-label" x="70" y="485">4. Frontend updates map and alerts</text>
+</svg>
