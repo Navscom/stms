@@ -25,10 +25,8 @@ export default function Header({ advice, onLogin, onLogout, user, theme, onToggl
           <h1>Smart Tourism Management System</h1>
           <p className="subtitle">AI-Based Geolocation Guidance and Crowd Monitoring</p>
         </div>
-        <button className="top-action-button">AI</button>
       </div>
-
-      <div className="ai-card"><strong>AI:</strong> {advice}</div>
+      
     </header>
   );
 }

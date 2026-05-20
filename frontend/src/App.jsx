@@ -19,7 +19,7 @@ async function fetchJson(path, options) {
 }
 
 function App() {
-  const [advice, setAdvice] = useState('Click anywhere in the Philippines for AI geolocation guidance.');
+  const [advice, setAdvice] = useState('');
   const [nearest, setNearest] = useState([]);
   const [destinations, setDestinations] = useState([]);
   const [dangerPins, setDangerPins] = useState([]);
@@ -31,6 +31,7 @@ function App() {
   const [pinMode, setPinMode] = useState(false);
   const [locationMode, setLocationMode] = useState(false);
   const [showDestinations, setShowDestinations] = useState(true);
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [user, setUser] = useState(() => {
     try {
@@ -357,33 +358,61 @@ function App() {
       />
 
       <section className="dashboard-grid">
-        <aside className="side-nav">
+        <aside
+          className={isNavExpanded ? 'side-nav side-nav-expanded' : 'side-nav'}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsNavExpanded((open) => !open);
+            }
+          }}
+          style={{
+            width: isNavExpanded ? '220px' : '72px',
+            padding: isNavExpanded ? '16px' : '10px 8px',
+          }}
+        >
           <button
-            className={pinMode ? 'nav-action nav-action-icon active' : 'nav-action nav-action-icon'}
+            className="nav-toggle"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setIsNavExpanded((open) => !open);
+            }}
+            aria-expanded={isNavExpanded}
+            aria-label={isNavExpanded ? 'Collapse navigation' : 'Expand navigation'}
+          >
+            <span className="nav-icon">{isNavExpanded ? '«' : '☰'}</span>
+            <span className="nav-label">Menu</span>
+          </button>
+
+          <button
+            className={pinMode ? 'nav-action active' : 'nav-action'}
             onClick={togglePinMode}
             type="button"
             title="Add Marker"
             aria-label="Add Marker"
           >
-            📌
+            <span className="nav-icon">📌</span>
+            <span className="nav-label">Add Marker</span>
           </button>
           <button
-            className={locationMode ? 'nav-action nav-action-icon active' : 'nav-action nav-action-icon'}
+            className={locationMode ? 'nav-action active' : 'nav-action'}
             onClick={toggleLocationMode}
             type="button"
             title="My Location"
             aria-label="My Location"
           >
-            📍
+            <span className="nav-icon">📍</span>
+            <span className="nav-label">My Location</span>
           </button>
           <button
-            className={showDestinations ? 'nav-action nav-action-icon active' : 'nav-action nav-action-icon'}
+            className={showDestinations ? 'nav-action active' : 'nav-action'}
             onClick={toggleShowDestinations}
             type="button"
             title="Destinations"
             aria-label="Destinations"
           >
-            🧭
+            <span className="nav-icon">🧭</span>
+            <span className="nav-label">Destinations</span>
           </button>
         </aside>
 
