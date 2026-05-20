@@ -1,6 +1,163 @@
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 18px; }
-.modal-box { background: var(--modal-bg); color: var(--text-primary); padding: 2rem; border-radius: 16px; width: 380px; max-width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
-.auth-form { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; }
-.toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; margin-left: 5px; }
-.helper-text { color: var(--muted); font-size: 0.9rem; }
-.message { font-weight: bold; color: var(--accent); }
+/* ============================================================
+   MODAL — Login / Register
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9,25,50,0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 20px;
+  backdrop-filter: blur(7px);
+  animation: overlay-in 0.2s ease;
+}
+@keyframes overlay-in { from{opacity:0} to{opacity:1} }
+
+.modal-box {
+  background: var(--modal-bg);
+  color: var(--text-primary);
+  padding: 36px 32px;
+  border-radius: 24px;
+  width: 400px;
+  max-width: 100%;
+  border: 0.5px solid var(--border2);
+  box-shadow: 0 24px 60px rgba(9,25,50,0.22);
+  text-align: left;
+  animation: modal-in 0.22s ease;
+  position: relative;
+}
+@keyframes modal-in {
+  from { opacity:0; transform: scale(0.96) translateY(10px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+
+.modal-box h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.modal-subtitle {
+  font-size: 13px;
+  color: var(--text3);
+  margin: 0 0 24px;
+}
+
+/* Brand row inside modal */
+.modal-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.modal-brand-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.modal-brand-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+}
+[data-theme='dark'] .modal-brand-name { color: var(--text); }
+
+/* Form */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.auth-form input,
+.auth-form select {
+  padding: 12px 14px;
+  background: var(--bg3);
+  color: var(--text);
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.auth-form input:focus,
+.auth-form select:focus {
+  border-color: var(--blue);
+  background: var(--bg);
+}
+.auth-form input::placeholder { color: var(--text3); }
+
+.auth-form .primary-btn {
+  width: 100%;
+  padding: 13px;
+  font-size: 15px;
+  border-radius: var(--r-full);
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* Helper / toggle */
+.helper-text {
+  color: var(--text3);
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+.message {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  background: var(--blue-l);
+  border-radius: var(--r-sm);
+  border: 0.5px solid rgba(21,101,192,0.2);
+}
+.message.error {
+  color: var(--red);
+  background: var(--red-l);
+  border-color: rgba(239,83,80,0.2);
+}
+
+.toggle-row {
+  font-size: 13px;
+  color: var(--text2);
+  margin: 0;
+  text-align: center;
+}
+
+.toggle-link {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  margin-left: 4px;
+  transition: opacity 0.2s;
+}
+.toggle-link:hover { opacity: 0.75; text-decoration: underline; }
+
+/* Close button */
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+.modal-close:hover { background: var(--border2); color: var(--text); }
