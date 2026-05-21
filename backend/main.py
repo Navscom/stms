@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, root_validator
@@ -9,9 +10,12 @@ from datetime import datetime, timedelta
 import asyncio
 from typing import Any, Dict, List
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Supabase connection
-SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://wadbanidenbapkgoejug.supabase.co')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY', 'sb_publishable_fU17IEKiviMfCc-WWpmdGA_VAMSl413')
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Smart Tourism Management System API")
