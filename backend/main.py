@@ -6,16 +6,22 @@ from pydantic import BaseModel, EmailStr, root_validator
 from supabase import Client, create_client
 import hashlib
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any, Dict, List
 
 # Load environment variables from .env file
 load_dotenv()
 
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"{name} environment variable is required for backend startup.")
+    return value
+
 # Supabase connection
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_URL = _require_env("SUPABASE_URL")
+SUPABASE_KEY = _require_env("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Smart Tourism Management System API")
@@ -130,16 +136,21 @@ def safe_data(response: Any) -> List[Dict[str, Any]]:
 
 def parse_timestamp(value: Any) -> Any:
     if isinstance(value, datetime):
-        return value
-    if not isinstance(value, str):
-        return None
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
+        dt = value
+    elif isinstance(value, str):
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(value)
         except ValueError:
-            return None
+            try:
+                dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+    else:
+        return None
+
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _get_duration_hours(pin: Dict[str, Any]) -> float:
@@ -170,7 +181,8 @@ def _pin_inactive(pin: Dict[str, Any]) -> bool:
     duration = _get_duration_hours(pin)
     if duration:
         created = parse_timestamp(pin.get("created_at"))
-        if created and datetime.now() > (created + timedelta(hours=duration)):
+        now = datetime.now(timezone.utc)
+        if created and now > (created + timedelta(hours=duration)):
             return True
     return False
 
@@ -474,7 +486,8 @@ def reports_summary():
             duration = _get_duration_hours(p)
             if duration:
                 created = parse_timestamp(p.get("created_at"))
-                if created and datetime.now() > (created + timedelta(hours=duration)):
+                now = datetime.now(timezone.utc)
+                if created and now > (created + timedelta(hours=duration)):
                     continue
             severity = p.get("severity", "Unknown")
             if isinstance(severity, str):

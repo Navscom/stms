@@ -198,8 +198,8 @@ export default function MapView({
   return (
     <div className="map-container-wrapper">
       <MapContainer
-        center={[12.8797, 121.7740]}
-        zoom={6}
+        center={[14.5994, 120.9842]}
+        zoom={12}
         maxBounds={phBounds}
         maxBoundsViscosity={1.0}
         minZoom={6}
