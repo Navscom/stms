@@ -35,6 +35,7 @@ If you already have a Python virtual environment activated, just run:
 ```bash
 cd backend
 pip install -r requirements.txt
+copy and paste .env exmaple make it .env and do below Supabse api
 set SUPABASE_URL=https://your-project.supabase.co
 set SUPABASE_KEY=your-service-role-key
 uvicorn main:app --reload
