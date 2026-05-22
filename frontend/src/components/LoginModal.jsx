@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { validateAuthForm } from '../utils/validation';
+import '../css/Login.css';
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoMessage }) {
   const [isRegister, setIsRegister] = useState(false);

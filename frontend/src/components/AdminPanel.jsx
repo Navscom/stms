@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { validateDestinationForm } from '../utils/validation';
+import '../css/AdminPanel.css';
 
 export default function AdminPanel({ api, destinations, onRefresh }) {
   const [form, setForm] = useState({
@@ -44,8 +45,7 @@ export default function AdminPanel({ api, destinations, onRefresh }) {
         {['name', 'category', 'city', 'province', 'lat', 'lng'].map((field) => (
           <input key={field} placeholder={field.toUpperCase()} value={form[field]} onChange={(e) => updateForm(field, e.target.value)} required />
         ))}
-        <input placeholder="Opening Hours" value={form.opening_hours} onChange={(e) => updateForm('opening_hours', e.target.value)} />
-          <input placeholder="Opening Hours (e.g., 8:00 AM - 5:00 PM)" value={form.opening_hours} onChange={(e) => updateForm('opening_hours', e.target.value)} />
+        <input placeholder="Opening Hours (e.g., 8:00 AM - 5:00 PM)" value={form.opening_hours} onChange={(e) => updateForm('opening_hours', e.target.value)} />
         <select value={form.crowd_level} onChange={(e) => updateForm('crowd_level', e.target.value)}>
           <option>Low</option><option>Moderate</option><option>High</option>
         </select>

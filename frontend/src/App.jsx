@@ -4,6 +4,10 @@ import MapView from './components/MapView';
 import LoginModal from './components/LoginModal';
 import DestinationList from './components/DestinationList';
 import AdminPanel from './components/AdminPanel';
+import MapControls from './components/MapControls';
+import MarkerPanel from './components/MarkerPanel';
+import SafetyAlerts from './components/SafetyAlerts';
+import ReportGrid from './components/ReportGrid';
 import { validateMarkerSubmission } from './utils/validation';
 import { useUserSession } from './utils/useUserSession';
 import {
@@ -18,9 +22,7 @@ import {
   deleteDangerPin,
   deleteAccount,
 } from './utils';
-
-const MARKER_TYPES = ['Danger Area', 'Dark Area', 'Crowdy Area', 'Dangerous Animals', 'Hazard on Area'];
-const DEFAULT_MARKER_FORM = { title: '', severity: 'Moderate', radius_meters: '', description: '', duration_days: '', duration_hours: '' };
+import { DEFAULT_MARKER_FORM } from './constants/markerConstants';
 
 function App() {
   const [advice, setAdvice] = useState('');
@@ -346,63 +348,16 @@ function App() {
       />
 
       <section className="dashboard-grid">
-        <aside
-          className={isNavExpanded ? 'side-nav side-nav-expanded' : 'side-nav'}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsNavExpanded((open) => !open);
-            }
-          }}
-          style={{
-            width: isNavExpanded ? '220px' : '72px',
-            padding: isNavExpanded ? '16px' : '10px 8px',
-          }}
-        >
-          <button
-            className="nav-toggle"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setIsNavExpanded((open) => !open);
-            }}
-            aria-expanded={isNavExpanded}
-            aria-label={isNavExpanded ? 'Collapse navigation' : 'Expand navigation'}
-          >
-            <span className="nav-icon">{isNavExpanded ? '«' : '☰'}</span>
-            <span className="nav-label">Menu</span>
-          </button>
-
-          <button
-            className={pinMode ? 'nav-action active' : 'nav-action'}
-            onClick={togglePinMode}
-            type="button"
-            title="Add Marker"
-            aria-label="Add Marker"
-          >
-            <span className="nav-icon">📌</span>
-            <span className="nav-label">Add Marker</span>
-          </button>
-          <button
-            className={locationMode ? 'nav-action active' : 'nav-action'}
-            onClick={toggleLocationMode}
-            type="button"
-            title="My Location"
-            aria-label="My Location"
-          >
-            <span className="nav-icon">📍</span>
-            <span className="nav-label">My Location</span>
-          </button>
-          <button
-            className={showDestinations ? 'nav-action active' : 'nav-action'}
-            onClick={toggleShowDestinations}
-            type="button"
-            title="Destinations"
-            aria-label="Destinations"
-          >
-            <span className="nav-icon">🧭</span>
-            <span className="nav-label">Destinations</span>
-          </button>
-        </aside>
+        <MapControls
+          isNavExpanded={isNavExpanded}
+          setIsNavExpanded={setIsNavExpanded}
+          pinMode={pinMode}
+          locationMode={locationMode}
+          showDestinations={showDestinations}
+          togglePinMode={togglePinMode}
+          toggleLocationMode={toggleLocationMode}
+          toggleShowDestinations={toggleShowDestinations}
+        />
 
         <div className="map-panel">
           <div className="map-card">
@@ -423,110 +378,18 @@ function App() {
 
         <aside className="destination-panel-wrapper">
           {pinMode ? (
-            <div className="marker-panel">
-              <h2>Add Safety Marker</h2>
-              <p>Choose a marker type and click the map to place it. Then submit the marker with the details below.</p>
-
-              <form className="marker-form" onSubmit={submitMarker}>
-                <label>
-                  <strong>Marker type</strong>
-                  <select value={selectedMarkerType} onChange={(e) => setSelectedMarkerType(e.target.value)}>
-                    {MARKER_TYPES.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <strong>Marker title</strong>
-                  <input
-                    type="text"
-                    value={markerForm.title}
-                    onChange={(e) => setMarkerForm((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="Optional title"
-                  />
-                </label>
-
-                <label>
-                  <strong>Severity</strong>
-                  <select
-                    value={markerForm.severity}
-                    onChange={(e) => setMarkerForm((prev) => ({ ...prev, severity: e.target.value }))}
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Moderate">Moderate</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
-                  </select>
-                </label>
-
-                <label>
-                  <strong>Radius / area affected (meters)</strong>
-                  <input
-                    type="number"
-                    min="20"
-                    max="5000"
-                    value={markerForm.radius_meters}
-                    onChange={(e) => setMarkerForm((prev) => ({ ...prev, radius_meters: e.target.value }))}
-                    placeholder="20 - 5000"
-                  />
-                </label>
-
-                <div className="marker-form" style={{ gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <label>
-                    <strong>Days</strong>
-                    <input
-                      type="number"
-                      min="0"
-                      value={markerForm.duration_days}
-                      onChange={(e) => setMarkerForm((prev) => ({ ...prev, duration_days: e.target.value }))}
-                      placeholder="Days"
-                    />
-                  </label>
-                  <label>
-                    <strong>Hours</strong>
-                    <input
-                      type="number"
-                      min="0"
-                      max="23"
-                      value={markerForm.duration_hours}
-                      onChange={(e) => setMarkerForm((prev) => ({ ...prev, duration_hours: e.target.value }))}
-                      placeholder="Hours"
-                    />
-                  </label>
-                </div>
-
-                <label>
-                  <strong>Description</strong>
-                  <textarea
-                    value={markerForm.description}
-                    onChange={(e) => setMarkerForm((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe why this marker is needed"
-                  />
-                </label>
-
-                <div className="captcha-box">
-                  <input
-                    id="marker-captcha"
-                    type="checkbox"
-                    checked={captchaChecked}
-                    onChange={(e) => setCaptchaChecked(e.target.checked)}
-                  />
-                  <label htmlFor="marker-captcha" className="captcha-label">
-                    Please note: the information given is being used by authority. Check the box if you understand and confirm the information is true.
-                  </label>
-                </div>
-                {captchaWarning && <div className="captcha-warning">{captchaWarning}</div>}
-
-                <div>
-                  <p><strong>Selected location:</strong> {pendingMarkerLocation ? `${pendingMarkerLocation.lat.toFixed(6)}, ${pendingMarkerLocation.lng.toFixed(6)}` : 'Click the map to place your marker.'}</p>
-                </div>
-
-                <button className="primary-btn" type="submit" disabled={!pendingMarkerLocation}>
-                  Submit Marker
-                </button>
-              </form>
-            </div>
+            <MarkerPanel
+              markerForm={markerForm}
+              setMarkerForm={setMarkerForm}
+              selectedMarkerType={selectedMarkerType}
+              setSelectedMarkerType={setSelectedMarkerType}
+              pendingMarkerLocation={pendingMarkerLocation}
+              captchaChecked={captchaChecked}
+              setCaptchaChecked={setCaptchaChecked}
+              captchaWarning={captchaWarning}
+              markerWarning={markerWarning}
+              submitMarker={submitMarker}
+            />
           ) : showDestinations ? (
             <DestinationList
               destinations={destinations}
@@ -551,24 +414,9 @@ function App() {
         </aside>
       </section>
 
-      <section className="warning-panel">
-        <h2>Safety Alerts</h2>
-        {nearbyDangers.length === 0 ? <p>No nearby marker report detected.</p> : nearbyDangers.map((d) => (
-          <div key={d.id} className={`warning-card ${d.severity?.toLowerCase()}`}>
-            <strong>{d.danger_type}: {d.title}</strong>
-            <p>{d.description}</p>
-            <small>Severity: {d.severity} | Radius: {d.radius_meters}m {d.distance_km !== undefined && `| Distance: ${d.distance_km} km`}</small>
-          </div>
-        ))}
-      </section>
+      <SafetyAlerts nearbyDangers={nearbyDangers} />
 
-      {report && (
-        <section className="report-grid">
-          <div className="stat-card"><h3>{report.total_destinations}</h3><p>Total Destinations</p></div>
-          <div className="stat-card"><h3>{report.crowd_summary.High || 0}</h3><p>High Crowd Areas</p></div>
-          <div className="stat-card"><h3>{report.danger_summary?.High || 0}</h3><p>High Danger Reports</p></div>
-        </section>
-      )}
+      {report && <ReportGrid report={report} />}
 
       {user?.role === 'admin' && (
         <AdminPanel api={API} destinations={destinations} onRefresh={() => { loadDestinations(); loadDangerPins(); loadReport(); }} />
