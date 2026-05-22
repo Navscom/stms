@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -80,6 +80,22 @@ function MapClickHandler({ onLocationClick }) {
       onLocationClick(e.latlng.lat, e.latlng.lng);
     },
   });
+  return null;
+}
+
+function ZoomControlHandler() {
+  const map = useMap();
+
+  useEffect(() => {
+    // Remove default top-left zoom control if it exists
+    if (map.zoomControl) {
+      map.removeControl(map.zoomControl);
+    }
+
+    // Add new zoom control to bottom-right
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+  }, [map]);
+
   return null;
 }
 
@@ -204,7 +220,11 @@ export default function MapView({
     }
   };
 
-  const visibleDangerPins = (dangerPins || []).filter((p) => !isPinExpired(p));
+  const isPinInactive = (pin) => {
+    return Boolean(pin?.removed_at) || isPinExpired(pin);
+  };
+
+  const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
 
   return (
     <div className="map-container-wrapper">
@@ -215,6 +235,7 @@ export default function MapView({
         maxBoundsViscosity={1.0}
         minZoom={6}
         maxZoom={18}
+        zoomControl={false}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
@@ -222,6 +243,7 @@ export default function MapView({
           attribution="&copy; OpenStreetMap contributors"
         />
         <MapClickHandler onLocationClick={onLocationClick} />
+        <ZoomControlHandler />
 
         {destinations.map((d) => (
           <Marker key={`dest-${d.id}`} position={[d.lat, d.lng]} icon={DESTINATION_ICON}>

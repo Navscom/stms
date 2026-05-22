@@ -272,19 +272,22 @@ function App() {
       <AIGuidance advice={advice} nearest={nearest} />
 
       <section className="dashboard-grid">
-        <MapControls
-          isNavExpanded={isNavExpanded}
-          setIsNavExpanded={setIsNavExpanded}
-          pinMode={pinMode}
-          locationMode={locationMode}
-          showDestinations={showDestinations}
-          togglePinMode={togglePinMode}
-          toggleLocationMode={toggleLocationMode}
-          toggleShowDestinations={toggleShowDestinations}
-        />
 
         <div className="map-panel">
           <div className="map-card">
+            <div className="floating-side-nav-wrapper">
+              <MapControls
+                isNavExpanded={isNavExpanded}
+                setIsNavExpanded={setIsNavExpanded}
+                pinMode={pinMode}
+                locationMode={locationMode}
+                showDestinations={showDestinations}
+                togglePinMode={togglePinMode}
+                toggleLocationMode={toggleLocationMode}
+                toggleShowDestinations={toggleShowDestinations}
+              />
+            </div>
+
             <MapView
               destinations={destinations.filter((d) => !selectedDestinationId || d.id === selectedDestinationId)}
               dangerPins={dangerPins}
