@@ -31,6 +31,9 @@ const dangerStyles = {
   'Hazard on Area': { color: '#7c3aed', icon: ICONS.violet },
 };
 
+const LIGHT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
 const DESTINATION_ICON = new L.DivIcon({
   html: '<div class="destination-pin"><span>🧭</span></div>',
   className: 'destination-pin-icon',
@@ -169,6 +172,8 @@ export default function MapView({
   user,
   onAddComment,
   onDeletePin,
+  theme = 'light',
+  mapRotation = 0,
 }) {
   // Debug: Log received props
   useEffect(() => {
@@ -187,8 +192,13 @@ export default function MapView({
 
   const renderDuration = (pin) => formatDuration(pin);
 
+  const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
+  const mapWrapperStyle = {
+    '--map-rotation': `${mapRotation}deg`,
+  };
+
   return (
-    <div className="map-container-wrapper">
+    <div className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
       <MapContainer
         center={[14.5994, 120.9842]}
         zoom={12}
@@ -200,8 +210,8 @@ export default function MapView({
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="&copy; OpenStreetMap contributors"
+          url={tileLayerUrl}
+          attribution={`&copy; OpenStreetMap contributors${theme === 'dark' ? ' &copy; CARTO' : ''}`}
         />
         <MapClickHandler onLocationClick={onLocationClick} />
         <ZoomControlHandler />

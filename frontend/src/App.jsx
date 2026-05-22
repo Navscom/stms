@@ -25,6 +25,7 @@ function App() {
   const [lastClickLocation, setLastClickLocation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [theme, setTheme] = useState('light');
+  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const [pinMode, setPinMode] = useState(false);
   const [locationMode, setLocationMode] = useState(false);
   const [showDestinations, setShowDestinations] = useState(true);
@@ -269,14 +270,23 @@ function App() {
           <div className="map-card">
             <div className="floating-side-nav-wrapper">
               <MapControls
-                isNavExpanded={isNavExpanded}
-                setIsNavExpanded={setIsNavExpanded}
-                pinMode={pinMode}
-                locationMode={locationMode}
-                showDestinations={showDestinations}
-                togglePinMode={togglePinMode}
-                toggleLocationMode={toggleLocationMode}
-                toggleShowDestinations={toggleShowDestinations}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                onMyLocation={toggleLocationMode}
+                onHazardSubmit={submitMarker}
+                touristSpots={destinations}
+                onAddMarker={togglePinMode}
+                onDestinations={toggleShowDestinations}
+                markerForm={markerForm}
+                setMarkerForm={setMarkerForm}
+                selectedMarkerType={selectedMarkerType}
+                setSelectedMarkerType={setSelectedMarkerType}
+                pendingMarkerLocation={pendingMarkerLocation}
+                captchaChecked={captchaChecked}
+                setCaptchaChecked={setCaptchaChecked}
+                captchaWarning={captchaWarning}
+                markerWarning={markerWarning}
+                submitMarker={submitMarker}
               />
             </div>
 
@@ -288,49 +298,13 @@ function App() {
               pendingMarkerLocation={pendingMarkerLocation}
               selectedMarkerType={selectedMarkerType}
               user={user}
+              theme={theme}
               onLocationClick={handleMapClick}
               onAddComment={addMarkerComment}
               onDeletePin={deletePin}
             />
           </div>
         </div>
-
-        <aside className="destination-panel-wrapper">
-          {pinMode ? (
-            <MarkerPanel
-              markerForm={markerForm}
-              setMarkerForm={setMarkerForm}
-              selectedMarkerType={selectedMarkerType}
-              setSelectedMarkerType={setSelectedMarkerType}
-              pendingMarkerLocation={pendingMarkerLocation}
-              captchaChecked={captchaChecked}
-              setCaptchaChecked={setCaptchaChecked}
-              captchaWarning={captchaWarning}
-              markerWarning={markerWarning}
-              submitMarker={submitMarker}
-            />
-          ) : showDestinations ? (
-            <DestinationList
-              destinations={destinations}
-              nearest={nearest}
-              selectedDestinationId={selectedDestinationId}
-              onSelectDestination={handleSelectDestination}
-              onClearSelection={clearSelectedDestination}
-              inline
-            />
-          ) : (
-            <div className="destination-hidden-card">
-              <h2>Tourist Destinations</h2>
-              <p>Turn on destinations to view local attractions and crowd levels.</p>
-            </div>
-          )}
-          {selectedDestinationId && nearbyDangers.length === 0 && (
-            <div className="destination-safety-note success">No danger markers nearby.</div>
-          )}
-          {selectedDestinationId && nearbyDangers.length > 0 && (
-            <div className="destination-safety-note warning">Danger markers detected nearby.</div>
-          )}
-        </aside>
       </section>
 
       <SafetyAlerts nearbyDangers={nearbyDangers} />
