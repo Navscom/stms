@@ -54,6 +54,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ENDPOINTS
 #handler for rechecking expired pins every minute
 @app.on_event("startup")
 async def start_periodic_expiry_move():
@@ -67,7 +68,7 @@ async def start_periodic_expiry_move():
             await asyncio.sleep(60)
     asyncio.create_task(_periodic())
 
-# ENDPOINTS
+
 @app.get("/")
 def home():
     return {"status": "Smart Tourism Management System backend is running"}
