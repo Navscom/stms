@@ -19,7 +19,24 @@ Capstone title: **Design and Development of a Smart Tourism Management System wi
 
 ```bash
 cd backend
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+# source venv/bin/activate
 pip install -r requirements.txt
+set SUPABASE_URL=https://your-project.supabase.co
+set SUPABASE_KEY=your-service-role-key
+uvicorn main:app --reload
+```
+
+If you already have a Python virtual environment activated, just run:
+
+```bash
+cd backend
+pip install -r requirements.txt
+set SUPABASE_URL=https://your-project.supabase.co
+set SUPABASE_KEY=your-service-role-key
 uvicorn main:app --reload
 ```
 

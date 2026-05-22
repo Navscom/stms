@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { validateDestinationForm } from '../utils/validation';
 
 export default function AdminPanel({ api, destinations, onRefresh }) {
   const [form, setForm] = useState({
@@ -9,7 +10,12 @@ export default function AdminPanel({ api, destinations, onRefresh }) {
 
   const addDestination = async (e) => {
     e.preventDefault();
-    const payload = { ...form, lat: Number(form.lat), lng: Number(form.lng) };
+    const validation = validateDestinationForm(form);
+    if (!validation.valid) {
+      alert(validation.message);
+      return;
+    }
+    const payload = validation.payload;
     const res = await fetch(`${api}/destinations`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });

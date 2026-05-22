@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { validateAuthForm } from '../utils/validation';
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoMessage }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -41,11 +42,12 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoM
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage('Processing...');
-    if (isRegister && form.password !== form.confirmPassword) {
-      setMessage('Passwords do not match.');
+    const validation = validateAuthForm(form, isRegister);
+    if (!validation.valid) {
+      setMessage(validation.message);
       return;
     }
+    setMessage('Processing...');
     const endpoint = isRegister ? 'register' : 'login';
     const payload = isRegister
       ? { name: form.name, email: form.email, password: form.password, role: form.role }

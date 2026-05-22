@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -152,6 +152,17 @@ export default function MapView({
   onAddComment,
   onDeletePin,
 }) {
+  // Debug: Log received props
+  useEffect(() => {
+    console.log('MapView Props Debug:', {
+      destinations: destinations?.length || 0,
+      dangerPins: dangerPins?.length || 0,
+      nearbyDangers: nearbyDangers?.length || 0,
+      pendingMarkerLocation,
+      selectedMarkerType,
+    });
+  }, [destinations, dangerPins, nearbyDangers, pendingMarkerLocation, selectedMarkerType]);
+
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
 
   const getDurationHours = (pin) => {

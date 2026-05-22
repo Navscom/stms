@@ -4,19 +4,23 @@ import MapView from './components/MapView';
 import LoginModal from './components/LoginModal';
 import DestinationList from './components/DestinationList';
 import AdminPanel from './components/AdminPanel';
+import { validateMarkerSubmission } from './utils/validation';
+import { useUserSession } from './utils/useUserSession';
+import {
+  API,
+  getDestinations,
+  getDangerPins,
+  getReportSummary,
+  getSafetyCheck,
+  getAiAdvice,
+  postDangerPin,
+  postPinComment,
+  deleteDangerPin,
+  deleteAccount,
+} from './utils';
 
-const API = 'http://127.0.0.1:8000';
 const MARKER_TYPES = ['Danger Area', 'Dark Area', 'Crowdy Area', 'Dangerous Animals', 'Hazard on Area'];
 const DEFAULT_MARKER_FORM = { title: '', severity: 'Moderate', radius_meters: '', description: '', duration_days: '', duration_hours: '' };
-
-async function fetchJson(path, options) {
-  const response = await fetch(`${API}${path}`, options);
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(payload?.detail || 'Server error.');
-  }
-  return payload;
-}
 
 function App() {
   const [advice, setAdvice] = useState('');
@@ -33,13 +37,7 @@ function App() {
   const [showDestinations, setShowDestinations] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(window.sessionStorage.getItem('stms_user')) || null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useUserSession();
   const [report, setReport] = useState(null);
   const [captchaChecked, setCaptchaChecked] = useState(false);
   const [captchaWarning, setCaptchaWarning] = useState('');
@@ -61,34 +59,56 @@ function App() {
     }
   }, [showNotification]);
 
-  useEffect(() => {
-    if (user) {
-      window.sessionStorage.setItem('stms_user', JSON.stringify(user));
-    } else {
-      window.sessionStorage.removeItem('stms_user');
-    }
-  }, [user]);
-
   const loadDestinations = async () => {
-    setDestinations((await fetchJson('/destinations')) || []);
+    try {
+      const data = await getDestinations();
+      setDestinations(data || []);
+    } catch (error) {
+      console.error('Failed to load destinations:', error);
+      setDestinations([]);
+    }
   };
 
   const loadDangerPins = async () => {
-    setDangerPins((await fetchJson('/danger-pins')) || []);
+    try {
+      const data = await getDangerPins();
+      setDangerPins(data || []);
+    } catch (error) {
+      console.error('Failed to load danger pins:', error);
+      setDangerPins([]);
+    }
   };
 
   const loadReport = async () => {
-    setReport((await fetchJson('/reports/summary')) || null);
+    try {
+      const data = await getReportSummary();
+      setReport(data || null);
+    } catch (error) {
+      console.error('Failed to load report:', error);
+      setReport(null);
+    }
+  };
+
+  const loadAppData = async () => {
+    await Promise.all([loadDestinations(), loadDangerPins(), loadReport()]);
   };
 
   useEffect(() => {
-    loadDestinations();
-    loadDangerPins();
-    loadReport();
+    loadAppData();
   }, []);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('App State Debug:', {
+      destinationsCount: destinations.length,
+      dangerPinsCount: dangerPins.length,
+      selectedDestinationId,
+      user: user?.name,
+    });
+  }, [destinations, dangerPins, selectedDestinationId, user]);
+
   const checkSafety = async (lat, lng) => {
-    const data = await fetchJson(`/safety-check?lat=${lat}&lng=${lng}`);
+    const data = await getSafetyCheck(lat, lng);
     setNearbyDangers(data.nearby_dangers || []);
     return data;
   };
@@ -98,7 +118,7 @@ function App() {
     setAdvice('Analyzing location, nearby spots, crowd condition, and safety warnings...');
 
     try {
-      const adviceData = await fetchJson(`/ai-advice?lat=${lat}&lng=${lng}`);
+      const adviceData = await getAiAdvice(lat, lng);
       const safety = await checkSafety(lat, lng);
       setAdvice(`${adviceData.advice} ${safety.alerts?.join(' ') || ''}`);
       setNearest(adviceData.nearest_destinations || []);
@@ -125,51 +145,33 @@ function App() {
 
   const submitMarker = async (e) => {
     e.preventDefault();
-    if (!user) {
-      setLoginPromptMessage('You need to login first before adding a new marker.');
-      setIsModalOpen(true);
+    const validation = validateMarkerSubmission({ user, captchaChecked, pendingMarkerLocation, markerForm });
+    if (!validation.valid) {
+      if (validation.reason === 'login') {
+        setLoginPromptMessage(validation.message);
+        setIsModalOpen(true);
+      } else if (validation.reason === 'captcha') {
+        setCaptchaWarning(validation.message);
+      } else {
+        setMarkerWarning(validation.message);
+      }
       return;
     }
-    if (!captchaChecked) {
-      setCaptchaWarning('Check the CAPTCHA box before submitting your marker.');
-      return;
-    }
+
     setCaptchaWarning('');
-    if (!pendingMarkerLocation) {
-      alert('Click the map location first.');
-      return;
-    }
-    if (!markerForm.description.trim()) {
-      setMarkerWarning('Description is required. Explain why you put this marker.');
-      return;
-    }
-
-    // Calculate total duration in hours from days and hours
-    const days = Number(markerForm.duration_days || 0);
-    const hours = Number(markerForm.duration_hours || 0);
-    const totalHours = days * 24 + hours;
-
-    if (totalHours < 1) {
-      setMarkerWarning('Please specify at least 1 hour of duration.');
-      return;
-    }
-
     setMarkerWarning('');
+    const totalHours = validation.totalHours;
     try {
-      await fetchJson('/danger-pins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: markerForm.title || selectedMarkerType,
-          danger_type: selectedMarkerType,
-          lat: pendingMarkerLocation.lat,
-          lng: pendingMarkerLocation.lng,
-          severity: markerForm.severity,
-          radius_meters: Number(markerForm.radius_meters || 300),
-          duration_hours: totalHours,
-          description: markerForm.description,
-          reported_by: user?.name || 'Anonymous Tourist',
-        }),
+      await postDangerPin({
+        title: markerForm.title || selectedMarkerType,
+        danger_type: selectedMarkerType,
+        lat: pendingMarkerLocation.lat,
+        lng: pendingMarkerLocation.lng,
+        severity: markerForm.severity,
+        radius_meters: Number(markerForm.radius_meters || 300),
+        duration_hours: totalHours,
+        description: markerForm.description,
+        reported_by: user?.name || 'Anonymous Tourist',
       });
 
       await loadDangerPins();
@@ -185,16 +187,10 @@ function App() {
 
   const addMarkerComment = async (pinId, comment) => {
     try {
-      const res = await fetch(`${API}/danger-pins/${pinId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          comment,
-          commented_by: user?.name || 'Anonymous Tourist',
-        }),
+      await postPinComment(pinId, {
+        comment,
+        commented_by: user?.name || 'Anonymous Tourist',
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Unable to add comment.');
       await loadDangerPins();
       setAdvice('Comment added to marker.');
     } catch (err) {
@@ -204,11 +200,7 @@ function App() {
 
   const deletePin = async (pinId) => {
     try {
-      const res = await fetch(`${API}/danger-pins/${pinId}`, {
-        method: 'DELETE',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Unable to delete marker.');
+      await deleteDangerPin(pinId);
       await loadDangerPins();
       setAdvice('Your marker was deleted successfully.');
     } catch (err) {
@@ -313,11 +305,7 @@ function App() {
     }
 
     try {
-      await fetchJson('/delete-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
+      await deleteAccount(user.email);
       window.localStorage.removeItem('stms_remembered_login');
       setUser(null);
       setIsModalOpen(false);

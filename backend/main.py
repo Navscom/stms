@@ -2,13 +2,36 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, root_validator
 from supabase import Client, create_client
-import hashlib
 import math
 from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any, Dict, List
+from db_validation import (
+    RegisterRequest,
+    LoginRequest,
+    DeleteAccountRequest,
+    DestinationRequest,
+    CrowdUpdateRequest,
+    DangerPinRequest,
+    MarkerCommentRequest,
+    RouteRequest,
+    validate_register,
+    validate_crowd_level,
+)
+from helpers import (
+    hash_password,
+    haversine,
+    route_intersects_zone,
+    make_detour,
+    is_within_pin_warning_zone,
+    safe_data,
+    parse_timestamp,
+    _get_duration_hours,
+    _pin_inactive,
+    _is_duration_expired,
+    move_expired_pins,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,210 +57,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------------ MODELS ------------------
-class RegisterRequest(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-    role: str = "tourist"
+# ------------------ VALIDATION MODELS ------------------
+# Request models and validation helpers were moved to backend/db_validation.py
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-class DeleteAccountRequest(BaseModel):
-    email: EmailStr
-
-class DestinationRequest(BaseModel):
-    name: str
-    category: str
-    city: str
-    province: str
-    lat: float
-    lng: float
-    description: str
-    opening_hours: str = "8:00 AM - 5:00 PM"
-    crowd_level: str = "Low"
-
-class CrowdUpdateRequest(BaseModel):
-    crowd_level: str
-
-class DangerPinRequest(BaseModel):
-    title: str
-    danger_type: str = "Danger Area"
-    lat: float
-    lng: float
-    severity: str = "Moderate"
-    radius_meters: int = 300
-    description: str
-    duration_hours: float = 0
-    reported_by: str = "Anonymous"
-
-    @root_validator(pre=True)
-    def normalize_duration(cls, values):
-        if values.get("duration_hours") is None:
-            minutes = values.get("duration")
-            if minutes is not None:
-                try:
-                    values["duration_hours"] = float(minutes) / 60.0
-                except Exception:
-                    values["duration_hours"] = 0
-        return values
-
-class MarkerCommentRequest(BaseModel):
-    comment: str
-    commented_by: str = "Anonymous"
-
-class RouteRequest(BaseModel):
-    start_lat: float
-    start_lng: float
-    end_lat: float
-    end_lng: float
-    night_mode: bool = False
-
-# ------------------ HELPERS ------------------
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def haversine(lat1, lon1, lat2, lon2):
-    radius = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return radius * c
-
-def route_intersects_zone(start_lat, start_lng, end_lat, end_lng, zone_lat, zone_lng, radius_km):
-    for i in range(21):
-        t = i / 20
-        lat = start_lat + (end_lat - start_lat) * t
-        lng = start_lng + (end_lng - start_lng) * t
-        if haversine(lat, lng, zone_lat, zone_lng) <= radius_km:
-            return True
-    return False
-
-def make_detour(start_lat, start_lng, end_lat, end_lng, danger_lat, danger_lng):
-    mid_lat = (start_lat + end_lat) / 2
-    mid_lng = (start_lng + end_lng) / 2
-    offset_lat = 0.015 if mid_lat <= danger_lat else -0.015
-    offset_lng = 0.015 if mid_lng <= danger_lng else -0.015
-    return [[start_lat, start_lng], [mid_lat + offset_lat, mid_lng + offset_lng], [end_lat, end_lng]]
-
-def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance_meters: int = 70) -> bool:
-    try:
-        radius = float(radius_meters)
-    except (TypeError, ValueError):
-        radius = 0.0
-    return distance_km <= (radius + allowance_meters) / 1000
-
-def safe_data(response: Any) -> List[Dict[str, Any]]:
-    return getattr(response, 'data', []) or []
-
-
-def parse_timestamp(value: Any) -> Any:
-    if isinstance(value, datetime):
-        dt = value
-    elif isinstance(value, str):
-        try:
-            dt = datetime.fromisoformat(value)
-        except ValueError:
-            try:
-                dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except ValueError:
-                return None
-    else:
-        return None
-
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-
-def _get_duration_hours(pin: Dict[str, Any]) -> float:
-    if not isinstance(pin, dict):
-        return 0.0
-    try:
-        if pin.get("duration_hours") is not None:
-            return float(pin.get("duration_hours") or 0)
-        if pin.get("minutes") is not None:
-            return float(pin.get("minutes") or 0) / 60.0
-        if pin.get("duration_minutes") is not None:
-            return float(pin.get("duration_minutes") or 0) / 60.0
-        if pin.get("duration") is not None:
-            return float(pin.get("duration") or 0) / 60.0
-    except Exception:
-        return 0.0
-    return 0.0
-
-
-def _pin_inactive(pin: Dict[str, Any]) -> bool:
-    # returns True if pin is expired or soft-deleted
-    if not isinstance(pin, dict):
-        return True
-    # removed flag
-    if pin.get("removed_at"):
-        return True
-    # duration expiry
-    duration = _get_duration_hours(pin)
-    if duration:
-        created = parse_timestamp(pin.get("created_at"))
-        now = datetime.now(timezone.utc)
-        if created and now > (created + timedelta(hours=duration)):
-            return True
-    return False
-
-
-def _is_duration_expired(pin: Dict[str, Any]) -> bool:
-    # True only if expired by duration (not soft-deleted)
-    if not isinstance(pin, dict):
-        return False
-    duration = _get_duration_hours(pin)
-    if not duration:
-        return False
-    created = parse_timestamp(pin.get("created_at"))
-    if not created:
-        return False
-    return datetime.now() > (created + timedelta(hours=duration))
-
-def move_expired_pins() -> int:
-    """Move duration-expired pins from `danger_pins` into `expired_pins` table.
-    Returns number of pins moved.
-    """
-    resp = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(resp)
-    expired = [p for p in pins if _is_duration_expired(p)]
-    if not expired:
-        return 0
-
-    # Prepare rows for insertion into expired_pins
-    insert_rows = []
-    ids_to_delete = []
-    for p in expired:
-        row = dict(p)
-        row["moved_at"] = datetime.now().isoformat()
-        insert_rows.append(row)
-        if p.get("id") is not None:
-            ids_to_delete.append(p.get("id"))
-
-    # Insert into expired_pins, preserving original ids (use upsert to avoid new ids)
-    try:
-        supabase.table("expired_pins").upsert(insert_rows).execute()
-    except Exception:
-        # If insert fails, do not delete originals
-        return 0
-
-    # Delete moved pins from danger_pins
-    try:
-        supabase.table("danger_pins").delete().in_("id", ids_to_delete).execute()
-    except Exception:
-        # deletion failure is non-fatal here
-        pass
-
-    return len(ids_to_delete)
 
 @app.post("/danger-pins/move-expired")
 def move_expired_endpoint():
-    count = move_expired_pins()
+    count = move_expired_pins(supabase)
     return {"moved": count}
 
 
@@ -247,7 +73,7 @@ async def start_periodic_expiry_move():
         while True:
             try:
                 # run blocking move in threadpool
-                await asyncio.to_thread(move_expired_pins)
+                await asyncio.to_thread(move_expired_pins, supabase)
             except Exception:
                 pass
             await asyncio.sleep(60)
@@ -261,10 +87,7 @@ def home():
 
 @app.post("/register")
 def register(data: RegisterRequest):
-    if len(data.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-    if data.role not in ["tourist", "admin"]:
-        raise HTTPException(status_code=400, detail="Invalid role.")
+    validate_register(data)
 
     hashed_pw = hash_password(data.password)
     response = supabase.table("users").insert({
@@ -298,11 +121,6 @@ def delete_account(data: DeleteAccountRequest):
         raise HTTPException(status_code=404, detail="User not found.")
     return {"message": "Account deleted successfully."}
 
-@app.get("/destinations")
-def get_destinations():
-    response = supabase.table("destinations").select("*").order("name").execute()
-    return safe_data(response)
-
 @app.post("/destinations")
 def add_destination(data: DestinationRequest):
     response = supabase.table("destinations").insert({
@@ -322,11 +140,15 @@ def add_destination(data: DestinationRequest):
         raise HTTPException(status_code=500, detail="Failed to add destination")
     return {"message": "Destination added", "id": data_list[0]["id"]}
 
+@app.get("/destinations")
+def get_destinations():
+    response = supabase.table("destinations").select("*").execute()
+    destinations: List[Dict[str, Any]] = safe_data(response)
+    return destinations
+
 @app.put("/destinations/{destination_id}/crowd")
 def update_crowd(destination_id: int, data: CrowdUpdateRequest):
-    allowed = ["Low", "Moderate", "High"]
-    if data.crowd_level not in allowed:
-        raise HTTPException(status_code=400, detail="Crowd level must be Low, Moderate, or High.")
+    validate_crowd_level(data)
 
     response = supabase.table("destinations").update({
         "crowd_level": data.crowd_level,
