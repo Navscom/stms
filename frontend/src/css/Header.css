@@ -64,6 +64,36 @@
 [data-theme='dark'] .status-live { background: linear-gradient(135deg, #22c55e, #10b981); }
 .status-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
+.secondary-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
+}
+.secondary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.2);
+}
+.secondary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.secondary-btn.active {
+  opacity: 0.95;
+}
+[data-theme='dark'] .secondary-btn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+}
+[data-theme='dark'] .secondary-btn:hover {
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.3);
+}
+
 @media (max-width: 600px) {
   .header h1 { font-size: 1.8rem; }
   .header-actions { flex-direction: column; align-items: stretch; }

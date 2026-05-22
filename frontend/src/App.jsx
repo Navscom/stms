@@ -13,7 +13,7 @@ import { useUserSession } from './utils/useUserSession';
 import { API, deleteAccount, postPinComment, deleteDangerPin } from './utils';
 import { loadAppData, loadDestinations, loadDangerPins, loadReport, fetchAdvice as fetchAdviceHelper } from './utils/LoadData';
 import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommentAction, deletePin as deletePinAction } from './utils/markerActions';
-import { DEFAULT_MARKER_FORM } from './constants/markerConstants';
+import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
 function App() {
   const [advice, setAdvice] = useState('');

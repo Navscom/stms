@@ -1,0 +1,121 @@
+.marker-panel {
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+
+.marker-panel h2 {
+  margin-top: 0;
+}
+
+.marker-panel p {
+  color: var(--muted);
+}
+
+.marker-type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.marker-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.marker-form strong {
+  display: block;
+}
+
+.marker-form input,
+.marker-form select,
+.marker-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.marker-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.marker-form button {
+  width: fit-content;
+}
+
+.marker-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.captcha-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.8);
+  border-radius: 16px;
+  margin: 12px 0;
+  background: linear-gradient(135deg, rgba(255, 246, 224, 0.95), rgba(254, 215, 170, 0.65));
+  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.16);
+}
+
+[data-theme='dark'] .captcha-box {
+  background: rgba(30, 41, 59, 0.92);
+  border-color: rgba(245, 158, 11, 0.22);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.32);
+}
+
+.captcha-box input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: #d97706;
+  margin-top: 4px;
+}
+
+.captcha-label {
+  color: #92400e;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.captcha-label strong {
+  color: #b45309;
+}
+
+.captcha-warning {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(254, 226, 226, 0.9);
+  color: #b91c1c;
+  font-size: 0.95rem;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+[data-theme='dark'] .captcha-warning {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fee2e2;
+  border-color: rgba(248, 113, 113, 0.25);
+}
+
+@media (max-width: 900px) {
+  .marker-panel,
+  .marker-form {
+    margin: 12px 0;
+    grid-template-columns: 1fr;
+  }
+}

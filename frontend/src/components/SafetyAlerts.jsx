@@ -1,3 +1,5 @@
+import '../css/SafetyAlerts.css';
+
 export default function SafetyAlerts({ nearbyDangers }) {
   return (
     <section className="warning-panel">

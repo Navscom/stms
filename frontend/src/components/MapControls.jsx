@@ -1,3 +1,5 @@
+import '../css/MapControls.css';
+
 export default function MapControls({
   isNavExpanded,
   setIsNavExpanded,

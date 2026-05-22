@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import '../css/MapView.css';
 import L from 'leaflet';
 import { formatDuration, isPinInactive } from '../utils/pinHelpers';
 

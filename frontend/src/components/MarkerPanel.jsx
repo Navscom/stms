@@ -1,4 +1,5 @@
-import { MARKER_TYPES } from '../constants/markerConstants';
+import { MARKER_TYPES } from '../utils/markerConstants';
+import '../css/MarkerPanel.css';
 
 export default function MarkerPanel({
   markerForm,

@@ -1,3 +1,5 @@
+import '../css/ReportGrid.css';
+
 export default function ReportGrid({ report }) {
   return (
     <section className="report-grid">

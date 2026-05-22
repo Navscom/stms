@@ -20,3 +20,21 @@
 .toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; margin-left: 5px; }
 .helper-text { color: var(--muted); font-size: 0.9rem; }
 .message { font-weight: bold; color: var(--accent); }
+.primary-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+}
+.primary-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}

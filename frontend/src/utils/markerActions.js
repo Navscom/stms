@@ -1,6 +1,6 @@
 import { postDangerPin, postPinComment, deleteDangerPin } from './index';
 import { validateMarkerSubmission } from './validation';
-import { DEFAULT_MARKER_FORM } from '../constants/markerConstants';
+import { DEFAULT_MARKER_FORM } from './markerConstants';
 
 export async function submitMarker({
   user,

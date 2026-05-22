@@ -1,0 +1,152 @@
+.map-container-wrapper {
+  height: calc(78vh + 20px);
+  width: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  border: none;
+  position: relative;
+}
+
+.map-card .leaflet-top.leaflet-left {
+  left: 96px !important;
+}
+.leaflet-top.leaflet-left {
+  margin-left: 6px;
+}
+.leaflet-bottom.leaflet-right {
+  right: 14px;
+  bottom: 14px;
+}
+.leaflet-control-zoom {
+  gap: 0;
+  border-radius: 12px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+[data-theme='dark'] .leaflet-control-zoom {
+  background: rgba(30, 42, 60, 0.96);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  margin: 0;
+}
+.leaflet-control-zoom-in:not(:last-child),
+.leaflet-control-zoom-out:not(:last-child) {
+  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+}
+[data-theme='dark'] .leaflet-control-zoom-in:not(:last-child),
+[data-theme='dark'] .leaflet-control-zoom-out:not(:last-child) {
+  border-bottom: 1px solid rgba(96, 165, 250, 0.1);
+}
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background: rgba(37, 99, 235, 0.12);
+  transform: scale(1.02);
+}
+[data-theme='dark'] .leaflet-control-zoom-in:hover,
+[data-theme='dark'] .leaflet-control-zoom-out:hover {
+  background: rgba(96, 165, 250, 0.15);
+}
+.leaflet-control-zoom-in:active,
+.leaflet-control-zoom-out:active {
+  background: rgba(37, 99, 235, 0.18);
+  transform: scale(0.98);
+}
+[data-theme='dark'] .leaflet-control-zoom-in:active,
+[data-theme='dark'] .leaflet-control-zoom-out:active {
+  background: rgba(96, 165, 250, 0.2);
+}
+
+.delete-pin-box,
+.delete-pin-note {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+}
+.delete-pin-box label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+.delete-pin-box button {
+  width: fit-content;
+}
+.delete-pin-box .secondary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.popup-comments {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #ddd;
+}
+.comment-list {
+  max-height: 120px;
+  overflow-y: auto;
+  margin: 6px 0;
+}
+.comment-item {
+  padding: 6px;
+  margin-bottom: 5px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+[data-theme='dark'] .comment-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+.comment-item p {
+  margin: 0 0 3px;
+}
+.comment-form {
+  display: flex;
+  gap: 5px;
+}
+.comment-form input {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+.comment-form button {
+  border: none;
+  border-radius: 6px;
+  background: #1d72b8;
+  color: white;
+  padding: 7px 9px;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .map-container-wrapper {
+    height: 56vh;
+  }
+}
+
+@media (max-width: 600px) {
+  .map-container-wrapper {
+    height: 50vh;
+  }
+}
