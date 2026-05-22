@@ -49,6 +49,14 @@ def safe_data(response: Any) -> List[Dict[str, Any]]:
     return getattr(response, 'data', []) or []
 
 
+def now_iso() -> str:
+    return datetime.now().isoformat()
+
+
+def filter_active_pins(pins: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [pin for pin in pins if not _pin_inactive(pin)]
+
+
 def parse_timestamp(value: Any) -> Any:
     if isinstance(value, datetime):
         dt = value

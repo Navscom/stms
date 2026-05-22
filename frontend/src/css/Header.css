@@ -1,0 +1,70 @@
+.header {
+  text-align: left;
+  margin-bottom: 28px;
+  display: grid;
+  gap: 18px;
+}
+.header h1 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+}
+.header-actions,
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.profile-menu { position: relative; display: inline-flex; }
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.profile-dropdown-item {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+[data-theme='dark'] .profile-dropdown-item { background: rgba(100, 116, 139, 0.12); }
+.profile-dropdown-item strong { color: var(--accent); }
+.logout-btn { width: 100%; text-align: left; }
+.profile-delete-section { margin-top: 8px; padding-top: 8px; }
+.delete-account-confirm { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.confirm-delete-checkbox { display: flex; align-items: center; gap: 10px; color: #991b1b; font-size: 0.95rem; }
+.confirm-delete-checkbox input { width: 18px; height: 18px; }
+.danger-btn { background: #dc2626; color: white; border: 1px solid rgba(220, 38, 38, 0.45); }
+.danger-btn:hover:not(:disabled) { background: #b91c1c; }
+.danger-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.status-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.status-pill { display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; background: #e0f2fe; color: #0f172a; font-weight: 700; letter-spacing: 0.02em; }
+[data-theme='dark'] .status-pill { background: rgba(96, 165, 250, 0.18); color: #e2e8f0; }
+.status-live { background: linear-gradient(135deg, #34d399, #22c55e); color: white; }
+[data-theme='dark'] .status-live { background: linear-gradient(135deg, #22c55e, #10b981); }
+.status-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 600px) {
+  .header h1 { font-size: 1.8rem; }
+  .header-actions { flex-direction: column; align-items: stretch; }
+}

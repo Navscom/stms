@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { validateAuthForm } from '../utils/validation';
 import '../css/Login.css';
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoMessage }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', role: 'tourist' });
   const [rememberMe, setRememberMe] = useState(false);
@@ -28,12 +28,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoM
     setForm(initialForm);
     setRememberMe(false);
   }, [isOpen]);
-
-  useEffect(() => {
-    if (infoMessage) {
-      setMessage(infoMessage);
-    }
-  }, [infoMessage]);
 
   if (!isOpen) return null;
 

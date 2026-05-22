@@ -8,7 +8,6 @@ export async function submitMarker({
   pendingMarkerLocation,
   markerForm,
   selectedMarkerType,
-  setLoginPromptMessage,
   setIsModalOpen,
   setCaptchaWarning,
   setMarkerWarning,
@@ -25,7 +24,6 @@ export async function submitMarker({
   const validation = validateMarkerSubmission({ user, captchaChecked, pendingMarkerLocation, markerForm });
   if (!validation.valid) {
     if (validation.reason === 'login') {
-      setLoginPromptMessage(validation.message);
       setIsModalOpen(true);
     } else if (validation.reason === 'captcha') {
       setCaptchaWarning(validation.message);

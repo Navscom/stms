@@ -1,0 +1,158 @@
+.destination-panel { 
+    border: 1px solid var(--border); 
+    border-radius: 20px; 
+    padding: 14px; 
+    background: var(--card-bg); 
+    box-shadow: 0 10px 24px rgba(0,0,0,0.08); 
+}
+
+.destination-header { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    gap: 10px; 
+    margin-bottom: 16px; 
+}
+
+.destination-list { 
+    display: grid; 
+    gap: 12px; 
+}
+
+.destination-card { 
+    cursor: pointer; 
+    border: 1px solid var(--border); 
+    border-radius: 18px; 
+    padding: 16px; 
+    background: var(--card-bg); 
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease; 
+    text-align: left; 
+}
+
+.destination-card:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16); 
+    border-color: #a3acc6; 
+}
+
+.destination-card.selected { 
+    border-width: 1.5px; 
+    border-color: #4b5563; 
+    background: #e5e7eb; 
+    box-shadow: 0 10px 20px rgba(75, 85, 99, 0.14); 
+}
+
+[data-theme='dark'] .destination-card { 
+    background-color: #232b36; 
+    border-color: rgba(148, 163, 184, 0.20); 
+}
+
+[data-theme='dark'] 
+.destination-card:hover { 
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28); 
+}
+
+[data-theme='dark'] .destination-card.selected { 
+    background: rgba(21, 28, 38, 0.98); 
+    border-color: rgba(148, 163, 184, 0.68); 
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.40); 
+}
+
+.destination-button { 
+    display: block; 
+    width: 100%; 
+    border: none; 
+    background: transparent; 
+    padding: 0; 
+    text-align: left;
+}
+
+.destination-button:focus { 
+    outline: none; 
+}
+
+.destination-top { 
+    display: flex; 
+    justify-content: space-between; 
+    gap: 12px; 
+    align-items: flex-start; 
+}
+
+.destination-card h3 { 
+    margin: 0; 
+    font-size: 1.05rem; 
+    color: var(--accent); 
+}
+
+.destination-card p { 
+    margin: 10px 0 0; 
+    line-height: 1.5; 
+}
+
+.destination-card small, .distance { 
+    color: var(--muted); 
+}
+
+.destination-detail-card { 
+    padding: 22px; 
+    border: 1px solid var(--border); 
+    border-radius: 22px; 
+    background: #f5f7ff; 
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); 
+    overflow-wrap: anywhere; 
+    word-break: break-word; 
+}
+
+[data-theme='dark'] .destination-detail-card { 
+    background: rgba(30, 42, 60, 0.8); 
+    border-color: rgba(63, 71, 88, 0.4); 
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2); 
+}
+
+.destination-detail-card h3 { 
+    margin-top: 0; 
+    color: var(--accent); 
+    font-size: 1.2rem; 
+}
+
+.destination-location, .destination-meta, .destination-description { 
+    margin: 12px 0; 
+    line-height: 1.6; 
+    word-wrap: break-word; 
+    overflow-wrap: anywhere; 
+}
+
+.destination-meta { 
+    color: var(--muted); 
+    font-size: 0.95rem; 
+}
+
+.destination-action-row { 
+    margin-top: 16px; 
+}
+
+.small-btn { 
+    padding: 8px 12px; 
+    font-size: 0.95rem; 
+}
+
+.crowd-badge { 
+    display: inline-block; 
+    padding: 6px 10px; 
+    border-radius: 14px; 
+    color: white; 
+    font-weight: 600; 
+    font-size: 0.85rem; 
+}
+
+.crowd-badge.low { 
+    background: #10b981; 
+}
+
+.crowd-badge.moderate { 
+    background: #f59e0b; 
+}
+
+.crowd-badge.high { 
+    background: #ef4444; 
+}

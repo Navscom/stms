@@ -38,7 +38,6 @@ function App() {
   const [selectedMarkerType, setSelectedMarkerType] = useState('Danger Area');
   const [pendingMarkerLocation, setPendingMarkerLocation] = useState(null);
   const [markerForm, setMarkerForm] = useState(DEFAULT_MARKER_FORM);
-  const [loginPromptMessage, setLoginPromptMessage] = useState('');
   const [showNotification, setShowNotification] = useState(false);
 
   useEffect(() => {
@@ -75,7 +74,6 @@ function App() {
 
   const startMarkerPlacement = (lat, lng) => {
     if (!user) {
-      setLoginPromptMessage('You need to login first before adding a new marker.');
       setIsModalOpen(true);
       setPinMode(false);
       return;
@@ -97,7 +95,6 @@ function App() {
       pendingMarkerLocation,
       markerForm,
       selectedMarkerType,
-      setLoginPromptMessage,
       setIsModalOpen,
       setCaptchaWarning,
       setMarkerWarning,
@@ -145,7 +142,6 @@ function App() {
 
   const togglePinMode = () => {
     if (!user) {
-      setLoginPromptMessage('You need to login first before adding a new marker.');
       setIsModalOpen(true);
       return;
     }
@@ -211,7 +207,6 @@ function App() {
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);
     setIsModalOpen(false);
-    setLoginPromptMessage('');
   };
 
   const handleLogout = () => {
@@ -219,7 +214,6 @@ function App() {
     setIsModalOpen(false);
     setPinMode(false);
     setPendingMarkerLocation(null);
-    setLoginPromptMessage('');
   };
 
   const handleDeleteAccount = async () => {
@@ -235,7 +229,6 @@ function App() {
       setIsModalOpen(false);
       setPinMode(false);
       setPendingMarkerLocation(null);
-      setLoginPromptMessage('Your account has been deleted.');
       setAdvice('Your account has been deleted. Login or register again to continue.');
     } catch (error) {
       setAdvice(error.message || 'Failed to delete account.');
@@ -244,7 +237,6 @@ function App() {
 
   const closeLoginModal = () => {
     setIsModalOpen(false);
-    setLoginPromptMessage('');
   };
 
   return (
@@ -346,11 +338,13 @@ function App() {
       {report && <ReportGrid report={report} />}
 
       {user?.role === 'admin' && (
-        <AdminPanel api={API} destinations={destinations} onRefresh={() => {
-        loadDestinations(setDestinations);
-        loadDangerPins(setDangerPins);
-        loadReport(setReport);
-      }} />
+        <AdminPanel
+          api={API}
+          destinations={destinations}
+          setAppDestinations={setDestinations}
+          setAppDangerPins={setDangerPins}
+          setAppReport={setReport}
+        />
       )}
 
       <LoginModal
@@ -358,7 +352,6 @@ function App() {
         onClose={closeLoginModal}
         onLoginSuccess={handleLoginSuccess}
         api={API}
-        infoMessage={loginPromptMessage}
       />
     </div>
   );

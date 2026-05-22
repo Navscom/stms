@@ -1,26 +1,5 @@
 import { getDestinations, getDangerPins, getReportSummary, getSafetyCheck, getAiAdvice } from './index';
-
-const getDurationHours = (pin) => {
-  if (!pin) return 0;
-  const hours = Number(pin.duration_hours ?? NaN);
-  if (!Number.isNaN(hours) && hours > 0) return hours;
-  const minutes = Number(pin.duration_minutes ?? pin.duration ?? pin.minutes ?? 0);
-  const parsedMinutes = Number(minutes);
-  return !Number.isNaN(parsedMinutes) && parsedMinutes > 0 ? parsedMinutes / 60 : 0;
-};
-
-const isPinExpired = (pin) => {
-  const durationHours = getDurationHours(pin);
-  if (!durationHours || !pin?.created_at) return false;
-  const created = new Date(pin.created_at);
-  if (Number.isNaN(created.getTime())) return false;
-  const expireTime = created.getTime() + durationHours * 60 * 60 * 1000;
-  return Date.now() > expireTime;
-};
-
-const isPinInactive = (pin) => Boolean(pin?.removed_at) || isPinExpired(pin);
-
-const filterActivePins = (pins) => (pins || []).filter((pin) => !isPinInactive(pin));
+import { filterActivePins } from './pinHelpers';
 
 export async function loadDestinations(setDestinations, { fallbackDestinations } = {}) {
   try {

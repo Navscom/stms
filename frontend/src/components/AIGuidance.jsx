@@ -1,5 +1,8 @@
 import React from 'react';
 import '../css/AIGuidance.css';
+import { checkSafety, fetchAdvice } from '../utils/LoadData';
+
+export { checkSafety, fetchAdvice };
 
 export default function AIGuidance({ advice, nearest }) {
   return (

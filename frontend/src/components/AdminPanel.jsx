@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { validateDestinationForm } from '../utils/validation';
+import { loadDestinations, loadDangerPins, loadReport } from '../utils/LoadData';
 import '../css/AdminPanel.css';
 
-export default function AdminPanel({ api, destinations, onRefresh }) {
+export default function AdminPanel({ api, destinations, setAppDestinations, setAppDangerPins, setAppReport }) {
   const [form, setForm] = useState({
     name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '', crowd_level: 'Low'
   });
@@ -23,7 +24,7 @@ export default function AdminPanel({ api, destinations, onRefresh }) {
     if (res.ok) {
       alert('Destination added successfully.');
       setForm({ name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '', crowd_level: 'Low' });
-      onRefresh();
+      await refreshAll();
     } else {
       const data = await res.json();
       alert(data.detail || 'Failed to add destination.');
@@ -34,7 +35,19 @@ export default function AdminPanel({ api, destinations, onRefresh }) {
     await fetch(`${api}/destinations/${id}/crowd`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crowd_level })
     });
-    onRefresh();
+    await refreshAll();
+  };
+
+  const refreshAll = async () => {
+    if (typeof setAppDestinations === 'function') {
+      await loadDestinations(setAppDestinations, { fallbackDestinations: [] });
+    }
+    if (typeof setAppDangerPins === 'function') {
+      await loadDangerPins(setAppDangerPins);
+    }
+    if (typeof setAppReport === 'function') {
+      await loadReport(setAppReport);
+    }
   };
 
   return (

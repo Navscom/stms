@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { formatDuration, isPinInactive } from '../utils/pinHelpers';
 
 const phBounds = [[4.0, 116.0], [21.5, 127.0]];
 
@@ -181,50 +182,9 @@ export default function MapView({
 
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
 
-  const getDurationHours = (pin) => {
-    const hoursValue = Number(pin?.duration_hours ?? NaN);
-    if (!Number.isNaN(hoursValue) && hoursValue > 0) {
-      return hoursValue;
-    }
-    const minutes = Number(pin?.duration_minutes ?? pin?.duration ?? 0);
-    if (minutes > 0) {
-      return minutes / 60;
-    }
-    return 0;
-  };
-
-  const renderDuration = (pin) => {
-    const totalHours = getDurationHours(pin);
-    if (!totalHours) return null;
-    const days = Math.floor(totalHours / 24);
-    const hours = Math.floor(totalHours % 24);
-    if (days) {
-      return `${days} day${days !== 1 ? 's' : ''}${hours ? ` ${hours} hour${hours !== 1 ? 's' : ''}` : ''}`;
-    }
-    if (totalHours >= 1) {
-      return `${Math.round(totalHours)} hour${Math.round(totalHours) !== 1 ? 's' : ''}`;
-    }
-    return `${Math.round(totalHours * 60)} minute${Math.round(totalHours * 60) !== 1 ? 's' : ''}`;
-  };
-
-  const isPinExpired = (pin) => {
-    try {
-      const durationHours = getDurationHours(pin);
-      if (!durationHours || !pin?.created_at) return false;
-      const created = new Date(pin.created_at);
-      if (Number.isNaN(created.getTime())) return false;
-      const expireTime = created.getTime() + durationHours * 60 * 60 * 1000;
-      return Date.now() > expireTime;
-    } catch (e) {
-      return false;
-    }
-  };
-
-  const isPinInactive = (pin) => {
-    return Boolean(pin?.removed_at) || isPinExpired(pin);
-  };
-
   const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
+
+  const renderDuration = (pin) => formatDuration(pin);
 
   return (
     <div className="map-container-wrapper">

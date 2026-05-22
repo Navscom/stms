@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '../css/Header.css';
 
 export default function Header({ advice, onLogin, onLogout, onDeleteAccount, user, theme, onToggleTheme, onRequestLocation, locationMode }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
