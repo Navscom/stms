@@ -48,13 +48,6 @@ export function validateMarkerSubmission({ user, captchaChecked, pendingMarkerLo
       message: 'You need to login first before adding a new marker.',
     };
   }
-  if (!captchaChecked) {
-    return {
-      valid: false,
-      reason: 'captcha',
-      message: 'Check the CAPTCHA box before submitting your marker.',
-    };
-  }
   if (!pendingMarkerLocation) {
     return {
       valid: false,
@@ -78,6 +71,13 @@ export function validateMarkerSubmission({ user, captchaChecked, pendingMarkerLo
       valid: false,
       reason: 'marker',
       message: 'Please specify at least 1 hour of duration.',
+    };
+  }
+  if (!captchaChecked) {
+    return {
+      valid: false,
+      reason: 'captcha',
+      message: 'Check the CAPTCHA box before submitting your marker.',
     };
   }
 

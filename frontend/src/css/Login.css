@@ -1,6 +1,22 @@
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 18px; }
 .modal-box { background: var(--modal-bg); color: var(--text-primary); padding: 2rem; border-radius: 16px; width: 380px; max-width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
 .auth-form { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; }
+.auth-form input,
+.auth-form select {
+  padding: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+.auth-form input:focus,
+.auth-form select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
 .toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; margin-left: 5px; }
 .helper-text { color: var(--muted); font-size: 0.9rem; }
 .message { font-weight: bold; color: var(--accent); }

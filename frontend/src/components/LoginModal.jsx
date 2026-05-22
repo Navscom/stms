@@ -29,6 +29,12 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoM
     setRememberMe(false);
   }, [isOpen]);
 
+  useEffect(() => {
+    if (infoMessage) {
+      setMessage(infoMessage);
+    }
+  }, [infoMessage]);
+
   if (!isOpen) return null;
 
   const update = (key, value) => setForm({ ...form, [key]: value });
@@ -86,7 +92,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, infoM
       <div className="modal-box" onClick={(e) => e.stopPropagation()}>
         <h2>{isRegister ? 'Register' : 'Login'}</h2>
         <form className="auth-form" onSubmit={handleSubmit}>
-          {infoMessage && <p className="modal-info-message">{infoMessage}</p>}
           {isRegister && <input placeholder="Full Name" value={form.name} onChange={(e) => update('name', e.target.value)} required />}
           <input type="email" placeholder="Email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
           <input type="password" placeholder="Password" value={form.password} onChange={(e) => update('password', e.target.value)} required />

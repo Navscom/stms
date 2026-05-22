@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
-import math
 from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any, Dict, List
@@ -29,11 +28,10 @@ from helpers import (
     parse_timestamp,
     _get_duration_hours,
     _pin_inactive,
-    _is_duration_expired,
     move_expired_pins,
 )
 
-# Load environment variables from .env file
+#Load .env
 load_dotenv()
 
 def _require_env(name: str) -> str:
@@ -42,7 +40,7 @@ def _require_env(name: str) -> str:
         raise RuntimeError(f"{name} environment variable is required for backend startup.")
     return value
 
-# Supabase connection
+#Supabase connection
 SUPABASE_URL = _require_env("SUPABASE_URL")
 SUPABASE_KEY = _require_env("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -56,17 +54,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ------------------ VALIDATION MODELS ------------------
-# Request models and validation helpers were moved to backend/db_validation.py
-
-
-@app.post("/danger-pins/move-expired")
-def move_expired_endpoint():
-    count = move_expired_pins(supabase)
-    return {"moved": count}
-
-
+#handler for rechecking expired pins every minute
 @app.on_event("startup")
 async def start_periodic_expiry_move():
     async def _periodic():
@@ -79,8 +67,7 @@ async def start_periodic_expiry_move():
             await asyncio.sleep(60)
     asyncio.create_task(_periodic())
 
-# ------------------ ENDPOINTS ------------------
-
+# ENDPOINTS
 @app.get("/")
 def home():
     return {"status": "Smart Tourism Management System backend is running"}
@@ -188,32 +175,12 @@ def safety_check(lat: float, lng: float):
         risk_level = "High"
     elif nearby:
         risk_level = "Moderate"
-    return {"risk_level": risk_level, "nearby_dangers": nearby[:8]}
 
-@app.post("/recommend-route")
-def recommend_route(data: RouteRequest):
-    response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(response)
-    pins = [p for p in pins if not _pin_inactive(p)]
-    hazards = []
-    for pin in pins:
-        if not isinstance(pin, dict):
-            continue
-        radius = pin.get("radius_meters", 300)
-        if isinstance(radius, (int, float)):
-            radius_km = max(radius / 1000, 0.25)
-        else:
-            radius_km = 0.25
-        if route_intersects_zone(data.start_lat, data.start_lng, data.end_lat, data.end_lng, pin.get("lat", 0), pin.get("lng", 0), radius_km):
-            hazards.append(pin)
-    if hazards:
-        main = hazards[0] if isinstance(hazards[0], dict) else {}
-        route_points = make_detour(data.start_lat, data.start_lng, data.end_lat, data.end_lng, main.get("lat", 0), main.get("lng", 0))
-        recommendation = f"Safer route recommended. Avoid {main.get('title', 'danger area')} ({main.get('danger_type', 'danger')})."
-    else:
-        route_points = [[data.start_lat, data.start_lng], [data.end_lat, data.end_lng]]
-        recommendation = "Direct route looks clear. Stay alert."
-    return {"route_points": route_points, "hazards_ahead": hazards, "recommendation": recommendation}
+    alerts = [
+        f"Safety alert: {pin.get('title', 'Danger area')} ({pin.get('danger_type', 'danger')}) is {pin.get('distance_km', 0)} km away."
+        for pin in nearby if isinstance(pin, dict)
+    ]
+    return {"risk_level": risk_level, "nearby_dangers": nearby[:8], "alerts": alerts}
 
 @app.get("/ai-advice")
 def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
@@ -247,16 +214,13 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
 
     if nearest:
         top = nearest[0] if isinstance(nearest[0], dict) else {}
-        if top.get("distance_km", 999) <= 1.0:
-            crowd_level = top.get("crowd_level")
-            crowd_note = {
-                "Low": "Crowd level is low, good time to visit.",
-                "Moderate": "Crowd level is moderate, expect some waiting.",
-                "High": "Crowd level is high, consider alternatives."
-            }.get(crowd_level, "Crowd status unavailable.") if isinstance(crowd_level, str) else "Crowd status unavailable."
-            advice = f"Nearest spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
-        else:
-            advice = "No tourist destination found."
+        crowd_level = top.get("crowd_level")
+        crowd_note = {
+            "Low": "Crowd level is low, good time to visit.",
+            "Moderate": "Crowd level is moderate, expect some waiting.",
+            "High": "Crowd level is high, consider alternatives."
+        }.get(crowd_level, "Crowd status unavailable.") if isinstance(crowd_level, str) else "Crowd status unavailable."
+        advice = f"Nearest spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
     else:
         advice = "No tourist destination found."
 
@@ -376,6 +340,11 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add comment")
     return {"message": "Comment added", "id": data_list[0]["id"]}
+
+@app.post("/danger-pins/move-expired")
+def move_expired_endpoint():
+    count = move_expired_pins(supabase)
+    return {"moved": count}
 
 @app.delete("/danger-pins/{pin_id}")
 def delete_danger_pin(pin_id: int):

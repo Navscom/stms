@@ -1,12 +1,28 @@
 const API = 'http://127.0.0.1:8000';
 
 async function fetchJson(path, options) {
-  const response = await fetch(`${API}${path}`, options);
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(payload?.detail || 'Server error.');
+  const shouldRetry = !options || !options.method || options.method.toUpperCase() === 'GET';
+  const maxAttempts = shouldRetry ? 3 : 1;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(`${API}${path}`, options);
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.detail || `Server error: ${response.status}`);
+      }
+      return payload;
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) {
+        throw lastError;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+    }
   }
-  return payload;
+
+  throw lastError;
 }
 
 export function getDestinations() {

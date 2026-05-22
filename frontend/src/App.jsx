@@ -8,20 +8,11 @@ import MapControls from './components/MapControls';
 import MarkerPanel from './components/MarkerPanel';
 import SafetyAlerts from './components/SafetyAlerts';
 import ReportGrid from './components/ReportGrid';
-import { validateMarkerSubmission } from './utils/validation';
+import AIGuidance from './components/AIGuidance';
 import { useUserSession } from './utils/useUserSession';
-import {
-  API,
-  getDestinations,
-  getDangerPins,
-  getReportSummary,
-  getSafetyCheck,
-  getAiAdvice,
-  postDangerPin,
-  postPinComment,
-  deleteDangerPin,
-  deleteAccount,
-} from './utils';
+import { API, deleteAccount, postPinComment, deleteDangerPin } from './utils';
+import { loadAppData, loadDestinations, loadDangerPins, loadReport, fetchAdvice as fetchAdviceHelper } from './utils/LoadData';
+import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommentAction, deletePin as deletePinAction } from './utils/markerActions';
 import { DEFAULT_MARKER_FORM } from './constants/markerConstants';
 
 function App() {
@@ -61,42 +52,11 @@ function App() {
     }
   }, [showNotification]);
 
-  const loadDestinations = async () => {
-    try {
-      const data = await getDestinations();
-      setDestinations(data || []);
-    } catch (error) {
-      console.error('Failed to load destinations:', error);
-      setDestinations([]);
-    }
-  };
-
-  const loadDangerPins = async () => {
-    try {
-      const data = await getDangerPins();
-      setDangerPins(data || []);
-    } catch (error) {
-      console.error('Failed to load danger pins:', error);
-      setDangerPins([]);
-    }
-  };
-
-  const loadReport = async () => {
-    try {
-      const data = await getReportSummary();
-      setReport(data || null);
-    } catch (error) {
-      console.error('Failed to load report:', error);
-      setReport(null);
-    }
-  };
-
-  const loadAppData = async () => {
-    await Promise.all([loadDestinations(), loadDangerPins(), loadReport()]);
-  };
-
   useEffect(() => {
-    loadAppData();
+    const loadData = async () => {
+      await loadAppData(setDestinations, setDangerPins, setReport);
+    };
+    loadData();
   }, []);
 
   // Debug logging
@@ -109,25 +69,8 @@ function App() {
     });
   }, [destinations, dangerPins, selectedDestinationId, user]);
 
-  const checkSafety = async (lat, lng) => {
-    const data = await getSafetyCheck(lat, lng);
-    setNearbyDangers(data.nearby_dangers || []);
-    return data;
-  };
-
   const fetchAdvice = async (lat, lng) => {
-    setSelectedLocation({ lat, lng });
-    setAdvice('Analyzing location, nearby spots, crowd condition, and safety warnings...');
-
-    try {
-      const adviceData = await getAiAdvice(lat, lng);
-      const safety = await checkSafety(lat, lng);
-      setAdvice(`${adviceData.advice} ${safety.alerts?.join(' ') || ''}`);
-      setNearest(adviceData.nearest_destinations || []);
-      setNearbyDangers(adviceData.nearby_dangers || []);
-    } catch (error) {
-      setAdvice('Backend error. Make sure FastAPI is running on http://127.0.0.1:8000');
-    }
+    await fetchAdviceHelper(lat, lng, setSelectedLocation, setAdvice, setNearest, setNearbyDangers);
   };
 
   const startMarkerPlacement = (lat, lng) => {
@@ -147,44 +90,24 @@ function App() {
 
   const submitMarker = async (e) => {
     e.preventDefault();
-    const validation = validateMarkerSubmission({ user, captchaChecked, pendingMarkerLocation, markerForm });
-    if (!validation.valid) {
-      if (validation.reason === 'login') {
-        setLoginPromptMessage(validation.message);
-        setIsModalOpen(true);
-      } else if (validation.reason === 'captcha') {
-        setCaptchaWarning(validation.message);
-      } else {
-        setMarkerWarning(validation.message);
-      }
-      return;
-    }
 
-    setCaptchaWarning('');
-    setMarkerWarning('');
-    const totalHours = validation.totalHours;
-    try {
-      await postDangerPin({
-        title: markerForm.title || selectedMarkerType,
-        danger_type: selectedMarkerType,
-        lat: pendingMarkerLocation.lat,
-        lng: pendingMarkerLocation.lng,
-        severity: markerForm.severity,
-        radius_meters: Number(markerForm.radius_meters || 300),
-        duration_hours: totalHours,
-        description: markerForm.description,
-        reported_by: user?.name || 'Anonymous Tourist',
-      });
-
-      await loadDangerPins();
-      await loadReport();
-      setPendingMarkerLocation(null);
-      setMarkerForm(DEFAULT_MARKER_FORM);
-      setShowNotification(true);
-      setAdvice(`${selectedMarkerType} marker added successfully. Other users can now see and comment on it.`);
-    } catch (error) {
-      alert(error.message);
-    }
+    await submitMarkerAction({
+      user,
+      captchaChecked,
+      pendingMarkerLocation,
+      markerForm,
+      selectedMarkerType,
+      setLoginPromptMessage,
+      setIsModalOpen,
+      setCaptchaWarning,
+      setMarkerWarning,
+      setPendingMarkerLocation,
+      setMarkerForm,
+      setShowNotification,
+      setAdvice,
+      loadDangerPins: () => loadDangerPins(setDangerPins),
+      loadReport: () => loadReport(setReport),
+    });
   };
 
   const addMarkerComment = async (pinId, comment) => {
@@ -193,7 +116,7 @@ function App() {
         comment,
         commented_by: user?.name || 'Anonymous Tourist',
       });
-      await loadDangerPins();
+      await loadDangerPins(setDangerPins);
       setAdvice('Comment added to marker.');
     } catch (err) {
       alert(err.message);
@@ -203,7 +126,7 @@ function App() {
   const deletePin = async (pinId) => {
     try {
       await deleteDangerPin(pinId);
-      await loadDangerPins();
+      await loadDangerPins(setDangerPins);
       setAdvice('Your marker was deleted successfully.');
     } catch (err) {
       alert(err.message);
@@ -261,13 +184,12 @@ function App() {
         setLocationMode(true);
         setShowDestinations(false);
         await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
-        setAdvice('My Location ON');
       },
       () => setAdvice('Location permission denied. You can still click on the map.')
     );
   };
 
-  const handleSelectDestination = (destination) => {
+  const handleSelectDestination = async (destination) => {
     if (selectedDestinationId === destination.id) {
       setSelectedDestinationId(null);
       setSelectedLocation(null);
@@ -277,7 +199,7 @@ function App() {
 
     setSelectedDestinationId(destination.id);
     setSelectedLocation({ lat: destination.lat, lng: destination.lng });
-    setAdvice(`Showing ${destination.name} on the map. Click the map for AI safety advice.`);
+    await fetchAdvice(destination.lat, destination.lng);
   };
 
   const clearSelectedDestination = () => {
@@ -346,6 +268,8 @@ function App() {
         onLogout={handleLogout}
         onDeleteAccount={handleDeleteAccount}
       />
+
+      <AIGuidance advice={advice} nearest={nearest} />
 
       <section className="dashboard-grid">
         <MapControls
@@ -419,7 +343,11 @@ function App() {
       {report && <ReportGrid report={report} />}
 
       {user?.role === 'admin' && (
-        <AdminPanel api={API} destinations={destinations} onRefresh={() => { loadDestinations(); loadDangerPins(); loadReport(); }} />
+        <AdminPanel api={API} destinations={destinations} onRefresh={() => {
+        loadDestinations(setDestinations);
+        loadDangerPins(setDangerPins);
+        loadReport(setReport);
+      }} />
       )}
 
       <LoginModal
