@@ -158,14 +158,20 @@ function App() {
       setIsModalOpen(true);
       return;
     }
-    setPendingMarkerLocation(null);
+
     setPinMode((prev) => {
       const next = !prev;
       if (next) {
         setShowDestinations(false);
-        if (lastClickLocation) {
-          startMarkerPlacement(lastClickLocation.lat, lastClickLocation.lng);
+        setPendingMarkerLocation(null);
+        const targetLocation = (locationMode && selectedLocation) ? selectedLocation : lastClickLocation;
+        if (targetLocation) {
+          startMarkerPlacement(targetLocation.lat, targetLocation.lng);
         }
+      } else {
+        setPendingMarkerLocation(null);
+        setSelectedMarkerType('Danger Area');
+        setMarkerForm(DEFAULT_MARKER_FORM);
       }
       return next;
     });
@@ -284,8 +290,11 @@ function App() {
                 onMyLocation={toggleLocationMode}
                 onHazardSubmit={submitMarker}
                 touristSpots={destinations}
+                nearest={nearest}
+                selectedLocation={selectedLocation}
                 isBoxExpanded={isNavExpanded}
                 setIsBoxExpanded={setIsNavExpanded}
+                isPinMode={pinMode}
                 onAddMarker={togglePinMode}
                 onDestinations={toggleShowDestinations}
                 markerForm={markerForm}

@@ -43,7 +43,7 @@ export default function DestinationList({ destinations: propDestinations, neares
     if (selectedDestinationId === destination.id) {
       setSelectedId(null);
       setSelectedLocation(null);
-      setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
+      setAdvice('Showing all tourist spots. Click any spot to focus on it.');
       if (onClearSelection) onClearSelection();
       return;
     }
@@ -63,7 +63,7 @@ export default function DestinationList({ destinations: propDestinations, neares
   function clearSelection() {
     setSelectedId(null);
     setSelectedLocation(null);
-    setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
+    setAdvice('Showing all tourist spots. Click any spot to focus on it.');
     if (onClearSelection) onClearSelection();
   }
 
@@ -73,7 +73,7 @@ export default function DestinationList({ destinations: propDestinations, neares
   const content = (
     <div className="destination-panel">
       <div className="destination-header">
-        <h2>{(nearest && nearest.length) ? 'Nearest Recommended Spots' : 'Tourist Destinations'}</h2>
+        <h2>{(nearest && nearest.length) ? 'Nearest Recommended Spots' : 'Tourist Spots'}</h2>
         {(selectedDestinationId) && <button type="button" className="secondary-btn small-btn" onClick={clearSelection}>Show All</button>}
       </div>
 

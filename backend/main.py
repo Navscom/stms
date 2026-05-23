@@ -199,7 +199,8 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         d["distance_km"] = round(distance, 2)
         ranked.append(d)
     ranked.sort(key=lambda item: item.get("distance_km", 0))
-    nearest = ranked[:3]
+    nearby_tourist_spots = [d for d in ranked if isinstance(d, dict) and d.get("distance_km", 0) * 1000 <= 900]
+    nearest = nearby_tourist_spots[:1]
 
     danger_nearby = []
     for p in pins:
@@ -221,9 +222,9 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
             "Moderate": "Crowd level is moderate, expect some waiting.",
             "High": "Crowd level is high, consider alternatives."
         }.get(crowd_level, "Crowd status unavailable.") if isinstance(crowd_level, str) else "Crowd status unavailable."
-        advice = f"Nearest spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
+        advice = f"Nearest tourist spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
     else:
-        advice = "No tourist destination found."
+        advice = "No tourist spots are nearby."
 
     if danger_nearby:
         first = danger_nearby[0] if isinstance(danger_nearby[0], dict) else {}
