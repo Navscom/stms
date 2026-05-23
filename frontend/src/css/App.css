@@ -71,6 +71,23 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
   .side-panel { max-height: none; overflow: visible; }
 }
 
+.app-shell.sidebar-expanded > section:not(.dashboard-grid),
+.app-shell.sidebar-expanded > header,
+.app-shell.sidebar-collapsed > section:not(.dashboard-grid),
+.app-shell.sidebar-collapsed > header {
+  transition: margin 0.3s ease;
+}
+
+.app-shell.sidebar-expanded > section:not(.dashboard-grid),
+.app-shell.sidebar-expanded > header {
+  margin-left: 360px;
+}
+
+.app-shell.sidebar-collapsed > section:not(.dashboard-grid),
+.app-shell.sidebar-collapsed > header {
+  margin-left: 78px;
+}
+
 .safety-toolbar {
   display: flex;
   gap: 10px;

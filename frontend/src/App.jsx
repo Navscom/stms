@@ -241,7 +241,7 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isNavExpanded ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
       {showNotification && (
         <div className="notification-overlay">
           <div className="notification-success">
@@ -268,6 +268,8 @@ function App() {
                 onMyLocation={toggleLocationMode}
                 onHazardSubmit={submitMarker}
                 touristSpots={destinations}
+                isBoxExpanded={isNavExpanded}
+                setIsBoxExpanded={setIsNavExpanded}
                 onAddMarker={togglePinMode}
                 onDestinations={toggleShowDestinations}
                 markerForm={markerForm}

@@ -4,11 +4,12 @@ import '../css/MapControlLeft.css';
 const MapControlLeft = ({
   onMyLocation,
   onHazardSubmit,
-  touristSpots = []
+  touristSpots = [],
+  isBoxExpanded = false,
+  setIsBoxExpanded = () => {},
 }) => {
   const [isAddingMarkerOpen, setIsAddingMarkerOpen] = useState(false);
   const [isDestinationsOpen, setIsDestinationsOpen] = useState(false);
-  const [isBoxExpanded, setIsBoxExpanded] = useState(false);
 
   // Handlers for collapsed primary icon buttons
   const handleCollapsedMyLocation = () => {
