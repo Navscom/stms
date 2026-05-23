@@ -1,28 +1,28 @@
 .map-controls-right {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 18px;
+  right: 18px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   background: #ffffff;
-  border-radius: 12px;
-  padding: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   pointer-events: auto;
   z-index: 1001;
 }
 
 .map-controls-right .pill-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
   border: none;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 16px;
   cursor: pointer;
 }
 
@@ -42,40 +42,40 @@
 
 .profile-dropdown {
   position: absolute;
-  top: 48px;
+  top: 52px;
   right: 0;
-  width: 260px;
+  width: 300px;
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 18px 40px rgba(2,6,23,0.12);
-  padding: 8px;
+  border-radius: 14px;
+  box-shadow: 0 20px 44px rgba(2,6,23,0.14);
+  padding: 10px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   z-index: 1003;
 }
 
 
 .profile-header {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  padding: 8px 6px;
+  padding: 10px 8px;
 }
 
 .avatar-img,
 .avatar-large img {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   object-fit: cover;
 }
 
 .avatar-fallback,
 .avatar-large-fallback {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
   background: linear-gradient(135deg,var(--accent),var(--accent-dark, #1d4ed8));
@@ -87,16 +87,16 @@
 .avatar-large img, .avatar-large-fallback { width: 56px; height: 56px; border-radius: 10px; }
 
 .profile-info { display: flex; flex-direction: column; }
-.profile-name { font-weight: 700; color: var(--text-primary); }
-.profile-email { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
-.profile-role { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+.profile-name { font-weight: 700; color: var(--text-primary); font-size: 1.03rem; }
+.profile-email { font-size: 0.92rem; color: var(--muted); margin-top: 4px; }
+.profile-role { font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
 
-.profile-actions { padding: 6px; display: grid; gap: 8px; }
+.profile-actions { padding: 8px; display: grid; gap: 10px; }
 
 .logout-btn {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: none;
   background: var(--accent);
   color: white;
@@ -108,8 +108,8 @@
 
 .danger-btn {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1px solid rgba(220,38,38,0.2);
   background: #fff;
   color: #dc2626;
@@ -119,7 +119,7 @@
 
 .danger-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.confirm-delete-checkbox { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--muted); }
+.confirm-delete-checkbox { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--muted); }
 .confirm-delete-checkbox input { accent-color: #2563eb; }
 
 [data-theme='dark'] .profile-dropdown {

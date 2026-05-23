@@ -39,18 +39,25 @@ const MapControlLeft = ({
           <div className="controllers-header">
             <div className="header-top">
               {isBoxExpanded && <div className="status-pill status-live">Live</div>}
-              <button 
-                type="button"
-                className="expand-btn"
-                onClick={() => setIsBoxExpanded(!isBoxExpanded)}
-                title={isBoxExpanded ? 'Collapse' : 'Expand'}
-              >
-                {isBoxExpanded ? '−' : '+'}
-              </button>
+              <div className="tooltip-container button-tooltip">
+                <button 
+                  type="button"
+                  className="expand-btn"
+                  onClick={() => setIsBoxExpanded(!isBoxExpanded)}
+                >
+                  {isBoxExpanded ? '−' : '+'}
+                </button>
+                <div className="tooltip-text">
+                  {isBoxExpanded ? 'Collapse' : 'Expand'}
+                </div>
+              </div>
             </div>
             {isBoxExpanded && (
               <>
-                <h1 title="Smart Tourism Management System">STMS</h1>
+                <div className="tooltip-container">
+                  <h1>STMS</h1>
+                  <div className="tooltip-text">Smart Tourism Management System</div>
+                </div>
                 <p className="subtitle">AI-Based Geolocation Guidance & Crowd Monitoring</p>
               </>
             )}
@@ -58,32 +65,38 @@ const MapControlLeft = ({
         
           {!isBoxExpanded ? (
             <div className="collapsed-menu">
-              <button
-                type="button"
-                className="collapsed-icon-btn"
-                title="My Location"
-                onClick={handleCollapsedMyLocation}
-              >
-                <span className="btn-icon">📍</span>
-              </button>
+              <div className="tooltip-container button-tooltip">
+                <button
+                  type="button"
+                  className="collapsed-icon-btn"
+                  onClick={handleCollapsedMyLocation}
+                >
+                  <span className="btn-icon">📍</span>
+                </button>
+                <div className="tooltip-text">My Location</div>
+              </div>
 
-              <button
-                type="button"
-                className="collapsed-icon-btn"
-                title="Add Marker"
-                onClick={handleCollapsedAddMarker}
-              >
-                <span className="btn-icon">📌</span>
-              </button>
+              <div className="tooltip-container button-tooltip">
+                <button
+                  type="button"
+                  className="collapsed-icon-btn"
+                  onClick={handleCollapsedAddMarker}
+                >
+                  <span className="btn-icon">📌</span>
+                </button>
+                <div className="tooltip-text">Add Marker</div>
+              </div>
 
-              <button
-                type="button"
-                className="collapsed-icon-btn"
-                title="Destinations"
-                onClick={handleCollapsedDestinations}
-              >
-                <span className="btn-icon">🗺️</span>
-              </button>
+              <div className="tooltip-container button-tooltip">
+                <button
+                  type="button"
+                  className="collapsed-icon-btn"
+                  onClick={handleCollapsedDestinations}
+                >
+                  <span className="btn-icon">🗺️</span>
+                </button>
+                <div className="tooltip-text">Destinations</div>
+              </div>
             </div>
           ) : (
             <>

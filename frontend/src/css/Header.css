@@ -1,20 +1,20 @@
 .header {
   text-align: left;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 .header h1 {
   margin: 0;
   color: var(--accent);
-  font-size: 2.4rem;
+  font-size: 2.6rem;
   font-weight: 700;
   letter-spacing: -0.03em;
 }
 .subtitle {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
-  font-size: 1rem;
+  font-size: 1.05rem;
 }
 .header-actions,
 .title-row {
@@ -29,13 +29,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 .status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 8px 14px;
+  padding: 10px 16px;
   border-radius: 999px;
   background: #e0f2fe;
   color: #0f172a;
@@ -62,7 +62,7 @@
 .secondary-btn {
   border: none;
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 12px 18px;
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: white;
   font-weight: 700;
