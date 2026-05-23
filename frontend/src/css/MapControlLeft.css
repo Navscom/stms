@@ -1,5 +1,5 @@
 .map-controls-wrapper {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
@@ -10,19 +10,129 @@
 }
 
 .map-controls-left {
-  position: absolute;
-  top: 16px;
-  left: 16px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  pointer-events: auto;
+}
+
+.controllers-box {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  pointer-events: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  transition: width 0.3s ease, overflow 0.3s ease;
+  width: 330px;
+  height: 100%;
+  position: relative;
+  z-index: 9999;
+}
+
+.controllers-box.collapsed {
+  width: 100px;
+  overflow: hidden;
+}
+
+.controllers-box.expanded {
+  width: 330px;
+}
+
+.controllers-header {
+  padding: 14px 0 16px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 14px;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.controllers-box.collapsed .header-top {
+  justify-content: center;
+}
+
+.controllers-header .status-pill {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 18px;
+  font-weight: bold;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.controllers-header .status-live {
+  background-color: #10b981;
+  color: #ffffff;
+}
+
+.expand-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 24px;
+  color: #475569;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.expand-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.controllers-header h1 {
+  font-size: 24px;
+  margin: 0 0 8px 0;
+  color: #0f172a;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: help;
+  position: relative;
+}
+
+.controllers-header h1:hover {
+  color: #1e40af;
+  text-decoration: underline;
+}
+
+.controllers-header .subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 280px;
 }
 
 .control-card-wrapper {
   display: flex;
   flex-direction: column;
   width: max-content;
+}
+
+.controllers-box.collapsed .control-card-wrapper {
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Rounded Pill Action Target Buttons */
@@ -41,7 +151,7 @@
   cursor: pointer;
   white-space: nowrap;
   width: max-content;
-  min-width: 160px;
+  min-width: 170px;
   transition: all 0.2s ease;
   text-align: left;
 }
@@ -49,6 +159,78 @@
 .map-controls-left .tool-btn.active-toggle {
   border-radius: 14px 14px 0 0;
   box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+}
+
+.controllers-box.collapsed {
+  width: 72px;
+  overflow: hidden;
+}
+
+.controllers-box.collapsed .tool-btn {
+  padding: 12px;
+  min-width: auto;
+  width: 48px;
+  height: 48px;
+  justify-content: center;
+  border-radius: 10px;
+  gap: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.controllers-box.collapsed .btn-text {
+  display: none;
+}
+
+.collapsed-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 8px 0;
+}
+
+.collapsed-icon-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid #e6eef8;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  cursor: pointer;
+  padding: 0;
+}
+
+.collapsed-icon-btn:hover,
+.collapsed-icon-btn:focus {
+  outline: none;
+  transform: translateY(0);
+  border-color: #94a3b8;
+}
+
+.collapsed-icon-btn .btn-icon {
+  font-size: 22px;
+}
+
+/* Icon sizing and visibility */
+.map-controls-left .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 22px;
+  line-height: 1;
+  position: relative;
+  z-index: 10000;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.controllers-box.collapsed .btn-icon {
+  font-size: 20px;
 }
 
 /* Clean Form Containers */
@@ -59,7 +241,7 @@
   background: #ffffff;
   border-radius: 0 16px 16px 16px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-  width: 340px; /* Spacious width to lay out your exact panels perfectly */
+  width: 350px; /* Spacious width to lay out your exact panels perfectly */
   transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
   box-sizing: border-box;
 }
