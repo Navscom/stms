@@ -481,6 +481,29 @@
   margin: 0;
 }
 
+.spot-center-btn,
+.form-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+  font-size: 13px;
+}
+
+.spot-center-btn:hover,
+.form-submit-btn:hover {
+  background-color: #1d4ed8;
+}
+
 /* Right Fixed Mini Pillar */
 /* Right Fixed Mini Pillar styles moved to ModeButtons.css to avoid duplication */
 

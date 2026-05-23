@@ -180,6 +180,17 @@ function MapResetHandler({ defaultCenter, defaultZoom, resetFlag }) {
   return null;
 }
 
+function MapFocusHandler({ location, zoom }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !location) return;
+    map.setView([location.lat, location.lng], zoom || map.getZoom(), { animate: true });
+  }, [map, location, zoom]);
+
+  return null;
+}
+
 function MapSyncHandler({ theme }) {
   const map = useMap();
 
@@ -256,6 +267,8 @@ export default function MapView({
   selectedLocation,
   pendingMarkerLocation,
   selectedMarkerType,
+  selectedDestinationId,
+  onDestinationClick,
   user,
   onLogin,
   onLogout,
@@ -265,6 +278,8 @@ export default function MapView({
   onToggleTheme,
   onResetMap,
   resetMapFlag,
+  focusLocation,
+  focusZoom,
   theme = 'light',
   mapRotation = 0,
 }) {
@@ -286,6 +301,22 @@ export default function MapView({
   const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
 
   const renderDuration = (pin) => formatDuration(pin);
+
+  const destinationRiskColors = {
+    Low: '#16a34a',
+    Moderate: '#f59e0b',
+    High: '#dc2626',
+  };
+
+  const getDestinationRiskStyle = (crowdLevel) => {
+    const color = destinationRiskColors[crowdLevel] || destinationRiskColors.Low;
+    return {
+      color,
+      fillColor: color,
+      fillOpacity: 0.18,
+      weight: 2,
+    };
+  };
 
   const [initialMapState] = useState(loadStoredMapState);
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
@@ -328,18 +359,36 @@ export default function MapView({
           defaultZoom={DEFAULT_MAP_ZOOM}
           resetFlag={resetMapFlag}
         />
+        <MapFocusHandler location={focusLocation} zoom={focusZoom} />
         <MapSyncHandler theme={theme} />
 
-        {destinations.map((d) => (
-          <Marker key={`dest-${d.id}`} position={[d.lat, d.lng]} icon={DESTINATION_ICON}>
-            <Popup>
-              <strong>{d.name}</strong><br />
-              {d.city}, {d.province}<br />
-              Crowd: <b>{d.crowd_level}</b><br />
-              {d.opening_hours}
-            </Popup>
-          </Marker>
-        ))}
+        {destinations.map((d) => {
+          const isSelected = selectedDestinationId === d.id;
+          const circlePathOptions = isSelected ? getDestinationRiskStyle(d.crowd_level) : null;
+          return (
+            <Fragment key={`dest-${d.id}`}>
+              {isSelected && (
+                <Circle
+                  center={[d.lat, d.lng]}
+                  radius={500}
+                  pathOptions={circlePathOptions}
+                />
+              )}
+              <Marker
+                position={[d.lat, d.lng]}
+                icon={DESTINATION_ICON}
+                eventHandlers={onDestinationClick ? { click: () => onDestinationClick(d) } : undefined}
+              >
+                <Popup>
+                  <strong>{d.name}</strong><br />
+                  {d.city}, {d.province}<br />
+                  Crowd: <b>{d.crowd_level}</b><br />
+                  {d.opening_hours}
+                </Popup>
+              </Marker>
+            </Fragment>
+          );
+        })}
 
         {visibleDangerPins.map((pin) => {
           const style = dangerStyles[pin.danger_type] || dangerStyles['Danger Area'];

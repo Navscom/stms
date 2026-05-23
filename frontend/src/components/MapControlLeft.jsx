@@ -15,6 +15,7 @@ const MapControlLeft = ({
   onMyLocation,
   onHazardSubmit,
   onAddMarker,
+  onCenterTouristSpot,
   touristSpots = [],
   nearest = [],
   selectedLocation = null,
@@ -59,6 +60,28 @@ const MapControlLeft = ({
     setIsBoxExpanded(true);
     setIsDestinationsOpen(true);
     setIsAddingMarkerOpen(false);
+  };
+
+  const getCenterSpot = () => {
+    if (nearest?.length > 0) {
+      return nearest[0];
+    }
+    return touristSpots.find((spot) => String(spot.name).toUpperCase() === 'RIZAL PARK') || {
+      id: 'rizal-park',
+      name: 'RIZAL PARK',
+      lat: 14.5825,
+      lng: 120.9781,
+      city: 'Manila City',
+      province: 'Manila',
+      crowd_level: 'High',
+      category: 'Tourist Destination',
+      opening_hours: '8:00 AM - 5:00 PM',
+    };
+  };
+
+  const handleCenterSpot = () => {
+    const spot = getCenterSpot();
+    if (onCenterTouristSpot) onCenterTouristSpot(spot);
   };
 
   return (
@@ -299,6 +322,9 @@ const MapControlLeft = ({
                           <p className="spot-card-distance">
                             {nearest[0].distance_km != null ? `Approx. ${nearest[0].distance_km} km away` : 'Distance unknown'}
                           </p>
+                          <button type="button" className="primary-btn spot-center-btn" onClick={handleCenterSpot}>
+                            Center on {nearest[0].name || 'Tourist Spot'}
+                          </button>
                         </div>
                       ) : (
                         <div className="tourist-spot-card">
@@ -311,6 +337,9 @@ const MapControlLeft = ({
                           <p className="spot-card-distance">
                             {selectedLocation ? `Approx. ${calculateDistanceKm(selectedLocation.lat, selectedLocation.lng, 14.5825, 120.9781)} km away` : 'Approx. 131.61 km away'}
                           </p>
+                          <button type="button" className="primary-btn spot-center-btn" onClick={handleCenterSpot}>
+                            Center on RIZAL PARK
+                          </button>
                         </div>
                       )}
 

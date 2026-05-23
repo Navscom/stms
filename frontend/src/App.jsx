@@ -217,6 +217,20 @@ function App() {
     await fetchAdvice(destination.lat, destination.lng);
   };
 
+  const toggleDestinationFocus = async (destination) => {
+    if (!destination) return;
+    if (selectedDestinationId === destination.id) {
+      setSelectedDestinationId(null);
+      setSelectedLocation(null);
+      setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
+      return;
+    }
+
+    setSelectedDestinationId(destination.id);
+    setSelectedLocation({ lat: destination.lat, lng: destination.lng });
+    await fetchAdvice(destination.lat, destination.lng);
+  };
+
   const clearSelectedDestination = () => {
     setSelectedDestinationId(null);
     setSelectedLocation(null);
@@ -289,6 +303,7 @@ function App() {
               <MapControlLeft
                 onMyLocation={toggleLocationMode}
                 onHazardSubmit={submitMarker}
+                onCenterTouristSpot={toggleDestinationFocus}
                 touristSpots={destinations}
                 nearest={nearest}
                 selectedLocation={selectedLocation}
@@ -311,7 +326,9 @@ function App() {
             </div>
 
             <MapView
-              destinations={destinations.filter((d) => !selectedDestinationId || d.id === selectedDestinationId)}
+              destinations={destinations}
+              selectedDestinationId={selectedDestinationId}
+              onDestinationClick={handleSelectDestination}
               dangerPins={dangerPins}
               nearbyDangers={nearbyDangers}
               selectedLocation={selectedLocation}
@@ -328,6 +345,8 @@ function App() {
               onLocationClick={handleMapClick}
               onAddComment={addMarkerComment}
               onDeletePin={deletePin}
+              focusLocation={selectedLocation}
+              focusZoom={15}
             />
           </div>
         </div>
