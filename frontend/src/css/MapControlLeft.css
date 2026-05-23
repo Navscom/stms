@@ -199,7 +199,8 @@
 .control-card-wrapper {
   display: flex;
   flex-direction: column;
-  width: max-content;
+  width: 100%;
+  align-items: stretch;
 }
 
 .controllers-box.collapsed .control-card-wrapper {
@@ -315,7 +316,8 @@
   background: #ffffff;
   border-radius: 0 16px 16px 16px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-  width: 350px; /* Spacious width to lay out your exact panels perfectly */
+  width: 100%;
+  max-width: 100%;
   transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
   box-sizing: border-box;
 }
@@ -481,3 +483,81 @@
 
 /* Right Fixed Mini Pillar */
 /* Right Fixed Mini Pillar styles moved to ModeButtons.css to avoid duplication */
+
+[data-theme='dark'] .map-controls-left .dropdown-panel {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .map-controls-left .inner-panel-content {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .map-controls-left .panel-main-title {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .panel-subtitle {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .map-controls-left .form-label {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .map-controls-left .form-select,
+[data-theme='dark'] .map-controls-left .form-input,
+[data-theme='dark'] .map-controls-left .form-textarea {
+  background-color: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .form-select option {
+  background: #111827;
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .disclaimer-box {
+  background-color: rgba(253, 230, 138, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+[data-theme='dark'] .map-controls-left .disclaimer-text {
+  color: #facc15;
+}
+
+[data-theme='dark'] .map-controls-left .location-status-msg {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .map-controls-left .location-status-msg p {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .map-controls-left .form-submit-btn {
+  background-color: #4f70d6;
+}
+
+[data-theme='dark'] .map-controls-left .tourist-spot-card {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+[data-theme='dark'] .map-controls-left .spot-card-title {
+  color: #93c5fd;
+}
+
+[data-theme='dark'] .map-controls-left .spot-card-location,
+[data-theme='dark'] .map-controls-left .spot-card-distance {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .map-controls-left .spot-card-meta {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .map-controls-left .severity-badge-high {
+  background-color: #dc2626;
+}
