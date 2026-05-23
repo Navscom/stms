@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../css/MapView.css';
+import MapControlRight from './MapControlRight';
 import L from 'leaflet';
 import { formatDuration, isPinInactive } from '../utils/pinHelpers';
 
@@ -32,7 +33,7 @@ const dangerStyles = {
 };
 
 const LIGHT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const DARK_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 const DESTINATION_ICON = new L.DivIcon({
   html: '<div class="destination-pin"><span>🧭</span></div>',
@@ -170,8 +171,12 @@ export default function MapView({
   pendingMarkerLocation,
   selectedMarkerType,
   user,
+  onLogin,
+  onLogout,
+  onDeleteAccount,
   onAddComment,
   onDeletePin,
+  onToggleTheme,
   theme = 'light',
   mapRotation = 0,
 }) {
@@ -186,6 +191,8 @@ export default function MapView({
     });
   }, [destinations, dangerPins, nearbyDangers, pendingMarkerLocation, selectedMarkerType]);
 
+  
+
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
 
   const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
@@ -199,6 +206,16 @@ export default function MapView({
 
   return (
     <div className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
+      
+      <MapControlRight
+        user={user}
+        onLogin={onLogin}
+        onLogout={onLogout}
+        onDeleteAccount={onDeleteAccount}
+        onToggleTheme={onToggleTheme}
+        theme={theme}
+      />
+
       <MapContainer
         center={[14.5994, 120.9842]}
         zoom={12}
@@ -211,7 +228,7 @@ export default function MapView({
       >
         <TileLayer
           url={tileLayerUrl}
-          attribution={`&copy; OpenStreetMap contributors${theme === 'dark' ? ' &copy; CARTO' : ''}`}
+          attribution="&copy; OpenStreetMap contributors"
         />
         <MapClickHandler onLocationClick={onLocationClick} />
         <ZoomControlHandler />

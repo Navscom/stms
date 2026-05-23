@@ -224,32 +224,4 @@
 }
 
 /* Right Fixed Mini Pillar */
-.map-controls-right {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  pointer-events: auto;
-}
-
-.map-controls-right .pill-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  cursor: pointer;
-}
-.map-controls-right .pill-btn:hover {
-  background-color: #f1f5f9;
-}
+/* Right Fixed Mini Pillar styles moved to ModeButtons.css to avoid duplication */

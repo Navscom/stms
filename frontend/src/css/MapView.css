@@ -17,6 +17,33 @@
   overflow: hidden;
 }
 
+.theme-toggle-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1002;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.theme-toggle-btn:hover {
+  transform: scale(1.05);
+}
+
+[data-theme='dark'] .theme-toggle-btn {
+  background: rgba(30, 42, 60, 0.92);
+  color: #f8fafc;
+}
+
 .map-container-wrapper[data-rotation] {
   /* Rotation state is exposed here for future map bearing styling or plugins */
 }

@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import '../css/MapControls.css';
+import '../css/MapControlLeft.css';
 
-const MapControls = ({ 
-  theme, 
-  onToggleTheme, 
+const MapControlLeft = ({
   onMyLocation,
   onHazardSubmit,
-  touristSpots = [] 
+  touristSpots = []
 }) => {
   const [isAddingMarkerOpen, setIsAddingMarkerOpen] = useState(false);
   const [isDestinationsOpen, setIsDestinationsOpen] = useState(false);
@@ -154,17 +152,8 @@ const MapControls = ({
 
       </div>
 
-      {/* RIGHT UTILITIES PILL */}
-      <div className="map-controls-right">
-        <button type="button" className="pill-btn">👤</button>
-        <button type="button" onClick={onToggleTheme} className="pill-btn">
-          {theme === 'dark' ? '🌙' : '☀️'}
-        </button>
-        <button type="button" className="pill-btn">🧭</button>
-      </div>
-
     </div>
   );
 };
 
-export default MapControls;
+export default MapControlLeft;

@@ -4,7 +4,7 @@ import MapView from './components/MapView';
 import LoginModal from './components/LoginModal';
 import DestinationList from './components/DestinationList';
 import AdminPanel from './components/AdminPanel';
-import MapControls from './components/MapControls';
+import MapControlLeft from './components/MapControlLeft';
 import MarkerPanel from './components/MarkerPanel';
 import SafetyAlerts from './components/SafetyAlerts';
 import ReportGrid from './components/ReportGrid';
@@ -252,12 +252,7 @@ function App() {
       )}
       <Header
         advice={advice}
-        theme={theme}
         user={user}
-        onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-        onRequestLocation={toggleLocationMode}
-        locationMode={locationMode}
-        onLogin={() => setIsModalOpen(true)}
         onLogout={handleLogout}
         onDeleteAccount={handleDeleteAccount}
       />
@@ -269,9 +264,7 @@ function App() {
         <div className="map-panel">
           <div className="map-card">
             <div className="floating-side-nav-wrapper">
-              <MapControls
-                theme={theme}
-                onToggleTheme={toggleTheme}
+              <MapControlLeft
                 onMyLocation={toggleLocationMode}
                 onHazardSubmit={submitMarker}
                 touristSpots={destinations}
@@ -299,6 +292,10 @@ function App() {
               selectedMarkerType={selectedMarkerType}
               user={user}
               theme={theme}
+              onLogin={() => setIsModalOpen(true)}
+              onLogout={handleLogout}
+              onDeleteAccount={handleDeleteAccount}
+              onToggleTheme={toggleTheme}
               onLocationClick={handleMapClick}
               onAddComment={addMarkerComment}
               onDeletePin={deletePin}
