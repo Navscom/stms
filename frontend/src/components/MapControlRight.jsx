@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../css/MapControlRight.css';
 
-export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccount, onToggleTheme, theme }) {
+export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccount, onToggleTheme, onResetMap, theme }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -96,7 +96,12 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
         {theme === 'dark' ? '🌙' : '☀️'}
       </button>
 
-      <button type="button" className="pill-btn" aria-label="Compass">
+      <button
+        type="button"
+        className="pill-btn"
+        aria-label="Reset map view"
+        onClick={onResetMap}
+      >
         🧭
       </button>
     </div>

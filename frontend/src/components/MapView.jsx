@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../css/MapView.css';
@@ -80,6 +80,31 @@ const PERSON_ICON = new L.DivIcon({
   popupAnchor: [0, -52],
 });
 
+const DEFAULT_MAP_CENTER = [14.5994, 120.9842];
+const DEFAULT_MAP_ZOOM = 12;
+const MAP_STATE_KEY = 'stms_map_state';
+
+const loadStoredMapState = () => {
+  try {
+    const stored = window.localStorage.getItem(MAP_STATE_KEY);
+    if (!stored) return { center: DEFAULT_MAP_CENTER, zoom: DEFAULT_MAP_ZOOM };
+    const parsed = JSON.parse(stored);
+    const center = Array.isArray(parsed?.center) && parsed.center.length === 2
+      ? [Number(parsed.center[0]), Number(parsed.center[1])]
+      : DEFAULT_MAP_CENTER;
+    const zoom = Number(parsed?.zoom);
+    if (Number.isNaN(zoom)) {
+      return { center, zoom: DEFAULT_MAP_ZOOM };
+    }
+    return {
+      center,
+      zoom: Math.min(Math.max(zoom, 6), 18),
+    };
+  } catch {
+    return { center: DEFAULT_MAP_CENTER, zoom: DEFAULT_MAP_ZOOM };
+  }
+};
+
 function MapClickHandler({ onLocationClick }) {
   useMapEvents({
     click(e) {
@@ -101,6 +126,67 @@ function ZoomControlHandler() {
     // Add new zoom control to bottom-right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
   }, [map]);
+
+  return null;
+}
+
+function MapStatePersistence() {
+  const map = useMap();
+
+  const saveMapState = () => {
+    if (!map) return;
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    try {
+      window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({
+        center: [center.lat, center.lng],
+        zoom,
+      }));
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  useMapEvents({
+    moveend: saveMapState,
+    zoomend: saveMapState,
+  });
+
+  return null;
+}
+
+function MapResetHandler({ defaultCenter, defaultZoom, resetFlag }) {
+  const map = useMap();
+  const hasMounted = useRef(false);
+
+  useEffect(() => {
+    if (!map || resetFlag == null) return;
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+
+    map.setView(defaultCenter, defaultZoom, { animate: false });
+    try {
+      window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({
+        center: defaultCenter,
+        zoom: defaultZoom,
+      }));
+    } catch {
+      // ignore storage errors
+    }
+  }, [map, resetFlag, defaultCenter, defaultZoom]);
+
+  return null;
+}
+
+function MapSyncHandler({ theme }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    map.invalidateSize();
+  }, [map, theme]);
 
   return null;
 }
@@ -177,6 +263,8 @@ export default function MapView({
   onAddComment,
   onDeletePin,
   onToggleTheme,
+  onResetMap,
+  resetMapFlag,
   theme = 'light',
   mapRotation = 0,
 }) {
@@ -199,6 +287,7 @@ export default function MapView({
 
   const renderDuration = (pin) => formatDuration(pin);
 
+  const [initialMapState] = useState(loadStoredMapState);
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
   const mapWrapperStyle = {
     '--map-rotation': `${mapRotation}deg`,
@@ -213,12 +302,13 @@ export default function MapView({
         onLogout={onLogout}
         onDeleteAccount={onDeleteAccount}
         onToggleTheme={onToggleTheme}
+        onResetMap={onResetMap}
         theme={theme}
       />
 
       <MapContainer
-        center={[14.5994, 120.9842]}
-        zoom={12}
+        center={initialMapState.center}
+        zoom={initialMapState.zoom}
         maxBounds={phBounds}
         maxBoundsViscosity={1.0}
         minZoom={6}
@@ -232,6 +322,13 @@ export default function MapView({
         />
         <MapClickHandler onLocationClick={onLocationClick} />
         <ZoomControlHandler />
+        <MapStatePersistence />
+        <MapResetHandler
+          defaultCenter={DEFAULT_MAP_CENTER}
+          defaultZoom={DEFAULT_MAP_ZOOM}
+          resetFlag={resetMapFlag}
+        />
+        <MapSyncHandler theme={theme} />
 
         {destinations.map((d) => (
           <Marker key={`dest-${d.id}`} position={[d.lat, d.lng]} icon={DESTINATION_ICON}>

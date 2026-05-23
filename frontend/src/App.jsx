@@ -24,13 +24,20 @@ function App() {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [lastClickLocation, setLastClickLocation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState(() => {
+    try {
+      return window.localStorage.getItem('stms_theme') || 'light';
+    } catch {
+      return 'light';
+    }
+  });
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const [pinMode, setPinMode] = useState(false);
   const [locationMode, setLocationMode] = useState(false);
   const [showDestinations, setShowDestinations] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
+  const [resetMapFlag, setResetMapFlag] = useState(0);
   const [user, setUser] = useUserSession();
   const [report, setReport] = useState(null);
   const [captchaChecked, setCaptchaChecked] = useState(false);
@@ -43,6 +50,11 @@ function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    try {
+      window.localStorage.setItem('stms_theme', theme);
+    } catch {
+      // ignore storage errors in unsupported environments
+    }
   }, [theme]);
 
   useEffect(() => {
@@ -205,6 +217,10 @@ function App() {
     setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
   };
 
+  const resetMapView = () => {
+    setResetMapFlag((prev) => prev + 1);
+  };
+
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);
     setIsModalOpen(false);
@@ -298,6 +314,8 @@ function App() {
               onLogout={handleLogout}
               onDeleteAccount={handleDeleteAccount}
               onToggleTheme={toggleTheme}
+              onResetMap={() => setResetMapFlag((prev) => prev + 1)}
+              resetMapFlag={resetMapFlag}
               onLocationClick={handleMapClick}
               onAddComment={addMarkerComment}
               onDeletePin={deletePin}
