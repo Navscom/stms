@@ -228,6 +228,7 @@ function MapSyncHandler({ theme }) {
   return null;
 }
 
+// CommentBox component for displaying and adding comments to a pin //
 function CommentBox({ pin, onAddComment }) {
   const [comment, setComment] = useState('');
 
@@ -240,6 +241,7 @@ function CommentBox({ pin, onAddComment }) {
     onAddComment(pin.id, comment.trim());
     setComment('');
   };
+  
     // CommentBox component for displaying and adding comments to a pin //
   return (
     <div className="popup-comments">
@@ -377,6 +379,9 @@ export default function MapView({
         <TileLayer
           url={tileLayerUrl}
           attribution="&copy; OpenStreetMap contributors"
+          updateWhenIdle={false}
+          updateWhenZooming={true}
+          keepBuffer={2}
         />
         <MapClickHandler onLocationClick={onLocationClick} />
         <ZoomControlHandler />

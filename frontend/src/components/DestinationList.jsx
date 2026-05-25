@@ -67,6 +67,7 @@ export default function DestinationList({
       setSelectedId(null);
       setSelectedLocation(null);
       setAdvice('Showing all tourist spots. Click any spot to focus on it.');
+      setLocalNearest([]);
       if (onClearSelection) onClearSelection();
       return;
     }
@@ -84,8 +85,17 @@ export default function DestinationList({
     if (onSelectDestination) onSelectDestination(destination);
   }
 
+  const clearSelection = () => {
+    setSelectedId(null);
+    setSelectedLocation(null);
+    setAdvice('Showing all tourist spots. Click any spot to focus on it.');
+    setLocalNearest([]);
+    if (onClearSelection) onClearSelection();
+  };
+
   const handleCenterClick = () => {
     const spot = getCenterSpot();
+    if (!spot) return;
     // Use onZoomToSpot if available (panel mode - just zoom, don't change location)
     // Otherwise fall back to onCenterSpot (changes location)
     if (onZoomToSpot) {
@@ -96,17 +106,7 @@ export default function DestinationList({
   };
 
   const getCenterSpot = () => {
-    return destinations.find((spot) => String(spot.name).toUpperCase() === 'RIZAL PARK') || {
-      id: 'rizal-park',
-      name: 'RIZAL PARK',
-      lat: 14.5825,
-      lng: 120.9781,
-      city: 'Manila City',
-      province: 'Manila',
-      crowd_level: 'High',
-      category: 'Tourist Destination',
-      opening_hours: '8:00 AM - 5:00 PM',
-    };
+    return destinations.find((spot) => String(spot.name).toUpperCase() === 'RIZAL PARK') || destinations[0] || null;
   };
 
   const list = (nearest && nearest.length) ? nearest : destinations;
@@ -119,6 +119,7 @@ export default function DestinationList({
         {destinations && destinations.length > 0 ? (
           <div className="destination-list">
             {destinations.map((d) => (
+              // Tourist spot card line: each destination renders as a card here
               <button
                 key={d.id}
                 type="button"
@@ -146,19 +147,9 @@ export default function DestinationList({
         ) : (
           <div className="tourist-spot-card">
             <div className="card-header-row">
-              <h4 className="spot-card-title">RIZAL PARK</h4>
-              <span className="severity-badge-high">High</span>
+              <h4 className="spot-card-title">No tourist spots found</h4>
             </div>
-            <p className="spot-card-location">MANILA CITY, MANILA</p>
-            <p className="spot-card-meta">TOURIST DESTINATION • 8:00 AM - 5:00 PM</p>
-            <p className="spot-card-distance">
-              {currentSelectedLocation 
-                ? `Approx. ${calculateDistanceKm(currentSelectedLocation.lat, currentSelectedLocation.lng, 14.5825, 120.9781)} km away`
-                : 'Distance unknown'}
-            </p>
-            <button type="button" className="primary-btn spot-center-btn" onClick={handleCenterClick}>
-              Center on RIZAL PARK
-            </button>
+            <p className="spot-card-location">Load destinations to display tourist spot cards.</p>
           </div>
         )}
       </div>
@@ -186,6 +177,7 @@ export default function DestinationList({
           </div>
         </section>
       ) : (
+        // Tourist spot card line: each destination renders as a card here //
         <div className="destination-list">
           {list.map((d) => (
             <button

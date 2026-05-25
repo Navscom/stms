@@ -197,6 +197,36 @@ html[data-theme='dark'] .leaflet-control-zoom-out:active,
   cursor: pointer;
 }
 
+/* Dark-mode for Leaflet popups and comment UI */
+html[data-theme='dark'] .leaflet-popup-content-wrapper,
+[data-theme='dark'] .leaflet-popup-content-wrapper {
+  background: var(--modal-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+html[data-theme='dark'] .leaflet-popup-tip-path,
+[data-theme='dark'] .leaflet-popup-tip-path {
+  fill: var(--modal-bg) !important;
+}
+
+html[data-theme='dark'] .popup-comments,
+[data-theme='dark'] .popup-comments {
+  border-top: 1px solid var(--border);
+}
+
+html[data-theme='dark'] .comment-form input,
+[data-theme='dark'] .comment-form input {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+html[data-theme='dark'] .comment-list,
+[data-theme='dark'] .comment-list {
+  scrollbar-color: rgba(148,163,184,0.3) transparent;
+}
+
 @media (max-width: 900px) {
   .map-container-wrapper {
     height: 56vh;
