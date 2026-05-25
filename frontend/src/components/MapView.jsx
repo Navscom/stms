@@ -240,7 +240,7 @@ function CommentBox({ pin, onAddComment }) {
     onAddComment(pin.id, comment.trim());
     setComment('');
   };
-
+    // CommentBox component for displaying and adding comments to a pin //
   return (
     <div className="popup-comments">
       <strong>Comments</strong>
