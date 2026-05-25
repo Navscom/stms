@@ -228,6 +228,45 @@ function MapSyncHandler({ theme }) {
   return null;
 }
 
+function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onDeletePin }) {
+  const map = useMap();
+
+  return (
+    <Fragment>
+      <Circle
+        center={[pin.lat, pin.lng]}
+        radius={pin.radius_meters}
+        pathOptions={{
+          color: style.color,
+          fillColor: style.color,
+          fillOpacity: isNearby ? 0.35 : 0.16,
+        }}
+      />
+      <Marker
+        position={[pin.lat, pin.lng]}
+        icon={icon}
+        eventHandlers={{
+          click: () => {
+            map.setView([pin.lat, pin.lng], 18, { animate: true });
+          },
+        }}
+      >
+        <Popup maxWidth={320}>
+          <strong>{pin.danger_type}: {pin.title}</strong><br />
+          Severity: <b>{pin.severity}</b><br />
+          Radius: {pin.radius_meters}m<br />
+          {formatDuration(pin) && <>Duration: {formatDuration(pin)}<br /></>}
+          <small>Reported by: {pin.reported_by}</small><br />
+          <small>Reported on: {formatTimestamp(pin.created_at)}</small>
+          <p>{pin.description}</p>
+          <CommentBox pin={pin} onAddComment={onAddComment} />
+          <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
+        </Popup>
+      </Marker>
+    </Fragment>
+  );
+}
+
 // CommentBox component for displaying and adding comments to a pin //
 function CommentBox({ pin, onAddComment }) {
   const [comment, setComment] = useState('');
@@ -426,30 +465,16 @@ export default function MapView({
           const style = dangerStyles[pin.danger_type] || dangerStyles['Danger Area'];
           const icon = getDangerIcon(pin, nearbyIds.has(pin.id));
           return (
-            <Fragment key={`danger-${pin.id}`}>
-              <Circle
-                center={[pin.lat, pin.lng]}
-                radius={pin.radius_meters}
-                pathOptions={{
-                  color: style.color,
-                  fillColor: style.color,
-                  fillOpacity: nearbyIds.has(pin.id) ? 0.35 : 0.16,
-                }}
-              />
-              <Marker position={[pin.lat, pin.lng]} icon={icon}>
-                <Popup maxWidth={320}>
-                  <strong>{pin.danger_type}: {pin.title}</strong><br />
-                  Severity: <b>{pin.severity}</b><br />
-                  Radius: {pin.radius_meters}m<br />
-                  {renderDuration(pin) && <>Duration: {renderDuration(pin)}<br /></>}
-                  <small>Reported by: {pin.reported_by}</small><br />
-                  <small>Reported on: {formatTimestamp(pin.created_at)}</small>
-                  <p>{pin.description}</p>
-                  <CommentBox pin={pin} onAddComment={onAddComment} />
-                  <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
-                </Popup>
-              </Marker>
-            </Fragment>
+            <DangerMarker
+              key={`danger-${pin.id}`}
+              pin={pin}
+              icon={icon}
+              style={style}
+              isNearby={nearbyIds.has(pin.id)}
+              user={user}
+              onAddComment={onAddComment}
+              onDeletePin={onDeletePin}
+            />
           );
         })}
 
