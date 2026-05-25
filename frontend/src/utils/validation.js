@@ -16,7 +16,7 @@ export function validateAuthForm(form, isRegister = false) {
   return { valid: true };
 }
 
-export function validateDestinationForm(form) {
+export function validateDestinationForm(form, existingDestinations = []) {
   const requiredFields = ['name', 'category', 'city', 'province', 'lat', 'lng', 'description'];
   for (const field of requiredFields) {
     if (!String(form[field] ?? '').trim()) {
@@ -28,6 +28,36 @@ export function validateDestinationForm(form) {
   const lng = Number(form.lng);
   if (Number.isNaN(lat) || Number.isNaN(lng)) {
     return { valid: false, message: 'Latitude and longitude must be valid numbers.' };
+  }
+
+  // Duplicate check: consider existing destinations if provided.
+  if (Array.isArray(existingDestinations) && existingDestinations.length > 0) {
+    const nameLower = String(form.name || '').trim().toLowerCase();
+    const cityLower = String(form.city || '').trim().toLowerCase();
+    const provinceLower = String(form.province || '').trim().toLowerCase();
+    const latNum = lat;
+    const lngNum = lng;
+
+    const duplicate = existingDestinations.some((d) => {
+      // compare by name + city/province (case-insensitive)
+      const dName = String(d.name || '').trim().toLowerCase();
+      const dCity = String(d.city || '').trim().toLowerCase();
+      const dProvince = String(d.province || '').trim().toLowerCase();
+      if (dName && dCity && dName === nameLower && dCity === cityLower && dProvince === provinceLower) {
+        return true;
+      }
+      // or compare exact lat/lng matches
+      const dLat = Number(d.lat);
+      const dLng = Number(d.lng);
+      if (!Number.isNaN(dLat) && !Number.isNaN(dLng) && dLat === latNum && dLng === lngNum) {
+        return true;
+      }
+      return false;
+    });
+
+    if (duplicate) {
+      return { valid: false, message: 'A destination with the same name/city or coordinates already exists.' };
+    }
   }
 
   return {

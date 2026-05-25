@@ -113,6 +113,11 @@ def delete_account(data: DeleteAccountRequest):
 
 @app.post("/destinations")
 def add_destination(data: DestinationRequest):
+    # ensure crowd_level is valid
+    try:
+        validate_crowd_level(CrowdUpdateRequest(crowd_level=data.crowd_level))
+    except Exception:
+        raise
     response = supabase.table("destinations").insert({
         "name": data.name,
         "category": data.category,

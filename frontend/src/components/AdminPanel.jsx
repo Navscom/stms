@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { validateDestinationForm } from '../utils/validation';
 import { loadDestinations, loadDangerPins, loadReport } from '../utils/LoadData';
 import '../css/AdminPanel.css';
@@ -7,12 +7,28 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
   const [form, setForm] = useState({
     name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '', crowd_level: 'Low'
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const perPage = 5;
+
+  // Filter and sort destinations alphabetically by name
+  const filteredDestinations = destinations
+    .filter((d) => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  
+  const totalPages = Math.max(1, Math.ceil(filteredDestinations.length / perPage));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const updateForm = (key, value) => setForm({ ...form, [key]: value });
 
   const addDestination = async (e) => {
     e.preventDefault();
-    const validation = validateDestinationForm(form);
+    const validation = validateDestinationForm(form, destinations);
     if (!validation.valid) {
       alert(validation.message);
       return;
@@ -37,6 +53,8 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
     });
     await refreshAll();
   };
+
+  const paginatedDestinations = filteredDestinations.slice((page - 1) * perPage, page * perPage);
 
   const refreshAll = async () => {
     if (typeof setAppDestinations === 'function') {
@@ -66,9 +84,23 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
         <button className="primary-btn">Add Destination</button>
       </form>
 
-      <h3>Update Crowd Status</h3>
+      <hr className="admin-separator" />
+
+      <div className="search-header">
+        <h3>Update Crowd Status</h3>
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search destinations by name..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
+        />
+      </div>
       <div className="admin-list">
-        {destinations.map((d) => (
+        {paginatedDestinations.map((d) => (
           <div className="admin-row" key={d.id}>
             <span>{d.name}</span>
             <select value={d.crowd_level} onChange={(e) => updateCrowd(d.id, e.target.value)}>
@@ -77,6 +109,17 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
           </div>
         ))}
       </div>
+      {totalPages > 1 && (
+        <div className="pagination-controls">
+          <button type="button" disabled={page === 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button type="button" disabled={page === totalPages} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}>
+            Next
+          </button>
+        </div>
+      )}
     </section>
   );
 }
