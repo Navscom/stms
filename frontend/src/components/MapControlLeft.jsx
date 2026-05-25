@@ -1,21 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import '../css/MapControlLeft.css';
-
-const calculateDistanceKm = (lat1, lng1, lat2, lng2) => {
-  const toRad = (value) => (value * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const radiusKm = 6371;
-  return Number((radiusKm * c).toFixed(2));
-};
+import DestinationList from './DestinationList';
 
 const MapControlLeft = ({
   onMyLocation,
   onHazardSubmit,
   onAddMarker,
   onCenterTouristSpot,
+  onZoomToSpot,
   touristSpots = [],
   nearest = [],
   selectedLocation = null,
@@ -60,28 +52,6 @@ const MapControlLeft = ({
     setIsBoxExpanded(true);
     setIsDestinationsOpen(true);
     setIsAddingMarkerOpen(false);
-  };
-
-  const getCenterSpot = () => {
-    if (nearest?.length > 0) {
-      return nearest[0];
-    }
-    return touristSpots.find((spot) => String(spot.name).toUpperCase() === 'RIZAL PARK') || {
-      id: 'rizal-park',
-      name: 'RIZAL PARK',
-      lat: 14.5825,
-      lng: 120.9781,
-      city: 'Manila City',
-      province: 'Manila',
-      crowd_level: 'High',
-      category: 'Tourist Destination',
-      opening_hours: '8:00 AM - 5:00 PM',
-    };
-  };
-
-  const handleCenterSpot = () => {
-    const spot = getCenterSpot();
-    if (onCenterTouristSpot) onCenterTouristSpot(spot);
   };
 
   return (
@@ -304,47 +274,18 @@ const MapControlLeft = ({
 
                 <div className={`dropdown-panel destinations-dropdown ${isDestinationsOpen ? 'open' : ''}`}>
                   <div className="inner-panel-content">
-                    <h3 className="panel-main-title">Nearest Tourist Spots</h3>
-
-                    <div className="tourist-spots-list">
-                      {nearest?.length > 0 ? (
-                        <div className="tourist-spot-card">
-                          <div className="card-header-row">
-                            <h4 className="spot-card-title">{nearest[0].name || 'Nearest Tourist Spot'}</h4>
-                            <span className="severity-badge-high">{nearest[0].crowd_level || 'High'}</span>
-                          </div>
-                          <p className="spot-card-location">
-                            {nearest[0].city || nearest[0].location || 'Unknown Location'}, {nearest[0].province || ''}
-                          </p>
-                          <p className="spot-card-meta">
-                            {nearest[0].category || 'Tourist Destination'} • {nearest[0].opening_hours || 'Hours unavailable'}
-                          </p>
-                          <p className="spot-card-distance">
-                            {nearest[0].distance_km != null ? `Approx. ${nearest[0].distance_km} km away` : 'Distance unknown'}
-                          </p>
-                          <button type="button" className="primary-btn spot-center-btn" onClick={handleCenterSpot}>
-                            Center on {nearest[0].name || 'Tourist Spot'}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="tourist-spot-card">
-                          <div className="card-header-row">
-                            <h4 className="spot-card-title">RIZAL PARK</h4>
-                            <span className="severity-badge-high">High</span>
-                          </div>
-                          <p className="spot-card-location">MANILA CITY, MANILA</p>
-                          <p className="spot-card-meta">TOURIST DESTINATION • 8:00 AM - 5:00 PM</p>
-                          <p className="spot-card-distance">
-                            {selectedLocation ? `Approx. ${calculateDistanceKm(selectedLocation.lat, selectedLocation.lng, 14.5825, 120.9781)} km away` : 'Approx. 131.61 km away'}
-                          </p>
-                          <button type="button" className="primary-btn spot-center-btn" onClick={handleCenterSpot}>
-                            Center on RIZAL PARK
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Loops additional card dynamic data if array gets populated from your DB backend */}
-                    </div>
+                    <h3 className="panel-main-title">
+                      Tourist Spots
+                    </h3>
+                    <DestinationList
+                      nearest={nearest}
+                      destinations={touristSpots}
+                      selectedLocation={selectedLocation}
+                      onCenterSpot={onCenterTouristSpot}
+                      onZoomToSpot={onZoomToSpot}
+                      isPanel={true}
+                      inline={true}
+                    />
                   </div>
                 </div>
               </div>

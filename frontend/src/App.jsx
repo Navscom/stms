@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import Header from './components/Header';
 import MapView from './components/MapView';
 import LoginModal from './components/LoginModal';
-import DestinationList from './components/DestinationList';
 import AdminPanel from './components/AdminPanel';
 import MapControlLeft from './components/MapControlLeft';
 import MarkerPanel from './components/MarkerPanel';
@@ -23,6 +22,7 @@ function App() {
   const [nearbyDangers, setNearbyDangers] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [lastClickLocation, setLastClickLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     try {
@@ -149,7 +149,11 @@ function App() {
       setAdvice('My Location ON. Turn it off to select another spot.');
       return;
     }
-    setLastClickLocation({ lat, lng });
+    const clickedLocation = { lat, lng };
+    setLastClickLocation(clickedLocation);
+    setUserLocation(clickedLocation);
+    setSelectedLocation(clickedLocation);
+    setSelectedDestinationId(null);
     return fetchAdvice(lat, lng);
   };
 
@@ -198,6 +202,10 @@ function App() {
       async (pos) => {
         setLocationMode(true);
         setShowDestinations(false);
+        setSelectedDestinationId(null);
+        const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(currentLocation);
+        setSelectedLocation(currentLocation);
         await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
       },
       () => setAdvice('Location permission denied. You can still click on the map.')
@@ -228,6 +236,18 @@ function App() {
 
     setSelectedDestinationId(destination.id);
     setSelectedLocation({ lat: destination.lat, lng: destination.lng });
+    await fetchAdvice(destination.lat, destination.lng);
+  };
+
+  const zoomToDestination = async (destination) => {
+    if (!destination) return;
+    
+    // Only zoom/focus on the destination without changing the current location reference
+    setSelectedDestinationId(destination.id);
+    setLastClickLocation({ lat: destination.lat, lng: destination.lng });
+    
+    // Don't change selectedLocation - keep user's current location
+    // Just update advice based on the destination
     await fetchAdvice(destination.lat, destination.lng);
   };
 
@@ -304,9 +324,10 @@ function App() {
                 onMyLocation={toggleLocationMode}
                 onHazardSubmit={submitMarker}
                 onCenterTouristSpot={toggleDestinationFocus}
+                onZoomToSpot={zoomToDestination}
                 touristSpots={destinations}
                 nearest={nearest}
-                selectedLocation={selectedLocation}
+                selectedLocation={userLocation}
                 isBoxExpanded={isNavExpanded}
                 setIsBoxExpanded={setIsNavExpanded}
                 isPinMode={pinMode}
@@ -345,8 +366,9 @@ function App() {
               onLocationClick={handleMapClick}
               onAddComment={addMarkerComment}
               onDeletePin={deletePin}
-              focusLocation={selectedLocation}
-              focusZoom={15}
+              focusLocation={selectedLocation || lastClickLocation}
+              focusZoom={selectedDestinationId ? 15 : undefined}
+              userLocation={userLocation}
             />
           </div>
         </div>

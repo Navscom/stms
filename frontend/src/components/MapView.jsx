@@ -36,11 +36,11 @@ const LIGHT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const DARK_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 const DESTINATION_ICON = new L.DivIcon({
-  html: '<div class="destination-pin"><span>🧭</span></div>',
+  html: '<div class="destination-pin"><span>🏛️</span></div>',
   className: 'destination-pin-icon',
-  iconSize: [44, 58],
-  iconAnchor: [22, 58],
-  popupAnchor: [0, -48],
+  iconSize: [52, 68],
+  iconAnchor: [26, 68],
+  popupAnchor: [0, -56],
 });
 
 const dangerMarkerMeta = {
@@ -55,9 +55,9 @@ const createDangerIcon = ({ color, emoji, extraClass, isNearby = false }) => new
   html: `<div class="danger-pin danger-pin--${extraClass}${isNearby ? ' danger-pin--nearby' : ''}" style="background: ${color};">` +
     `<span>${emoji}</span></div>`,
   className: 'danger-pin-icon',
-  iconSize: [38, 46],
-  iconAnchor: [19, 46],
-  popupAnchor: [0, -38],
+  iconSize: [44, 56],
+  iconAnchor: [22, 56],
+  popupAnchor: [0, -44],
 });
 
 const getDangerIcon = (pin, isNearby) => {
@@ -75,9 +75,9 @@ const formatTimestamp = (timestamp) => {
 const PERSON_ICON = new L.DivIcon({
   html: '<div class="person-pin"><span>YOU</span><div class="person-pin-tail"></div></div>',
   className: 'person-pin-icon',
-  iconSize: [48, 64],
-  iconAnchor: [24, 64],
-  popupAnchor: [0, -52],
+  iconSize: [54, 74],
+  iconAnchor: [27, 74],
+  popupAnchor: [0, -60],
 });
 
 const DEFAULT_MAP_CENTER = [14.5994, 120.9842];
@@ -117,14 +117,40 @@ function MapClickHandler({ onLocationClick }) {
 function ZoomControlHandler() {
   const map = useMap();
 
+  const controlRef = useRef(null);
+
   useEffect(() => {
-    // Remove default top-left zoom control if it exists
-    if (map.zoomControl) {
-      map.removeControl(map.zoomControl);
+    if (!map) return undefined;
+
+    // If a zoom control already exists on the map (possibly added earlier), keep it.
+    const existingZoom = (map._controls || []).find((c) => c && c instanceof L.Control.Zoom);
+    if (existingZoom) {
+      controlRef.current = existingZoom;
+      // Ensure a convenient reference is available on the map object for legacy code
+      if (!map.zoomControl) map.zoomControl = existingZoom;
+      return undefined;
     }
 
-    // Add new zoom control to bottom-right
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // Remove any previously-stored zoomControl reference (legacy) before adding ours
+    if (map.zoomControl) {
+      try { map.removeControl(map.zoomControl); } catch (e) { /* ignore */ }
+      map.zoomControl = null;
+    }
+
+    // Add new zoom control to bottom-right and remember we added it
+    const zoomCtrl = L.control.zoom({ position: 'bottomright' });
+    zoomCtrl.addTo(map);
+    controlRef.current = zoomCtrl;
+    map.zoomControl = zoomCtrl;
+
+    // Cleanup: remove the control we added when this component unmounts
+    return () => {
+      if (controlRef.current) {
+        try { map.removeControl(controlRef.current); } catch (e) { /* ignore */ }
+        if (map.zoomControl === controlRef.current) map.zoomControl = null;
+        controlRef.current = null;
+      }
+    };
   }, [map]);
 
   return null;
@@ -280,6 +306,7 @@ export default function MapView({
   resetMapFlag,
   focusLocation,
   focusZoom,
+  userLocation,
   theme = 'light',
   mapRotation = 0,
 }) {
@@ -421,8 +448,8 @@ export default function MapView({
           );
         })}
 
-        {selectedLocation && (
-          <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={PERSON_ICON}>
+        {userLocation && (
+          <Marker position={[userLocation.lat, userLocation.lng]} icon={PERSON_ICON}>
             <Popup>Your selected location</Popup>
           </Marker>
         )}
