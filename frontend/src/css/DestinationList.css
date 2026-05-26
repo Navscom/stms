@@ -1,4 +1,5 @@
 .destination-panel { 
+    border: 1px solid #000000; 
     border-radius: 20px; 
     padding: 14px; 
     box-shadow: 0 10px 24px rgba(0,0,0,0.08); 
@@ -13,13 +14,13 @@
 }
 
 .destination-list { 
-    display: grid; 
+    display: grid;
     gap: 14px; 
 }
 
 .destination-card { 
     cursor: pointer; 
-    border: 1px solid var(--border); 
+    border: 1px solid #000; 
     border-radius: 20px; 
     padding: 0px; 
     background: var(--card-bg); 
@@ -29,12 +30,12 @@
 .destination-card:hover { 
     transform: translateY(-2px); 
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.16); 
-    border-color: #a3acc6; 
+    border-color: #000; 
 }
 
 .destination-card.selected { 
     border-width: 1.5px; 
-    border-color: #4b5563; 
+    border-color: #000; 
     background: #e5e7eb; 
     box-shadow: 0 10px 20px rgba(75, 85, 99, 0.14); 
 }
@@ -58,10 +59,13 @@
 .destination-button { 
     display: block; 
     width: 100%; 
-    border: none; 
     background: transparent; 
     padding: 10px; 
     text-align: left;
+}
+
+.destination-button:not(.destination-card) { 
+    border: none; 
 }
 
 .destination-button:focus { 
