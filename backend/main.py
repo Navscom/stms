@@ -341,10 +341,38 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
         raise HTTPException(status_code=500, detail="Failed to add comment")
     return {"message": "Comment added", "id": data_list[0]["id"]}
 
+@app.put("/danger-pins/{pin_id}/comments/{comment_id}")
+def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentRequest):
+    response = supabase.table("marker_comments").update({
+        "comment": data.comment.strip(),
+    }).eq("id", comment_id).eq("pin_id", pin_id).execute()
+    data_list: List[Dict[str, Any]] = safe_data(response)
+    if not data_list:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    return {"message": "Comment updated"}
+
+@app.delete("/danger-pins/{pin_id}/comments/{comment_id}")
+def delete_marker_comment(pin_id: int, comment_id: int):
+    response = supabase.table("marker_comments").delete().eq("id", comment_id).eq("pin_id", pin_id).execute()
+    deleted_rows = safe_data(response)
+    if not deleted_rows:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    return {"message": "Comment deleted"}
+
 @app.post("/danger-pins/move-expired")
 def move_expired_endpoint():
     count = move_expired_pins(supabase)
     return {"moved": count}
+
+@app.delete("/destinations/{destination_id}")
+def delete_destination(destination_id: int):
+    response = supabase.table("destinations").delete().eq("id", destination_id).execute()
+    if getattr(response, 'error', None):  # type: ignore
+        raise HTTPException(status_code=500, detail="Failed to delete destination.")
+    deleted_rows = safe_data(response)
+    if not deleted_rows:
+        raise HTTPException(status_code=404, detail="Destination not found.")
+    return {"message": "Destination deleted", "id": destination_id}
 
 @app.delete("/danger-pins/{pin_id}")
 def delete_danger_pin(pin_id: int):

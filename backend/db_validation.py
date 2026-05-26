@@ -66,7 +66,7 @@ class RouteRequest(BaseModel):
 def validate_register(data: RegisterRequest) -> None:
     if len(data.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-    if data.role not in ["tourist", "admin"]:
+    if data.role not in ["tourist", "admin", "administrator"]:
         raise HTTPException(status_code=400, detail="Invalid role.")
 
 

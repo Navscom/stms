@@ -246,7 +246,7 @@ function MapSyncHandler({ theme }) {
   return null;
 }
 
-function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onDeletePin }) {
+function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin }) {
   const map = useMap();
 
   return (
@@ -270,15 +270,23 @@ function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onDelete
         }}
       >
         <Popup maxWidth={320}>
-          <strong>{pin.danger_type}: {pin.title}</strong><br />
-          Severity: <b>{pin.severity}</b><br />
-          Radius: {pin.radius_meters}m<br />
-          {formatDuration(pin) && <>Duration: {formatDuration(pin)}<br /></>}
-          <small>Reported by: {pin.reported_by}</small><br />
-          <small>Reported on: {formatTimestamp(pin.created_at)}</small>
-          <p>{pin.description}</p>
-          <CommentBox pin={pin} onAddComment={onAddComment} />
-          <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
+          <div onClick={(e) => e.stopPropagation()}>
+            <strong>{pin.danger_type}: {pin.title}</strong><br />
+            Severity: <b>{pin.severity}</b><br />
+            Radius: {pin.radius_meters}m<br />
+            {formatDuration(pin) && <>Duration: {formatDuration(pin)}<br /></>}
+            <small>Reported by: {pin.reported_by}</small><br />
+            <small>Reported on: {formatTimestamp(pin.created_at)}</small>
+            <p>{pin.description}</p>
+            <CommentBox
+              pin={pin}
+              user={user}
+              onAddComment={onAddComment}
+              onUpdateComment={onUpdateComment}
+              onDeleteComment={onDeleteComment}
+            />
+            <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
+          </div>
         </Popup>
       </Marker>
     </Fragment>
@@ -286,8 +294,11 @@ function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onDelete
 }
 
 // CommentBox component for displaying and adding comments to a pin //
-function CommentBox({ pin, onAddComment }) {
+function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment }) {
   const [comment, setComment] = useState('');
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingText, setEditingText] = useState('');
 
   const submit = (e) => {
     e.preventDefault();
@@ -298,16 +309,84 @@ function CommentBox({ pin, onAddComment }) {
     onAddComment(pin.id, comment.trim());
     setComment('');
   };
-  
-    // CommentBox component for displaying and adding comments to a pin //
+
+  const canModifyComment = (commentEntry) => {
+    if (!user) return false;
+    return user?.name === commentEntry.commented_by || user?.role === 'administrator' || user?.role === 'admin';
+  };
+
+  const startEdit = (commentEntry) => {
+    setEditingCommentId(commentEntry.id);
+    setEditingText(commentEntry.comment);
+    setActiveMenuId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingText('');
+  };
+
+  const saveEdit = async () => {
+    if (!editingText.trim()) {
+      alert('Comment cannot be empty.');
+      return;
+    }
+    await onUpdateComment(pin.id, editingCommentId, editingText.trim());
+    cancelEdit();
+  };
+
+  const handleDelete = async (commentId) => {
+    if (!window.confirm('Delete this comment?')) {
+      return;
+    }
+    setActiveMenuId(null);
+    await onDeleteComment(pin.id, commentId);
+  };
+
   return (
     <div className="popup-comments">
       <strong>Comments</strong>
       <div className="comment-list">
         {pin.comments?.length ? pin.comments.map((c) => (
           <div key={c.id} className="comment-item">
-            <p>{c.comment}</p>
-            <small>— {c.commented_by}</small>
+            {editingCommentId === c.id ? (
+              <div className="comment-editing">
+                <input
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  placeholder="Edit your comment"
+                />
+                <div className="comment-edit-actions">
+                  <button type="button" className="secondary-btn" onClick={cancelEdit}>Cancel</button>
+                  <button type="button" className="primary-btn" onClick={saveEdit}>Save</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="comment-row-top">
+                  <p>{c.comment}</p>
+                  {canModifyComment(c) && (
+                    <div className="comment-menu-wrapper">
+                      <button
+                        type="button"
+                        className="comment-menu-btn"
+                        onClick={() => setActiveMenuId(activeMenuId === c.id ? null : c.id)}
+                        aria-label="Comment actions"
+                      >
+                        ⋯
+                      </button>
+                      {activeMenuId === c.id && (
+                        <div className="comment-menu">
+                          <button type="button" onClick={() => startEdit(c)}>Edit</button>
+                          <button type="button" className="danger-btn" onClick={() => handleDelete(c.id)}>Delete</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <small>— {c.commented_by}</small>
+              </>
+            )}
           </div>
         )) : <small>No comments yet.</small>}
       </div>
@@ -323,12 +402,12 @@ function CommentBox({ pin, onAddComment }) {
 
 function DeletePinBox({ pin, user, onDeletePin }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const canDelete = user?.role === 'admin' || pin.reported_by === user?.name;
+  const canDelete = user?.role === 'administrator';
 
   if (!canDelete) {
     return (
       <div className="delete-pin-note">
-        <small>Only the user who added this pin can delete it.</small>
+        <small>Only an Administrator can delete this pin.</small>
       </div>
     );
   }
@@ -361,6 +440,8 @@ export default function MapView({
   onLogout,
   onDeleteAccount,
   onAddComment,
+  onUpdateComment,
+  onDeleteComment,
   onDeletePin,
   onToggleTheme,
   onResetMap,
@@ -493,6 +574,8 @@ export default function MapView({
               isNearby={nearbyIds.has(pin.id)}
               user={user}
               onAddComment={onAddComment}
+              onUpdateComment={onUpdateComment}
+              onDeleteComment={onDeleteComment}
               onDeletePin={onDeletePin}
             />
           );

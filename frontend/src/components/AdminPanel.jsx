@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { validateDestinationForm } from '../utils/validation';
 import { loadDestinations, loadDangerPins, loadReport } from '../utils/LoadData';
+import { deleteDestination } from '../utils';
 import '../css/AdminPanel.css';
 
-export default function AdminPanel({ api, destinations, setAppDestinations, setAppDangerPins, setAppReport }) {
+function AdminPanel({ api, user, destinations, setAppDestinations, setAppDangerPins, setAppReport }) {
   const [form, setForm] = useState({
     name: '', category: '', city: '', province: '', lat: '', lng: '', description: '', opening_hours: '', crowd_level: 'Low'
   });
@@ -68,10 +69,25 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
     }
   };
 
+  const removeDestination = async (id) => {
+    if (user?.role !== 'administrator') {
+      alert('Only an Administrator can delete a destination.');
+      return;
+    }
+    if (!window.confirm('Delete this destination permanently?')) {
+      return;
+    }
+    const res = await deleteDestination(id);
+    if (res?.message) {
+      alert('Destination deleted successfully.');
+      await refreshAll();
+    }
+  };
+
   return (
     <section className="admin-panel">
-      <h2>Local Admin Dashboard</h2>
-      <p>Manage Tourist Attractions and Update Crowd Monitoring Status.</p>
+      <h2>Admin Dashboard</h2>
+      <p>Manage tourist attractions and update crowd monitoring status.</p>
       <form className="admin-form" onSubmit={addDestination}>
         {['name', 'category', 'city', 'province', 'lat', 'lng'].map((field) => (
           <input key={field} placeholder={field.toUpperCase()} value={form[field]} onChange={(e) => updateForm(field, e.target.value)} required />
@@ -106,6 +122,11 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
             <select value={d.crowd_level} onChange={(e) => updateCrowd(d.id, e.target.value)}>
               <option>Low</option><option>Moderate</option><option>High</option>
             </select>
+            {user?.role === 'administrator' && (
+              <button type="button" className="secondary-btn" onClick={() => removeDestination(d.id)}>
+                Delete
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -123,3 +144,5 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
     </section>
   );
 }
+
+export default AdminPanel;

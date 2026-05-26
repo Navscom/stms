@@ -61,8 +61,28 @@ export function postPinComment(pinId, payload) {
   });
 }
 
+export function updatePinComment(pinId, commentId, payload) {
+  return fetchJson(`/danger-pins/${pinId}/comments/${commentId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePinComment(pinId, commentId) {
+  return fetchJson(`/danger-pins/${pinId}/comments/${commentId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function deleteDangerPin(pinId) {
   return fetchJson(`/danger-pins/${pinId}`, {
+    method: 'DELETE',
+  });
+}
+
+export function deleteDestination(destinationId) {
+  return fetchJson(`/destinations/${destinationId}`, {
     method: 'DELETE',
   });
 }

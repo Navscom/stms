@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import Header from './components/Header';
 import MapView from './components/MapView';
 import LoginModal from './components/LoginModal';
-import AdminPanel from './components/AdminPanel';
+import AdminPanel from './components/AdminPanel.jsx';
 import MapControlLeft from './components/MapControlLeft';
 import MarkerPanel from './components/MarkerPanel';
 import SafetyAlerts from './components/SafetyAlerts';
 import ReportGrid from './components/ReportGrid';
 import AIGuidance from './components/AIGuidance';
 import { useUserSession } from './utils/useUserSession';
-import { API, deleteAccount, postPinComment, deleteDangerPin } from './utils';
+import { API, deleteAccount, postPinComment, updatePinComment, deletePinComment, deleteDangerPin } from './utils';
 import { loadAppData, loadDestinations, loadDangerPins, loadReport, fetchAdvice as fetchAdviceHelper } from './utils/LoadData';
 import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommentAction, deletePin as deletePinAction } from './utils/markerActions';
 import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
@@ -133,11 +133,35 @@ function App() {
     }
   };
 
+  const updateMarkerComment = async (pinId, commentId, comment) => {
+    try {
+      await updatePinComment(pinId, commentId, { comment });
+      await loadDangerPins(setDangerPins);
+      setAdvice('Comment updated successfully.');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const deleteMarkerComment = async (pinId, commentId) => {
+    try {
+      await deletePinComment(pinId, commentId);
+      await loadDangerPins(setDangerPins);
+      setAdvice('Comment deleted.');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const deletePin = async (pinId) => {
+    if (user?.role !== 'administrator') {
+      alert('Only administrators are allowed to delete pins.');
+      return;
+    }
     try {
       await deleteDangerPin(pinId);
       await loadDangerPins(setDangerPins);
-      setAdvice('Your marker was deleted successfully.');
+      setAdvice('Marker deleted successfully.');
     } catch (err) {
       alert(err.message);
     }
@@ -367,6 +391,8 @@ function App() {
               resetMapFlag={resetMapFlag}
               onLocationClick={handleMapClick}
               onAddComment={addMarkerComment}
+              onUpdateComment={updateMarkerComment}
+              onDeleteComment={deleteMarkerComment}
               onDeletePin={deletePin}
               focusLocation={selectedLocation || lastClickLocation}
               focusZoom={selectedDestinationId ? 15 : undefined}
@@ -380,9 +406,10 @@ function App() {
 
       {report && <ReportGrid report={report} />}
 
-      {user?.role === 'admin' && (
+      {(user?.role === 'admin' || user?.role === 'administrator') && (
         <AdminPanel
           api={API}
+          user={user}
           destinations={destinations}
           setAppDestinations={setDestinations}
           setAppDangerPins={setDangerPins}

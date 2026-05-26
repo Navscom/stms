@@ -139,6 +139,11 @@
 
 .controllers-box.collapsed .header-top {
   justify-content: center;
+  padding-top: 14px;
+}
+
+.controllers-box.collapsed .expand-btn {
+  margin-top: 8px;
 }
 
 .controllers-header .status-live {

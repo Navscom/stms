@@ -206,9 +206,13 @@ html[data-theme='dark'] .leaflet-control-zoom-out:active,
 .comment-list {
   max-height: 150px;
   overflow-y: auto;
+  overflow-x: visible;
   margin: 8px 0;
+  padding-right: 16px;
 }
 .comment-item {
+  position: relative;
+  overflow: visible;
   padding: 8px;
   margin-bottom: 6px;
   background: #f8fafc;
@@ -221,6 +225,81 @@ html[data-theme='dark'] .leaflet-control-zoom-out:active,
 }
 .comment-item p {
   margin: 0 0 3px;
+}
+.comment-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.comment-menu-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.comment-menu-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+.comment-menu {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  left: auto;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transform: translate(-8px, -50%);
+  padding: 8px;
+  min-width: 110px;
+  white-space: nowrap;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+[data-theme='dark'] .comment-menu {
+  background: var(--bg-primary);
+  border-color: var(--border);
+}
+.comment-menu button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.comment-menu button:hover {
+  background: rgba(30, 64, 175, 0.06);
+}
+.comment-menu button.danger-btn:hover {
+  background: rgba(220, 38, 38, 0.12);
+}
+.comment-editing {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comment-editing input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  box-sizing: border-box;
+}
+.comment-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .comment-form {
   display: flex;
@@ -258,15 +337,27 @@ html[data-theme='dark'] .leaflet-control-zoom-out:active,
 
 /* Dark-mode for Leaflet popups and comment UI */
 html[data-theme='dark'] .leaflet-popup-content-wrapper,
-[data-theme='dark'] .leaflet-popup-content-wrapper {
+[data-theme='dark'] .leaflet-popup-content-wrapper,
+.leaflet-popup-content-wrapper {
   background: var(--modal-bg) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border) !important;
+  overflow: visible !important;
+}
+
+.leaflet-popup-content,
+.leaflet-popup-content-wrapper {
+  overflow: visible !important;
 }
 
 html[data-theme='dark'] .leaflet-popup-tip-path,
-[data-theme='dark'] .leaflet-popup-tip-path {
+[data-theme='dark'] .leaflet-popup-tip-path,
+.leaflet-popup-tip-path {
   fill: var(--modal-bg) !important;
+}
+
+.leaflet-popup-content {
+  overflow: visible !important;
 }
 
 html[data-theme='dark'] .popup-comments,

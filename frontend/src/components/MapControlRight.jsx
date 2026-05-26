@@ -61,7 +61,11 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
                   <div className="profile-email">{user.email || 'No email provided'}</div>
                   {user.role && (
                     <div className="profile-badge">
-                      {user.role === 'admin' ? 'Local Admin' : (user.role && typeof user.role === 'string' ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : user.role)}
+                      {user.role === 'admin'
+                        ? 'Local Admin'
+                        : user.role === 'administrator'
+                          ? 'Administrator'
+                          : (user.role && typeof user.role === 'string' ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : user.role)}
                     </div>
                   )}
                 </div>

@@ -60,6 +60,7 @@
 }
 .admin-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
@@ -68,13 +69,23 @@
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 .admin-row span {
+  flex: 1 1 240px;
+  min-width: 0;
   font-weight: 700;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .admin-row select {
   padding: 10px 12px;
   border-radius: 12px;
+  flex: 0 0 180px;
   min-width: 160px;
+}
+.admin-row button {
+  flex: 0 0 auto;
+  min-width: 100px;
 }
 
   .pagination-controls {
