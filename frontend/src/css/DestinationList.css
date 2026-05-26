@@ -14,17 +14,16 @@
 
 .destination-list { 
     display: grid; 
-    gap: 12px; 
+    gap: 14px; 
 }
 
 .destination-card { 
     cursor: pointer; 
     border: 1px solid var(--border); 
-    border-radius: 18px; 
-    padding: 16px; 
+    border-radius: 20px; 
+    padding: 0px; 
     background: var(--card-bg); 
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease; 
-    text-align: left; 
 }
 
 .destination-card:hover { 
@@ -41,7 +40,7 @@
 }
 
 [data-theme='dark'] .destination-card { 
-    background-color: #232b36; 
+    background-color: #0d3269; 
     border-color: rgba(148, 163, 184, 0.20); 
 }
 
@@ -61,7 +60,7 @@
     width: 100%; 
     border: none; 
     background: transparent; 
-    padding: 0; 
+    padding: 10px; 
     text-align: left;
 }
 
@@ -72,8 +71,9 @@
 .destination-top { 
     display: flex; 
     justify-content: space-between; 
-    gap: 12px; 
-    align-items: flex-start; 
+    gap: 14px; 
+    align-items: flex-start;
+    padding: 1px;
 }
 
 .destination-card h3 { 

@@ -111,6 +111,7 @@
 }
 
 [data-theme='dark'] .map-controls-left .controllers-header h1 {
+  color: #ffffff;
 }
 
 [data-theme='dark'] .map-controls-left .subtitle {
@@ -275,6 +276,14 @@
   flex-direction: column;
   gap: 12px;
   padding: 12px 0 8px 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.collapsed-menu .tooltip-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .collapsed-icon-btn {
@@ -289,6 +298,7 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   cursor: pointer;
   padding: 0;
+  margin: 0 auto;
 }
 
 .collapsed-icon-btn:hover,
