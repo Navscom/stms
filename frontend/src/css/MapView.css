@@ -175,21 +175,30 @@ html[data-theme='dark'] .leaflet-control-zoom-out:active,
   display: flex;
   gap: 6px;
   margin-top: 8px;
+  position: relative;
+  align-items: center;
 }
 .comment-form input {
   flex: 1;
   padding: 10px;
+  padding-right: 1px; /* make room for the inside button */
   border-radius: 8px;
   font-size: 1rem;
+  box-sizing: border-box;
 }
 .comment-form button {
   border: none;
   border-radius: 8px;
   background: #1d72b8;
   color: white;
-  padding: 10px 12px;
+  padding: 8px 12px;
   font-weight: 600;
   cursor: pointer;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
 }
 
 /* Dark-mode for Leaflet popups and comment UI */

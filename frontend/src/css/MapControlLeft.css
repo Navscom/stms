@@ -32,7 +32,7 @@
   height: 100%;
   position: relative;
   z-index: 9999;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .controllers-box.collapsed {
@@ -189,7 +189,7 @@
   font-size: 22px;
   font-weight: 700;
   white-space: nowrap;
-  z-index: 10000;
+  z-index: 2147483647;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
   pointer-events: none;
 }
@@ -242,13 +242,14 @@
 .map-controls-left .tool-btn {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 22px;
+  gap: 16px;
+  padding: 18px 24px;
   background: #ffffff;
   border: 1px solid #cbd5e0;
   border-bottom: 1px solid #cbd5e0;
-  border-radius: 8px;
+  border-radius: 10px;
   font-family: Arial, sans-serif;
+  font-size: 18px;
   font-weight: bold;
   color: #1e293b;
   box-shadow: none;
@@ -258,7 +259,7 @@
   min-width: unset;
   transition: all 0.2s ease;
   text-align: left;
-  margin: 2px 0;
+  margin: 4px 0;
 }
 
 .map-controls-left .tool-btn:hover {
@@ -321,9 +322,9 @@
 }
 
 .collapsed-icon-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -343,7 +344,7 @@
 }
 
 .collapsed-icon-btn .btn-icon {
-  font-size: 22px;
+  font-size: 28px;
 }
 
 /* Icon sizing and visibility */
@@ -351,9 +352,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  font-size: 22px;
+  width: 32px;
+  height: 32px;
+  font-size: 28px;
   line-height: 1;
   position: relative;
   z-index: 10000;
@@ -362,7 +363,7 @@
 }
 
 .controllers-box.collapsed .btn-icon {
-  font-size: 20px;
+  font-size: 26px;
 }
 
 /* Clean Form Containers */
