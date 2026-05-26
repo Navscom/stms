@@ -264,8 +264,11 @@ function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onUpdate
         position={[pin.lat, pin.lng]}
         icon={icon}
         eventHandlers={{
-          click: () => {
-            map.setView([pin.lat, pin.lng], 18, { animate: true });
+          click: (event) => {
+            map.flyTo(event.latlng || [pin.lat, pin.lng], 18, {
+              animate: true,
+              duration: 0.6,
+            });
           },
         }}
       >
