@@ -20,11 +20,11 @@
 .controllers-box {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 18px;
-  padding: 10px; /* reduced top/overall padding to tighten header spacing */
+  padding: 0;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
   transition: width 0.3s ease, overflow 0.3s ease;
@@ -32,15 +32,18 @@
   height: 100%;
   position: relative;
   z-index: 9999;
+  overflow: hidden;
 }
 
 .controllers-box.collapsed {
-  width: 110px;
+  width: 78px;
   overflow: visible;
 }
 
 .controllers-box.expanded {
   width: 360px;
+  display: flex;
+  flex-direction: column;
 }
 
 .header-top {
@@ -52,9 +55,9 @@
 }
 
 .controllers-header {
-  padding: 8px 0 12px; /* reduced vertical padding */
+  padding: 8px 12px 12px;
   border-bottom: 2px solid #e2e8f0;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 /* Title row: place STMS and Live pill inline */
@@ -88,16 +91,32 @@
 }
 
 [data-theme='dark'] .map-controls-left .collapsed-icon-btn,
-[data-theme='dark'] .map-controls-left .expand-btn,
-[data-theme='dark'] .map-controls-left .tool-btn {
+[data-theme='dark'] .map-controls-left .expand-btn {
   background: rgba(30, 41, 59, 0.92);
   border-color: rgba(148, 163, 184, 0.18);
   color: #e2e8f0;
 }
 
-[data-theme='dark'] .map-controls-left .collapsed-icon-btn:hover,
-[data-theme='dark'] .map-controls-left .expand-btn:hover,
+[data-theme='dark'] .map-controls-left .tool-btn {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
 [data-theme='dark'] .map-controls-left .tool-btn:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(148, 163, 184, 0.5);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .map-controls-left .tool-btn.active-toggle {
+  background: rgba(30, 58, 138, 0.4);
+  border-color: #60a5fa;
+  box-shadow: 0 2px 8px rgba(96, 165, 250, 0.2);
+}
+
+[data-theme='dark'] .map-controls-left .collapsed-icon-btn:hover,
+[data-theme='dark'] .map-controls-left .expand-btn:hover {
   background: rgba(71, 85, 105, 0.18);
 }
 
@@ -215,44 +234,49 @@
   flex-direction: column;
   width: 100%;
   align-items: stretch;
+  margin: 0;
+  border: none;
+  padding: 3px 8px;
 }
 
-.controllers-box.collapsed .control-card-wrapper {
-  width: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Rounded Pill Action Target Buttons */
 .map-controls-left .tool-btn {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 14px 22px;
   background: #ffffff;
-  border: none;
-  border-radius: 16px;
+  border: 1px solid #cbd5e0;
+  border-bottom: 1px solid #cbd5e0;
+  border-radius: 8px;
   font-family: Arial, sans-serif;
   font-weight: bold;
   color: #1e293b;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
   cursor: pointer;
   white-space: nowrap;
-  width: max-content;
-  min-width: 190px;
+  width: calc(100% - 2px);
+  min-width: unset;
   transition: all 0.2s ease;
   text-align: left;
+  margin: 2px 0;
+}
+
+.map-controls-left .tool-btn:hover {
+  background-color: #f0f4f8;
+  border-color: #94a3b8;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.map-controls-left .tool-btn:last-of-type {
+  border-bottom: 1px solid #cbd5e0;
 }
 
 .map-controls-left .tool-btn.active-toggle {
-  border-radius: 14px 14px 0 0;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-}
-
-.controllers-box.collapsed {
-  width: 78px;
-  overflow: visible;
+  border-radius: 8px;
+  background-color: #eff6ff;
+  border: 2px solid #3b82f6;
+  width: calc(100% - 4px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
 }
 
 .controllers-box.collapsed .tool-btn {
@@ -265,10 +289,20 @@
   gap: 0;
   background-color: transparent;
   box-shadow: none;
+  border: none;
 }
 
 .controllers-box.collapsed .btn-text {
   display: none;
+}
+
+.main-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .collapsed-menu {
@@ -337,23 +371,25 @@
   opacity: 0;
   overflow: hidden;
   background: #ffffff;
-  border-radius: 0 16px 16px 16px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  border-radius: 0;
+  box-shadow: none;
   width: 100%;
   max-width: 100%;
   transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
   box-sizing: border-box;
+  border-top: 1px solid #e2e8f0;
 }
 
 .dropdown-panel.open {
   max-height: 560px;
   opacity: 1;
   overflow-y: auto;
-  border: 1px solid #e2e8f0;
+  border: none;
 }
 
 .inner-panel-content {
-  padding: 20px;
+  padding: 16px 22px;
+  border-top: 2px solid #3b82f6;
 }
 
 .panel-main-title {
@@ -526,6 +562,7 @@
 
 [data-theme='dark'] .map-controls-left .inner-panel-content {
   color: #e2e8f0;
+  border-top: 2px solid #60a5fa;
 }
 
 [data-theme='dark'] .map-controls-left .panel-subtitle {
