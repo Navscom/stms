@@ -122,12 +122,29 @@ function ZoomControlHandler() {
   useEffect(() => {
     if (!map) return undefined;
 
+    const applyZoomTooltips = (zoomControl) => {
+      const zoomInButton = zoomControl._zoomInButton || zoomControl._container?.querySelector('.leaflet-control-zoom-in');
+      const zoomOutButton = zoomControl._zoomOutButton || zoomControl._container?.querySelector('.leaflet-control-zoom-out');
+
+      if (zoomInButton) {
+        zoomInButton.setAttribute('data-tooltip', 'Zoom in');
+        zoomInButton.setAttribute('title', '');
+        zoomInButton.setAttribute('aria-label', 'Zoom in');
+      }
+      if (zoomOutButton) {
+        zoomOutButton.setAttribute('data-tooltip', 'Zoom out');
+        zoomOutButton.setAttribute('title', '');
+        zoomOutButton.setAttribute('aria-label', 'Zoom out');
+      }
+    };
+
     // If a zoom control already exists on the map (possibly added earlier), keep it.
     const existingZoom = (map._controls || []).find((c) => c && c instanceof L.Control.Zoom);
     if (existingZoom) {
       controlRef.current = existingZoom;
       // Ensure a convenient reference is available on the map object for legacy code
       if (!map.zoomControl) map.zoomControl = existingZoom;
+      applyZoomTooltips(existingZoom);
       return undefined;
     }
 
@@ -140,6 +157,7 @@ function ZoomControlHandler() {
     // Add new zoom control to bottom-right and remember we added it
     const zoomCtrl = L.control.zoom({ position: 'bottomright' });
     zoomCtrl.addTo(map);
+    applyZoomTooltips(zoomCtrl);
     controlRef.current = zoomCtrl;
     map.zoomControl = zoomCtrl;
 
