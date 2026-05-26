@@ -109,7 +109,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
           {isRegister && (
             <select value={form.role} onChange={(e) => update('role', e.target.value)}>
               <option value="tourist">Tourist</option>
-              <option value="admin">Admin</option>
+              <option value="admin">Local Admin</option>
             </select>
           )}
           <button type="submit" className="primary-btn">{isRegister ? 'Sign Up' : 'Sign In'}</button>

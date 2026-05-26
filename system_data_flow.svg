@@ -14,7 +14,7 @@
 
   <rect class="section" x="40" y="80" width="320" height="220" />
   <text class="text-title" x="70" y="120">User</text>
-  <text class="text-label" x="70" y="150">Tourist / Admin</text>
+  <text class="text-label" x="70" y="150">Tourist / Local Admin</text>
   <text class="text-label" x="70" y="175">Map click, login, reports</text>
 
   <rect class="section" x="430" y="40" width="330" height="320" />

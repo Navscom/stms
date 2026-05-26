@@ -49,7 +49,7 @@ npm install
 npm run dev
 ```
 
-## Admin Login
+## Local Admin Login
 
 ```text
 admin@stms.com
