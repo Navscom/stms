@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import '../css/MapControlLeft.css';
 import DestinationList from './DestinationList';
 import NearestDestination from './NearestDestination';
@@ -30,6 +30,13 @@ const MapControlLeft = ({
   const [isAddingMarkerOpen, setIsAddingMarkerOpen] = useState(false);
   const [isDestinationsOpen, setIsDestinationsOpen] = useState(false);
   const [isNearestOpen, setIsNearestOpen] = useState(false);
+  const [destinationSearch, setDestinationSearch] = useState('');
+
+  const filteredDestinations = useMemo(() => {
+    const search = destinationSearch.trim().toLowerCase();
+    if (!search) return touristSpots;
+    return touristSpots.filter((spot) => spot.name?.toLowerCase().includes(search));
+  }, [touristSpots, destinationSearch]);
 
   useEffect(() => {
     if (!isBoxExpanded) {
@@ -355,9 +362,17 @@ const MapControlLeft = ({
                     <h3 className="panel-main-title">
                       Tourist Spots
                     </h3>
+                    <div className="destination-search-box">
+                      <input
+                        type="text"
+                        className="form-input destination-search-input"
+                        placeholder="Search tourist spot by name"
+                        value={destinationSearch}
+                        onChange={(e) => setDestinationSearch(e.target.value)}
+                      />
+                    </div>
                     <DestinationList
-                      nearest={nearest}
-                      destinations={touristSpots}
+                      destinations={filteredDestinations}
                       selectedLocation={selectedLocation}
                       onCenterSpot={onCenterTouristSpot}
                       onZoomToSpot={onZoomToSpot}

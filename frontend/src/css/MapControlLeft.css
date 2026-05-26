@@ -239,6 +239,28 @@
   padding: 3px 8px;
 }
 
+.destination-search-box {
+  margin: 0 0 14px;
+}
+
+.destination-search-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e0;
+  background: #f8fafc;
+  font-size: 16px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.destination-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .map-controls-left .tool-btn {
   display: flex;
   align-items: center;

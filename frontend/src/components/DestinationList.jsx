@@ -43,6 +43,34 @@ export default function DestinationList({
   const selectedDestinationId = propSelectedId ?? selectedId;
   const currentSelectedLocation = selectedLocation || selectedLocationState;
 
+  const getDistanceKmForSpot = (spot) => {
+    if (spot?.distance_km != null) return spot.distance_km;
+    if (currentSelectedLocation && spot?.lat != null && spot?.lng != null) {
+      return calculateDistanceKm(currentSelectedLocation.lat, currentSelectedLocation.lng, spot.lat, spot.lng);
+    }
+    return undefined;
+  };
+
+  const sortByDistance = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return list;
+    return [...list].sort((a, b) => {
+      const aDist = getDistanceKmForSpot(a);
+      const bDist = getDistanceKmForSpot(b);
+      if (aDist == null && bDist == null) return 0;
+      if (aDist == null) return 1;
+      if (bDist == null) return -1;
+      return aDist - bDist;
+    });
+  };
+
+  const sortedNearest = sortByDistance(nearest);
+  const sortedDestinations = sortByDistance(destinations);
+
+  const renderDistance = (spot) => {
+    const distance = getDistanceKmForSpot(spot);
+    return distance != null ? <p className="distance">Approx. {distance} km away</p> : null;
+  };
+
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -109,16 +137,16 @@ export default function DestinationList({
     return destinations.find((spot) => String(spot.name).toUpperCase() === 'RIZAL PARK') || destinations[0] || null;
   };
 
-  const list = (nearest && nearest.length) ? nearest : destinations;
+  const list = (sortedNearest && sortedNearest.length) ? sortedNearest : sortedDestinations;
   const selectedDestination = selectedDestinationId ? list.find((d) => d.id === selectedDestinationId) : null;
 
   // Panel view for MapControlLeft - show the destination list only
   if (isPanel) {
     return (
       <div className="tourist-spots-list">
-        {destinations && destinations.length > 0 ? (
+        {sortedDestinations && sortedDestinations.length > 0 ? (
           <div className="destination-list">
-            {destinations.map((d) => (
+            {sortedDestinations.map((d) => (
               // Tourist spot card line: each destination renders as a card here
               <button
                 key={d.id}
@@ -140,7 +168,7 @@ export default function DestinationList({
                 </div>
                 <p>{d.city}, {d.province}</p>
                 <small>{d.category} • {d.opening_hours}</small>
-                {currentSelectedLocation && <p className="distance">Approx. {calculateDistanceKm(currentSelectedLocation.lat, currentSelectedLocation.lng, d.lat, d.lng)} km away</p>}
+                {renderDistance(d)}
               </button>
             ))}
           </div>
@@ -168,7 +196,7 @@ export default function DestinationList({
           <h3>{selectedDestination.name}</h3>
           <p className="destination-location">{selectedDestination.city}, {selectedDestination.province}</p>
           <p className="destination-meta">{selectedDestination.category} • {selectedDestination.opening_hours}</p>
-          {selectedDestination.distance_km !== undefined && <p className="distance">Approx. {selectedDestination.distance_km} km away</p>}
+          {renderDistance(selectedDestination)}
           <p className="destination-description">{selectedDestination.description}</p>
           <div className="destination-action-row">
             <button type="button" className="primary-btn" onClick={() => handleSelectDestination(selectedDestination)}>
@@ -192,7 +220,7 @@ export default function DestinationList({
               </div>
               <p>{d.city}, {d.province}</p>
               <small>{d.category} • {d.opening_hours}</small>
-              {d.distance_km !== undefined && <p className="distance">Approx. {d.distance_km} km away</p>}
+              {renderDistance(d)}
             </button>
           ))}
         </div>
