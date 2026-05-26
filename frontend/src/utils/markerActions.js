@@ -70,8 +70,8 @@ export async function addMarkerComment(pinId, comment, user, setAdvice, loadDang
   setAdvice('Comment added to marker.');
 }
 
-export async function deletePin(pinId, setAdvice, loadDangerPins) {
-  await deleteDangerPin(pinId);
+export async function deletePin(pinId, setAdvice, loadDangerPins, meta = {}) {
+  await deleteDangerPin(pinId, meta);
   await loadDangerPins();
   setAdvice('Your marker was deleted successfully.');
 }

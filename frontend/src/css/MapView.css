@@ -181,26 +181,28 @@ html[data-theme='dark'] .leaflet-control-zoom-out:active,
 
 .delete-pin-box,
 .delete-pin-note {
-  margin-top: 20px;
-  padding-top: 18px;
+  margin-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 .delete-pin-box label {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   color: var(--muted);
-  font-size: 1.02rem;
+  font-size: 0.95rem;
 }
 .delete-pin-box button {
   width: fit-content;
+  padding: 8px 12px;
+  font-size: 0.95rem;
 }
 
 .popup-comments {
-  margin-top: 14px;
-  padding-top: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid #ddd;
 }
 .comment-list {

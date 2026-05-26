@@ -343,6 +343,18 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
 
 @app.put("/danger-pins/{pin_id}/comments/{comment_id}")
 def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentRequest):
+    requestor = data.requesting_by or data.commented_by
+    requestor_role = (data.requesting_role or "tourist").lower()
+
+    comment_response = supabase.table("marker_comments").select("*").eq("id", comment_id).eq("pin_id", pin_id).execute()
+    comments = safe_data(comment_response)
+    if not comments:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    comment_item = comments[0]
+
+    if requestor != comment_item.get("commented_by") and requestor_role != "administrator":
+        raise HTTPException(status_code=403, detail="Not authorized to edit this comment.")
+
     response = supabase.table("marker_comments").update({
         "comment": data.comment.strip(),
     }).eq("id", comment_id).eq("pin_id", pin_id).execute()
@@ -352,7 +364,23 @@ def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentReque
     return {"message": "Comment updated"}
 
 @app.delete("/danger-pins/{pin_id}/comments/{comment_id}")
-def delete_marker_comment(pin_id: int, comment_id: int):
+def delete_marker_comment(pin_id: int, comment_id: int, requesting_by: str = "Anonymous", requesting_role: str = "tourist"):
+    comment_response = supabase.table("marker_comments").select("*").eq("id", comment_id).eq("pin_id", pin_id).execute()
+    comments = safe_data(comment_response)
+    if not comments:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    comment_item = comments[0]
+
+    pin_response = supabase.table("danger_pins").select("*").eq("id", pin_id).execute()
+    pins = safe_data(pin_response)
+    if not pins:
+        raise HTTPException(status_code=404, detail="Marker not found")
+    pin_item = pins[0]
+
+    requestor_role_lower = requesting_role.lower()
+    if requesting_by != comment_item.get("commented_by") and requesting_by != pin_item.get("reported_by") and requestor_role_lower not in {"administrator", "admin"}:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this comment.")
+
     response = supabase.table("marker_comments").delete().eq("id", comment_id).eq("pin_id", pin_id).execute()
     deleted_rows = safe_data(response)
     if not deleted_rows:
@@ -375,8 +403,21 @@ def delete_destination(destination_id: int):
     return {"message": "Destination deleted", "id": destination_id}
 
 @app.delete("/danger-pins/{pin_id}")
-def delete_danger_pin(pin_id: int):
-    # soft-delete: mark removed_at so we keep record
+def delete_danger_pin(
+    pin_id: int,
+    requesting_by: str = "Anonymous",
+    requesting_role: str = "tourist",
+):
+    pin_response = supabase.table("danger_pins").select("*").eq("id", pin_id).execute()
+    pin_items = safe_data(pin_response)
+    if not pin_items:
+        raise HTTPException(status_code=404, detail="Danger pin not found.")
+
+    pin_item = pin_items[0]
+    requestor_role_lower = (requesting_role or "").lower()
+    if requesting_by != pin_item.get("reported_by") and requestor_role_lower not in {"administrator", "admin"}:
+        raise HTTPException(status_code=403, detail="Not allowed to delete this pin.")
+
     response = supabase.table("danger_pins").update({"removed_at": now_iso()}).eq("id", pin_id).execute()
     data_list = safe_data(response)
     if not data_list:

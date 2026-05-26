@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from pydantic import BaseModel, EmailStr, root_validator
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 class RegisterRequest(BaseModel):
     name: str
@@ -54,6 +54,8 @@ class DangerPinRequest(BaseModel):
 class MarkerCommentRequest(BaseModel):
     comment: str
     commented_by: str = "Anonymous"
+    requesting_by: Optional[str] = None
+    requesting_role: Optional[str] = None
 
 class RouteRequest(BaseModel):
     start_lat: float

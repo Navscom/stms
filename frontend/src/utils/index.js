@@ -61,22 +61,34 @@ export function postPinComment(pinId, payload) {
   });
 }
 
-export function updatePinComment(pinId, commentId, payload) {
+export function updatePinComment(pinId, commentId, payload, meta = {}) {
   return fetchJson(`/danger-pins/${pinId}/comments/${commentId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      requesting_by: meta.requesting_by,
+      requesting_role: meta.requesting_role,
+    }),
   });
 }
 
-export function deletePinComment(pinId, commentId) {
-  return fetchJson(`/danger-pins/${pinId}/comments/${commentId}`, {
+export function deletePinComment(pinId, commentId, meta = {}) {
+  const params = new URLSearchParams();
+  if (meta.requesting_by) params.append('requesting_by', meta.requesting_by);
+  if (meta.requesting_role) params.append('requesting_role', meta.requesting_role);
+  const query = params.toString();
+  return fetchJson(`/danger-pins/${pinId}/comments/${commentId}${query ? `?${query}` : ''}`, {
     method: 'DELETE',
   });
 }
 
-export function deleteDangerPin(pinId) {
-  return fetchJson(`/danger-pins/${pinId}`, {
+export function deleteDangerPin(pinId, meta = {}) {
+  const params = new URLSearchParams();
+  if (meta.requesting_by) params.append('requesting_by', meta.requesting_by);
+  if (meta.requesting_role) params.append('requesting_role', meta.requesting_role);
+  const query = params.toString();
+  return fetchJson(`/danger-pins/${pinId}${query ? `?${query}` : ''}`, {
     method: 'DELETE',
   });
 }

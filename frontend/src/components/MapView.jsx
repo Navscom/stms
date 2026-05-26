@@ -314,10 +314,17 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
     setComment('');
   };
 
-  const canModifyComment = (commentEntry) => {
+  const canEditComment = (commentEntry) => {
     if (!user) return false;
-    return user?.name === commentEntry.commented_by || user?.role === 'administrator' || user?.role === 'admin';
+    return user?.name === commentEntry.commented_by || user?.role === 'administrator';
   };
+
+  const canDeleteComment = (commentEntry) => {
+    if (!user) return false;
+    return user?.name === commentEntry.commented_by || user?.name === pin.reported_by || user?.role === 'administrator' || user?.role === 'admin';
+  };
+
+  const canManageComment = (commentEntry) => canEditComment(commentEntry) || canDeleteComment(commentEntry);
 
   const startEdit = (commentEntry) => {
     setEditingCommentId(commentEntry.id);
@@ -377,7 +384,7 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
               <>
                 <div className="comment-row-top">
                   <p>{c.comment}</p>
-                  {canModifyComment(c) && (
+                  {canManageComment(c) && (
                     <div className="comment-menu-wrapper">
                       <button
                         type="button"
@@ -389,8 +396,8 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
                       </button>
                       {activeMenuId === c.id && (
                         <div className="comment-menu">
-                          <button type="button" onClick={() => startEdit(c)}>Edit</button>
-                          <button type="button" className="danger-btn" onClick={() => requestDelete(c.id)}>Delete</button>
+                          {canEditComment(c) && <button type="button" onClick={() => startEdit(c)}>Edit</button>}
+                          {canDeleteComment(c) && <button type="button" className="danger-btn" onClick={() => requestDelete(c.id)}>Delete</button>}
                         </div>
                       )}
                     </div>
@@ -423,12 +430,12 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
 
 function DeletePinBox({ pin, user, onDeletePin }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const canDelete = user?.role === 'administrator';
+  const canDelete = user?.name === pin.reported_by || user?.role === 'administrator' || user?.role === 'admin';
 
   if (!canDelete) {
     return (
       <div className="delete-pin-note">
-        <small>Only an Administrator can delete this pin.</small>
+        <small>Only the reporting user or an administrator can delete this pin.</small>
       </div>
     );
   }

@@ -135,7 +135,10 @@ function App() {
 
   const updateMarkerComment = async (pinId, commentId, comment) => {
     try {
-      await updatePinComment(pinId, commentId, { comment });
+      await updatePinComment(pinId, commentId, { comment }, {
+        requesting_by: user?.name,
+        requesting_role: user?.role,
+      });
       await loadDangerPins(setDangerPins);
       setAdvice('Comment updated successfully.');
     } catch (err) {
@@ -145,7 +148,10 @@ function App() {
 
   const deleteMarkerComment = async (pinId, commentId) => {
     try {
-      await deletePinComment(pinId, commentId);
+      await deletePinComment(pinId, commentId, {
+        requesting_by: user?.name,
+        requesting_role: user?.role,
+      });
       await loadDangerPins(setDangerPins);
       setAdvice('Comment deleted.');
     } catch (err) {
@@ -154,12 +160,20 @@ function App() {
   };
 
   const deletePin = async (pinId) => {
-    if (user?.role !== 'administrator') {
-      alert('Only administrators are allowed to delete pins.');
+    const pin = dangerPins.find((p) => p.id === pinId);
+    const isPinOwner = pin && user?.name && pin.reported_by === user.name;
+    const isAdmin = user?.role === 'administrator' || user?.role === 'admin';
+
+    if (!isPinOwner && !isAdmin) {
+      alert('Only the user who reported the pin or an administrator can delete it.');
       return;
     }
+
     try {
-      await deleteDangerPin(pinId);
+      await deleteDangerPin(pinId, {
+        requesting_by: user?.name,
+        requesting_role: user?.role,
+      });
       await loadDangerPins(setDangerPins);
       setAdvice('Marker deleted successfully.');
     } catch (err) {
