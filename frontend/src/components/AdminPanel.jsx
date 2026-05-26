@@ -71,7 +71,7 @@ export default function AdminPanel({ api, destinations, setAppDestinations, setA
   return (
     <section className="admin-panel">
       <h2>Local Admin Dashboard</h2>
-      <p>Manage Tourist Spots and update crowd monitoring status.</p>
+      <p>Manage Tourist Attractions and Update Crowd Monitoring Status.</p>
       <form className="admin-form" onSubmit={addDestination}>
         {['name', 'category', 'city', 'province', 'lat', 'lng'].map((field) => (
           <input key={field} placeholder={field.toUpperCase()} value={form[field]} onChange={(e) => updateForm(field, e.target.value)} required />

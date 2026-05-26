@@ -10,16 +10,6 @@ export default function AIGuidance({ advice, nearest }) {
       <div className="ai-card">
         <h2>AI Guidance</h2>
         <p>{advice || 'Click the map or select a destination to get AI safety and tourist advice.'}</p>
-        {nearest?.length > 0 && (
-          <div className="ai-card-meta">
-            <strong>Nearest tourist spot:</strong>
-            <ul>
-              {nearest.slice(0, 1).map((dest) => (
-                <li key={dest.id}>{dest.name} — {dest.distance_km} km</li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </section>
   );
