@@ -1,6 +1,25 @@
 export function validateAuthForm(form, isRegister = false) {
-  if (!form.email?.trim()) {
+  const email = form.email?.trim();
+  if (!email) {
     return { valid: false, message: 'Email is required.' };
+  }
+  if (email.includes(' ')) {
+    return { valid: false, message: 'Email cannot contain spaces.' };
+  }
+  const parts = email.split('@');
+  if (parts.length !== 2) {
+    return { valid: false, message: 'Enter a valid email address.' };
+  }
+  const [local, domain] = parts;
+  if (!/^[A-Za-z0-9]+$/.test(local)) {
+    return { valid: false, message: 'Email local part can only contain letters and numbers.' };
+  }
+  const allowedProviders = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com'];
+  if (!allowedProviders.includes(domain.toLowerCase())) {
+    return {
+      valid: false,
+      message: `Email provider must be one of: ${allowedProviders.join(', ')}.`,
+    };
   }
   if (!form.password) {
     return { valid: false, message: 'Password is required.' };

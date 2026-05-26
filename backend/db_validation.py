@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from pydantic import BaseModel, EmailStr, root_validator
 from typing import Any, Dict, List, Optional
+import re
 
 class RegisterRequest(BaseModel):
     name: str
@@ -65,7 +66,28 @@ class RouteRequest(BaseModel):
     night_mode: bool = False
 
 
+def is_valid_email(email: str) -> bool:
+    if not email or any(char.isspace() for char in email):
+        return False
+    parts = email.split('@')
+    if len(parts) != 2:
+        return False
+    local, domain = parts
+    if not re.fullmatch(r'[A-Za-z0-9]+', local):
+        return False
+    allowed_domains = {
+        'gmail.com',
+        'yahoo.com',
+        'outlook.com',
+        'hotmail.com',
+        'icloud.com',
+    }
+    return domain.lower() in allowed_domains
+
+
 def validate_register(data: RegisterRequest) -> None:
+    if not is_valid_email(data.email):
+        raise HTTPException(status_code=400, detail="Invalid email address. Use a supported provider and no special characters.")
     if len(data.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
     if data.role not in ["tourist", "admin", "administrator"]:
