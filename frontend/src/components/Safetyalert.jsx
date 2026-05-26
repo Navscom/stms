@@ -1,6 +1,6 @@
-import '../css/SafetyAlerts.css';
+import '../css/Safetyalert.css';
 
-export default function SafetyAlerts({ nearbyDangers }) {
+export default function Safetyalert({ nearbyDangers }) {
   return (
     <section className="warning-panel">
       <h2>Safety Alerts</h2>

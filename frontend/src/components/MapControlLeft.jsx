@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import '../css/MapControlLeft.css';
 import DestinationList from './DestinationList';
 import NearestDestination from './NearestDestination';
+import ReportGrid from './ReportGrid';
+import Safetyalert from './Safetyalert';
 
 const MapControlLeft = ({
   onMyLocation,
@@ -12,6 +14,8 @@ const MapControlLeft = ({
   onClearSelection,
   touristSpots = [],
   nearest = [],
+  nearbyDangers = [],
+  report = null,
   selectedDestinationId = null,
   selectedLocation = null,
   isBoxExpanded = false,
@@ -30,6 +34,8 @@ const MapControlLeft = ({
   const [isAddingMarkerOpen, setIsAddingMarkerOpen] = useState(false);
   const [isDestinationsOpen, setIsDestinationsOpen] = useState(false);
   const [isNearestOpen, setIsNearestOpen] = useState(false);
+  const [isSafetyAlertOpen, setIsSafetyAlertOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [destinationSearch, setDestinationSearch] = useState('');
 
   const filteredDestinations = useMemo(() => {
@@ -50,6 +56,8 @@ const MapControlLeft = ({
     if (!isBoxExpanded) {
       setIsNearestOpen(false);
       setIsDestinationsOpen(false);
+      setIsSafetyAlertOpen(false);
+      setIsReportOpen(false);
     }
   }, [isBoxExpanded]);
 
@@ -72,6 +80,7 @@ const MapControlLeft = ({
     setIsDestinationsOpen(true);
     setIsAddingMarkerOpen(false);
     setIsNearestOpen(false);
+    setIsSafetyAlertOpen(false);
   };
 
   const handleCollapsedNearest = () => {
@@ -79,6 +88,26 @@ const MapControlLeft = ({
     setIsNearestOpen(true);
     setIsAddingMarkerOpen(false);
     setIsDestinationsOpen(false);
+    setIsSafetyAlertOpen(false);
+    setIsReportOpen(false);
+  };
+
+  const handleCollapsedSafetyAlert = () => {
+    setIsBoxExpanded(true);
+    setIsSafetyAlertOpen(true);
+    setIsAddingMarkerOpen(false);
+    setIsDestinationsOpen(false);
+    setIsNearestOpen(false);
+    setIsReportOpen(false);
+  };
+
+  const handleCollapsedReport = () => {
+    setIsBoxExpanded(true);
+    setIsReportOpen(true);
+    setIsAddingMarkerOpen(false);
+    setIsDestinationsOpen(false);
+    setIsNearestOpen(false);
+    setIsSafetyAlertOpen(false);
   };
 
   return (
@@ -161,6 +190,28 @@ const MapControlLeft = ({
                 <button
                   type="button"
                   className="collapsed-icon-btn"
+                  onClick={handleCollapsedSafetyAlert}
+                >
+                  <span className="btn-icon">⚠️</span>
+                </button>
+                <div className="tooltip-text">Safety Alerts</div>
+              </div>
+
+              <div className="tooltip-container button-tooltip">
+                <button
+                  type="button"
+                  className="collapsed-icon-btn"
+                  onClick={handleCollapsedReport}
+                >
+                  <span className="btn-icon">📊</span>
+                </button>
+                <div className="tooltip-text">Report Grid</div>
+              </div>
+
+              <div className="tooltip-container button-tooltip">
+                <button
+                  type="button"
+                  className="collapsed-icon-btn"
                   onClick={handleCollapsedNearest}
                 >
                   <span className="btn-icon">🧭</span>
@@ -176,7 +227,7 @@ const MapControlLeft = ({
                 >
                   <span className="btn-icon">🗺️</span>
                 </button>
-                <div className="tooltip-text">Destinations</div>
+                <div className="tooltip-text">Tourist Attractions</div>
               </div>
             </div>
           ) : (
@@ -196,6 +247,7 @@ const MapControlLeft = ({
                   className={`tool-btn ${(isAddingMarkerOpen || isPinMode) ? 'active-toggle' : ''}`}
                   onClick={() => {
                     setIsAddingMarkerOpen(!isAddingMarkerOpen);
+                    setIsSafetyAlertOpen(false);
                     if (isDestinationsOpen) setIsDestinationsOpen(false);
                     if (onAddMarker) onAddMarker();
                   }}
@@ -316,11 +368,67 @@ const MapControlLeft = ({
               <div className="control-card-wrapper">
                 <button
                   type="button"
+                  className={`tool-btn ${isSafetyAlertOpen ? 'active-toggle' : ''}`}
+                  onClick={() => {
+                    setIsSafetyAlertOpen(!isSafetyAlertOpen);
+                    setIsAddingMarkerOpen(false);
+                    setIsNearestOpen(false);
+                    setIsDestinationsOpen(false);
+                    setIsReportOpen(false);
+                  }}
+                >
+                  <span className="btn-icon">⚠️</span>
+                  <span className="btn-text">Safety Alerts</span>
+                </button>
+
+                <div className={`dropdown-panel safety-alert-dropdown ${isSafetyAlertOpen ? 'open' : ''}`}>
+                  <div className="inner-panel-content">
+                    <h3 className="panel-main-title">Safety Alerts</h3>
+                    <p className="panel-subtitle">View nearby hazard reports and warnings on the map.</p>
+                    <Safetyalert nearbyDangers={nearbyDangers} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="control-card-wrapper">
+                <button
+                  type="button"
+                  className={`tool-btn ${isReportOpen ? 'active-toggle' : ''}`}
+                  onClick={() => {
+                    setIsReportOpen(!isReportOpen);
+                    setIsAddingMarkerOpen(false);
+                    setIsNearestOpen(false);
+                    setIsDestinationsOpen(false);
+                    setIsSafetyAlertOpen(false);
+                  }}
+                >
+                  <span className="btn-icon">📊</span>
+                  <span className="btn-text">Report Grid</span>
+                </button>
+
+                <div className={`dropdown-panel report-dropdown ${isReportOpen ? 'open' : ''}`}>
+                  <div className="inner-panel-content">
+                    <h3 className="panel-main-title">Report Grid</h3>
+                    <p className="panel-subtitle">Review destination, crowd, and danger summaries.</p>
+                    {report ? (
+                      <ReportGrid report={report} />
+                    ) : (
+                      <p className="panel-subtitle">Report data is not available yet.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="control-card-wrapper">
+                <button
+                  type="button"
                   className={`tool-btn ${isNearestOpen ? 'active-toggle' : ''}`}
                   onClick={() => {
                     setIsNearestOpen(!isNearestOpen);
                     if (isAddingMarkerOpen) setIsAddingMarkerOpen(false);
                     if (isDestinationsOpen) setIsDestinationsOpen(false);
+                    setIsSafetyAlertOpen(false);
+                    setIsReportOpen(false);
                   }}
                 >
                   <span className="btn-icon">🧭</span>
@@ -351,16 +459,17 @@ const MapControlLeft = ({
                     setIsDestinationsOpen(!isDestinationsOpen);
                     if (isAddingMarkerOpen) setIsAddingMarkerOpen(false);
                     if (isNearestOpen) setIsNearestOpen(false);
+                    setIsSafetyAlertOpen(false);
                   }}
                 >
                   <span className="btn-icon">🗺️</span>
-                  <span className="btn-text">Tourist Spots</span>
+                  <span className="btn-text">Tourist Attractions</span>
                 </button>
 
                 <div className={`dropdown-panel destinations-dropdown ${isDestinationsOpen ? 'open' : ''}`}>
                   <div className="inner-panel-content">
                     <h3 className="panel-main-title">
-                      Tourist Spots
+                      Tourist Attractions
                     </h3>
                     <div className="destination-search-box">
                       <input

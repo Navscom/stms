@@ -5,8 +5,6 @@ import LoginModal from './components/LoginModal';
 import AdminPanel from './components/AdminPanel.jsx';
 import MapControlLeft from './components/MapControlLeft';
 import MarkerPanel from './components/MarkerPanel';
-import SafetyAlerts from './components/SafetyAlerts';
-import ReportGrid from './components/ReportGrid';
 import AIGuidance from './components/AIGuidance';
 import { useUserSession } from './utils/useUserSession';
 import { API, deleteAccount, postPinComment, updatePinComment, deletePinComment, deleteDangerPin } from './utils';
@@ -366,6 +364,8 @@ function App() {
                 onClearSelection={clearSelectedDestination}
                 touristSpots={destinations}
                 nearest={nearest}
+                nearbyDangers={nearbyDangers}
+                report={report}
                 selectedDestinationId={selectedDestinationId}
                 selectedLocation={userLocation}
                 isBoxExpanded={isNavExpanded}
@@ -415,10 +415,6 @@ function App() {
           </div>
         </div>
       </section>
-
-      <SafetyAlerts nearbyDangers={nearbyDangers} />
-
-      {report && <ReportGrid report={report} />}
 
       {(user?.role === 'admin' || user?.role === 'administrator') && (
         <AdminPanel
