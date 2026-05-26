@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../css/MapControlLeft.css';
 import DestinationList from './DestinationList';
+import NearestDestination from './NearestDestination';
 
 const MapControlLeft = ({
   onMyLocation,
@@ -8,8 +9,10 @@ const MapControlLeft = ({
   onAddMarker,
   onCenterTouristSpot,
   onZoomToSpot,
+  onClearSelection,
   touristSpots = [],
   nearest = [],
+  selectedDestinationId = null,
   selectedLocation = null,
   isBoxExpanded = false,
   setIsBoxExpanded = () => {},
@@ -26,6 +29,7 @@ const MapControlLeft = ({
 }) => {
   const [isAddingMarkerOpen, setIsAddingMarkerOpen] = useState(false);
   const [isDestinationsOpen, setIsDestinationsOpen] = useState(false);
+  const [isNearestOpen, setIsNearestOpen] = useState(false);
 
   useEffect(() => {
     if (!isBoxExpanded) {
@@ -34,6 +38,13 @@ const MapControlLeft = ({
     }
     setIsAddingMarkerOpen(isPinMode);
   }, [isBoxExpanded, isPinMode]);
+
+  useEffect(() => {
+    if (!isBoxExpanded) {
+      setIsNearestOpen(false);
+      setIsDestinationsOpen(false);
+    }
+  }, [isBoxExpanded]);
 
   // Handlers for collapsed primary icon buttons
   const handleCollapsedMyLocation = () => {
@@ -45,6 +56,7 @@ const MapControlLeft = ({
     setIsBoxExpanded(true);
     setIsAddingMarkerOpen(true);
     setIsDestinationsOpen(false);
+    setIsNearestOpen(false);
     if (onAddMarker) onAddMarker();
   };
 
@@ -52,6 +64,14 @@ const MapControlLeft = ({
     setIsBoxExpanded(true);
     setIsDestinationsOpen(true);
     setIsAddingMarkerOpen(false);
+    setIsNearestOpen(false);
+  };
+
+  const handleCollapsedNearest = () => {
+    setIsBoxExpanded(true);
+    setIsNearestOpen(true);
+    setIsAddingMarkerOpen(false);
+    setIsDestinationsOpen(false);
   };
 
   return (
@@ -64,27 +84,44 @@ const MapControlLeft = ({
           {/* HEADER TITLE AND SUBTITLE */}
           <div className="controllers-header">
             <div className="header-top">
-              {isBoxExpanded && <div className="status-pill status-live">Live</div>}
-              <div className="tooltip-container button-tooltip">
-                <button 
-                  type="button"
-                  className="expand-btn"
-                  onClick={() => setIsBoxExpanded(!isBoxExpanded)}
-                >
-                  {isBoxExpanded ? '−' : '+'}
-                </button>
-                <div className="tooltip-text">
-                  {isBoxExpanded ? 'Collapse' : 'Expand'}
+              {!isBoxExpanded && (
+                <div className="tooltip-container button-tooltip">
+                  <button 
+                    type="button"
+                    className="expand-btn"
+                    onClick={() => setIsBoxExpanded(!isBoxExpanded)}
+                  >
+                    {isBoxExpanded ? '−' : '+'}
+                  </button>
+                  <div className="tooltip-text">
+                    {isBoxExpanded ? 'Collapse' : 'Expand'}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             {isBoxExpanded && (
               <>
-                <div className="tooltip-container">
-                  <h1>STMS</h1>
-                  <div className="tooltip-text">Smart Tourism Management System</div>
+                <div className="header-title-row">
+                  <div className="tooltip-container">
+                    <h1>STMS</h1>
+                    <div className="tooltip-text">Smart Tourism Management System</div>
+                  </div>
+                  <span className="status-pill status-live">Live</span>
+                  <div className="tooltip-container button-tooltip">
+                    <button 
+                      type="button"
+                      className="expand-btn"
+                      onClick={() => setIsBoxExpanded(!isBoxExpanded)}
+                    >
+                      {isBoxExpanded ? '−' : '+'}
+                    </button>
+                    <div className="tooltip-text">
+                      {isBoxExpanded ? 'Collapse' : 'Expand'}
+                    </div>
+                  </div>
                 </div>
-                <p className="subtitle">AI-Based Geolocation Guidance & Crowd Monitoring</p>
+                <p className="subtitle">AI-Based Geolocation Guidance</p>
+                <p className="subtitle">& Crowd Monitoring</p>
               </>
             )}
           </div>
@@ -111,6 +148,17 @@ const MapControlLeft = ({
                   <span className="btn-icon">📌</span>
                 </button>
                 <div className="tooltip-text">Add Marker</div>
+              </div>
+
+              <div className="tooltip-container button-tooltip">
+                <button
+                  type="button"
+                  className="collapsed-icon-btn"
+                  onClick={handleCollapsedNearest}
+                >
+                  <span className="btn-icon">🧭</span>
+                </button>
+                <div className="tooltip-text">Nearest Attractions</div>
               </div>
 
               <div className="tooltip-container button-tooltip">
@@ -258,7 +306,36 @@ const MapControlLeft = ({
                 </div>
               </div>
 
-              {/* 3. TOURIST SPOTS CONTROL + PREMIUM RECOMMENDED SPOTS PANELS */}
+              <div className="control-card-wrapper">
+                <button
+                  type="button"
+                  className={`tool-btn ${isNearestOpen ? 'active-toggle' : ''}`}
+                  onClick={() => {
+                    setIsNearestOpen(!isNearestOpen);
+                    if (isAddingMarkerOpen) setIsAddingMarkerOpen(false);
+                    if (isDestinationsOpen) setIsDestinationsOpen(false);
+                  }}
+                >
+                  <span className="btn-icon">🧭</span>
+                  <span className="btn-text">Nearest Attraction</span>
+                </button>
+
+                <div className={`dropdown-panel nearest-dropdown ${isNearestOpen ? 'open' : ''}`}>
+                  <div className="inner-panel-content">
+                    <h3 className="panel-main-title">Nearest Destinations</h3>
+                    <p className="panel-subtitle">These spots are closest to the currently selected location or your last map click.</p>
+                    <NearestDestination
+                      nearest={nearest}
+                      selectedDestinationId={selectedDestinationId}
+                      selectedLocation={selectedLocation}
+                      onSelectNearest={onCenterTouristSpot}
+                      onClearNearest={onClearSelection}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. TOURIST SPOTS CONTROL PREMIUM RECOMMENDED SPOTS PANELS */}
               <div className="control-card-wrapper">
                 <button
                   type="button"
@@ -266,6 +343,7 @@ const MapControlLeft = ({
                   onClick={() => {
                     setIsDestinationsOpen(!isDestinationsOpen);
                     if (isAddingMarkerOpen) setIsAddingMarkerOpen(false);
+                    if (isNearestOpen) setIsNearestOpen(false);
                   }}
                 >
                   <span className="btn-icon">🗺️</span>

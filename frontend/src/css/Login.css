@@ -4,9 +4,6 @@
 .auth-form input,
 .auth-form select {
   padding: 12px;
-  background: var(--card-bg);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 1rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;

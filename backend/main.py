@@ -204,7 +204,7 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         d["distance_km"] = round(distance, 2)
         ranked.append(d)
     ranked.sort(key=lambda item: item.get("distance_km", 0))
-    nearby_tourist_spots = [d for d in ranked if isinstance(d, dict) and d.get("distance_km", 0) * 1000 <= 900]
+    nearby_tourist_spots = [d for d in ranked if isinstance(d, dict) and d.get("distance_km", 0) <= 10]
     nearest = nearby_tourist_spots[:1]
 
     danger_nearby = []
@@ -239,7 +239,7 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         "latitude": lat,
         "longitude": lng,
         "advice": advice,
-        "nearest_destinations": nearest,
+        "nearest_destinations": nearby_tourist_spots,
         "nearby_dangers": danger_nearby[:8]
     }
 

@@ -45,8 +45,6 @@
   top: 52px;
   right: 0;
   width: 300px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 20px 44px rgba(2,6,23,0.14);
   padding: 10px;
@@ -132,7 +130,6 @@
   background: linear-gradient(135deg,var(--accent),var(--accent-dark, #1d4ed8));
 }
 
-[data-theme='dark'] .profile-name { color: #f8fafc; }
 [data-theme='dark'] .profile-email,
 [data-theme='dark'] .profile-role { color: rgba(226,232,240,0.8); }
 

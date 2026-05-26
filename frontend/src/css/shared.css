@@ -1,0 +1,54 @@
+/* Shared base styles for repeated component cards and controls */
+.admin-panel,
+.marker-panel,
+.destination-panel,
+.destination-panel-wrapper,
+.ai-card,
+.warning-panel,
+.profile-dropdown,
+.admin-row,
+.map-panel-header,
+.pagination-controls button {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+}
+
+.admin-form input,
+.admin-form select,
+.admin-form textarea,
+.auth-form input,
+.auth-form select,
+.auth-form textarea {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.marker-form input,
+.marker-form select,
+.marker-form textarea,
+.comment-form input {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.secondary-btn:disabled,
+.delete-pin-box .secondary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-list,
+.integrated-form,
+.tourist-spots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+[data-theme='dark'] .map-controls-left .controllers-header h1,
+[data-theme='dark'] .map-controls-left .panel-main-title,
+[data-theme='dark'] .profile-name {
+  color: #f8fafc;
+}

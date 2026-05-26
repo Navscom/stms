@@ -325,8 +325,10 @@ function App() {
                 onHazardSubmit={submitMarker}
                 onCenterTouristSpot={toggleDestinationFocus}
                 onZoomToSpot={zoomToDestination}
+                onClearSelection={clearSelectedDestination}
                 touristSpots={destinations}
                 nearest={nearest}
+                selectedDestinationId={selectedDestinationId}
                 selectedLocation={userLocation}
                 isBoxExpanded={isNavExpanded}
                 setIsBoxExpanded={setIsNavExpanded}
