@@ -299,6 +299,7 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingText, setEditingText] = useState('');
+  const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState(null);
 
   const submit = (e) => {
     e.preventDefault();
@@ -335,11 +336,19 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
     cancelEdit();
   };
 
-  const handleDelete = async (commentId) => {
-    if (!window.confirm('Delete this comment?')) {
-      return;
-    }
+  const requestDelete = (commentId) => {
     setActiveMenuId(null);
+    setPendingDeleteCommentId(commentId);
+  };
+
+  const cancelDelete = () => {
+    setPendingDeleteCommentId(null);
+  };
+
+  const confirmDelete = async () => {
+    const commentId = pendingDeleteCommentId;
+    if (!commentId) return;
+    setPendingDeleteCommentId(null);
     await onDeleteComment(pin.id, commentId);
   };
 
@@ -378,12 +387,21 @@ function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment 
                       {activeMenuId === c.id && (
                         <div className="comment-menu">
                           <button type="button" onClick={() => startEdit(c)}>Edit</button>
-                          <button type="button" className="danger-btn" onClick={() => handleDelete(c.id)}>Delete</button>
+                          <button type="button" className="danger-btn" onClick={() => requestDelete(c.id)}>Delete</button>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
+                {pendingDeleteCommentId === c.id && (
+                  <div className="comment-delete-confirmation">
+                    <span>Delete this comment?</span>
+                    <div className="comment-delete-actions">
+                      <button type="button" className="secondary-btn" onClick={cancelDelete}>Cancel</button>
+                      <button type="button" className="danger-btn" onClick={confirmDelete}>Delete</button>
+                    </div>
+                  </div>
+                )}
                 <small>— {c.commented_by}</small>
               </>
             )}
