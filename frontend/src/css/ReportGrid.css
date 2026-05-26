@@ -1,34 +1,113 @@
 .report-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  gap: 16px;
   margin: 18px 0;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 18px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05);
 }
 
-.stat-card {
-  padding: 20px;
-  text-align: center;
+.report-grid-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 
-.stat-card h3 {
+.report-grid-title {
+  max-width: 260px;
+}
+
+.report-grid-title h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.18rem;
+  color: #0f172a;
+}
+
+.report-grid-title p {
   margin: 0;
-  font-size: 2rem;
-  color: var(--accent);
+  color: #475569;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
-.stat-card p {
-  margin-bottom: 0;
-  color: var(--muted);
+.report-grid-boxes {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.report-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 160px;
+  padding: 18px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.report-stat-card:hover,
+.report-stat-card.active {
+  transform: translateY(-2px);
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 16px 30px rgba(59, 130, 246, 0.15);
+  background: #f8fbff;
+}
+
+.report-stat-value {
+  font-size: 1.8rem;
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.report-stat-label {
+  color: #1e293b;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.report-stat-subtitle {
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.report-grid-note {
+  margin: 0;
+  color: #475569;
+  font-size: 0.92rem;
 }
 
 @media (max-width: 900px) {
-  .report-grid {
-    grid-template-columns: 1fr 1fr;
+  .report-grid-boxes {
+    justify-content: flex-start;
+    width: 100%;
   }
 }
 
-@media (max-width: 600px) {
-  .report-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 640px) {
+  .report-grid-header {
+    flex-direction: column;
+  }
+
+  .report-grid-boxes {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .report-stat-card {
+    width: 100%;
+    min-width: auto;
   }
 }

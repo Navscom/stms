@@ -247,11 +247,23 @@ function MapSyncHandler({ theme }) {
   return null;
 }
 
-function DangerMarker({ pin, icon, style, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin }) {
+function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin }) {
   const map = useMap();
 
   return (
     <Fragment>
+      {highlighted && (
+        <Circle
+          center={[pin.lat, pin.lng]}
+          radius={Math.max(pin.radius_meters + 40, 140)}
+          pathOptions={{
+            color: '#7c3aed',
+            weight: 3,
+            dashArray: '6 5',
+            fillOpacity: 0,
+          }}
+        />
+      )}
       <Circle
         center={[pin.lat, pin.lng]}
         radius={pin.radius_meters}
@@ -331,6 +343,7 @@ export default function MapView({
   pendingMarkerLocation,
   selectedMarkerType,
   selectedDestinationId,
+  reportHighlight,
   onDestinationClick,
   user,
   onLogin,
@@ -432,14 +445,22 @@ export default function MapView({
         <MapSyncHandler theme={theme} />
 
         {destinations.map((d) => {
+          const highlightAllDestinations = reportHighlight === 'all-destinations';
+          const highlightHighCrowd = reportHighlight === 'high-crowd';
+          const isHighlightedDestination = highlightAllDestinations || (highlightHighCrowd && d.crowd_level === 'High');
           const isSelected = selectedDestinationId === d.id;
-          const circlePathOptions = isSelected ? getDestinationRiskStyle(d.crowd_level) : null;
+          const circlePathOptions = isSelected
+            ? getDestinationRiskStyle(d.crowd_level)
+            : isHighlightedDestination
+              ? { color: '#2563eb', fillColor: '#bfdbfe', fillOpacity: 0.18, weight: 2 }
+              : null;
+
           return (
             <Fragment key={`dest-${d.id}`}>
-              {isSelected && (
+              {(isSelected || isHighlightedDestination) && (
                 <Circle
                   center={[d.lat, d.lng]}
-                  radius={500}
+                  radius={isSelected ? 500 : 320}
                   pathOptions={circlePathOptions}
                 />
               )}
@@ -462,12 +483,14 @@ export default function MapView({
         {visibleDangerPins.map((pin) => {
           const style = dangerStyles[pin.danger_type] || dangerStyles['Danger Area'];
           const icon = getDangerIcon(pin, nearbyIds.has(pin.id));
+          const highlightHighDanger = reportHighlight === 'high-danger' && pin.severity === 'High';
           return (
             <DangerMarker
               key={`danger-${pin.id}`}
               pin={pin}
               icon={icon}
               style={style}
+              highlighted={highlightHighDanger}
               isNearby={nearbyIds.has(pin.id)}
               user={user}
               onAddComment={onAddComment}

@@ -35,6 +35,8 @@ function App() {
   const [showDestinations, setShowDestinations] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
+  const [reportHighlight, setReportHighlight] = useState(null);
+  const [hoverReportHighlight, setHoverReportHighlight] = useState(null);
   const [resetMapFlag, setResetMapFlag] = useState(0);
   const [user, setUser] = useUserSession();
   const [report, setReport] = useState(null);
@@ -293,6 +295,11 @@ function App() {
     setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
   };
 
+  const handleReportHover = (type) => setHoverReportHighlight(type);
+  const handleReportHoverEnd = () => setHoverReportHighlight(null);
+  const handleReportSelect = (type) => setReportHighlight((prev) => (prev === type ? null : type));
+  const activeReportHighlight = hoverReportHighlight || reportHighlight;
+
   const resetMapView = () => {
     setResetMapFlag((prev) => prev + 1);
   };
@@ -362,6 +369,10 @@ function App() {
                 onCenterTouristSpot={toggleDestinationFocus}
                 onZoomToSpot={zoomToDestination}
                 onClearSelection={clearSelectedDestination}
+                onReportHover={handleReportHover}
+                onReportHoverEnd={handleReportHoverEnd}
+                onReportSelect={handleReportSelect}
+                reportHighlight={activeReportHighlight}
                 touristSpots={destinations}
                 nearest={nearest}
                 nearbyDangers={nearbyDangers}
@@ -395,6 +406,7 @@ function App() {
               selectedLocation={selectedLocation}
               pendingMarkerLocation={pendingMarkerLocation}
               selectedMarkerType={selectedMarkerType}
+              reportHighlight={activeReportHighlight}
               user={user}
               theme={theme}
               onLogin={() => setIsModalOpen(true)}

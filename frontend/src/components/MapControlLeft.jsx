@@ -12,6 +12,10 @@ const MapControlLeft = ({
   onCenterTouristSpot,
   onZoomToSpot,
   onClearSelection,
+  onReportHover = () => {},
+  onReportHoverEnd = () => {},
+  onReportSelect = () => {},
+  reportHighlight = null,
   touristSpots = [],
   nearest = [],
   nearbyDangers = [],
@@ -406,12 +410,22 @@ const MapControlLeft = ({
                   <span className="btn-text">Report Grid</span>
                 </button>
 
+                {isReportOpen && (
+                  <div className="report-modal-backdrop" onClick={() => setIsReportOpen(false)} />
+                )}
+
                 <div className={`dropdown-panel report-dropdown ${isReportOpen ? 'open' : ''}`}>
                   <div className="inner-panel-content">
                     <h3 className="panel-main-title">Report Grid</h3>
                     <p className="panel-subtitle">Review destination, crowd, and danger summaries.</p>
                     {report ? (
-                      <ReportGrid report={report} />
+                      <ReportGrid
+                        report={report}
+                        reportHighlight={reportHighlight}
+                        onReportHover={onReportHover}
+                        onReportHoverEnd={onReportHoverEnd}
+                        onReportSelect={onReportSelect}
+                      />
                     ) : (
                       <p className="panel-subtitle">Report data is not available yet.</p>
                     )}
