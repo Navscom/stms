@@ -295,7 +295,9 @@ function CommentBox({ pin, onAddComment }) {
       </div>
       <form onSubmit={submit} className="comment-form">
         <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment" />
-        <button type="submit">Comment</button>
+        <div className="comment-form-actions">
+          <button type="submit">Comment</button>
+        </div>
       </form>
     </div>
   );
