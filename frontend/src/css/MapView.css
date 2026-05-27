@@ -4,7 +4,7 @@
   max-width: 100%;
   flex: 1 1 auto;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   border: none;
   position: relative;
   --map-rotation: 0deg;
@@ -247,9 +247,23 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
 }
 
 
-@media (max-width: 900px) {
+@media (max-width: 900px), (orientation: portrait) {
   .map-container-wrapper {
     height: 56vh;
+  }
+
+  .map-container {
+    width: 100% !important;
+    border-radius: 16px;
+  }
+
+  .map-card .leaflet-top.leaflet-left {
+    left: 14px !important;
+  }
+
+  .leaflet-control-attribution {
+    right: 10px;
+    bottom: 8px;
   }
 }
 
@@ -257,4 +271,4 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
   .map-container-wrapper {
     height: 50vh;
   }
-}
+} 

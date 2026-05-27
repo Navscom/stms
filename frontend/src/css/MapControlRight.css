@@ -99,6 +99,43 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
+@media (max-width: 900px), (orientation: portrait) {
+  .map-controls-right {
+    top: 12px;
+    right: 12px;
+    left: auto;
+    bottom: auto;
+    padding: 8px 10px;
+    border-radius: 20px;
+    gap: 4px;
+  }
+
+  .map-controls-right .pill-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.05rem;
+  }
+
+  .tooltip {
+    left: auto;
+    right: 100%;
+    top: 50%;
+    transform: translate(-12px, -50%);
+  }
+
+  .profile-dropdown {
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    width: min(92vw, 320px);
+  }
+
+  .profile-dropdown::before {
+    top: -9px;
+    right: 24px;
+  }
+}
+
 .profile-card {
   display: grid;
   gap: 10px;

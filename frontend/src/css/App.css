@@ -22,7 +22,10 @@
   --button-border: #3f4758;
 }
 * { box-sizing: border-box; }
-html { font-size: 125%; }
+html {
+  font-size: 100%;
+  zoom: 0.8;
+}
 html, body, #root {
   min-height: 100%;
   min-width: 100%;
@@ -122,11 +125,53 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
 }
 
 @media (orientation: portrait) {
-  .app-shell.sidebar-expanded > section:not(.dashboard-grid),
-  .app-shell.sidebar-expanded > header,
-  .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
-  .app-shell.sidebar-collapsed > header {
-    margin-left: 0;
+  .app-shell {
+    padding: 14px 12px;
+  }
+
+  .header {
+    margin-bottom: 28px;
+  }
+
+  .dashboard-grid {
+    gap: 18px;
+  }
+
+  .map-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 18px 18px;
+  }
+
+  .map-panel-header > * {
+    width: 100%;
+  }
+
+  .map-panel-actions {
+    justify-content: center;
+  }
+
+  .map-card {
+    min-height: 58vh;
+    border-radius: 24px;
+  }
+
+  .side-panel {
+    padding: 18px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .top-action-button,
+  .secondary-btn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .safety-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
   }
 }
 
@@ -145,6 +190,15 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
 .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
 .app-shell.sidebar-collapsed > header {
   margin-left: 78px;
+}
+
+@media (orientation: portrait) {
+  .app-shell.sidebar-expanded > section:not(.dashboard-grid),
+  .app-shell.sidebar-expanded > header,
+  .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
+  .app-shell.sidebar-collapsed > header {
+    margin-left: 0;
+  }
 }
 
 .safety-toolbar {
