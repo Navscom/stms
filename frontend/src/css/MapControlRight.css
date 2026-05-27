@@ -10,7 +10,7 @@
   padding: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   pointer-events: auto;
-  z-index: 1001;
+  z-index: 10050;
 }
 
 .map-controls-right .pill-btn {
@@ -80,7 +80,7 @@
   padding: 14px;
   display: grid;
   gap: 14px;
-  z-index: 1003;
+  z-index: 10051;
   background: var(--bg-primary);
   border: 1px solid rgba(148, 163, 184, 0.18);
   backdrop-filter: blur(16px);

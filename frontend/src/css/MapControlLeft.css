@@ -345,34 +345,24 @@
 }
 
 .collapsed-menu .tooltip-container {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
+    width: auto;
+    display: flex;
+    justify-content: center;
+  }
 
-.collapsed-icon-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  border: 1px solid #e6eef8;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-  cursor: pointer;
-  padding: 0;
-  margin: 0 auto;
-}
-
-.collapsed-icon-btn:hover,
-.collapsed-icon-btn:focus {
-  outline: none;
-  transform: translateY(0);
-  border-color: #94a3b8;
-}
-
-.collapsed-icon-btn .btn-icon {
+  .collapsed-icon-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #e6eef8;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
   font-size: 28px;
 }
 
@@ -435,14 +425,16 @@
   .map-controls-left {
     position: fixed;
     bottom: 12px;
-    left: 12px;
-    right: 12px;
+    left: 0;
+    right: 0;
     top: auto;
-    width: auto;
-    max-width: calc(100vw - 24px);
+    width: 100%;
+    max-width: 100%;
     height: auto;
     z-index: 1002;
     pointer-events: auto;
+    padding: 0 12px;
+    margin: 0;
   }
 
   .controllers-box,
@@ -475,38 +467,30 @@
     width: 100%;
     display: flex;
     flex-direction: row;
-    justify-content: space-evenly;
+    justify-content: flex-start;
     align-items: center;
     padding: 12px 14px;
+    gap: 12px;
     height: auto;
     border-radius: 20px;
+  }
+
+  .controllers-box.collapsed .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 12px;
+    margin-right: 12px;
+    border-right: 1px solid rgba(148, 163, 184, 0.25);
   }
 
   .collapsed-menu {
     flex-direction: row;
     flex-wrap: nowrap;
-    gap: 10px;
-    justify-content: space-evenly;
+    gap: 12px;
+    justify-content: center;
     padding: 0;
-    width: 100%;
-  }
-
-  .portrait-collapsed-header {
-    display: none;
-    width: 100%;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 0;
-    cursor: pointer;
-  }
-
-  .portrait-drag-handle {
-    width: 60px;
-    height: 6px;
-    border-radius: 999px;
-    background: #cbd5e0;
-    transition: background 0.2s ease;
+    width: auto;
   }
 
   .portrait-collapsed-title {
@@ -515,10 +499,6 @@
     letter-spacing: 0.15em;
     text-transform: uppercase;
     color: #0f172a;
-  }
-
-  .portrait-collapsed-header:hover .portrait-drag-handle {
-    background: #94a3b8;
   }
 
   .controllers-header {
@@ -539,7 +519,8 @@
   }
 
   .controllers-box.collapsed .collapsed-menu {
-    display: none;
+    display: flex;
+    width: 100%;
   }
 
   .header-title-row h1 {

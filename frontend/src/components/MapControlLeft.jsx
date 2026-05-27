@@ -168,10 +168,6 @@ const MapControlLeft = ({
         
           {!isBoxExpanded ? (
             <>
-              <div className="portrait-collapsed-header" onClick={() => setIsBoxExpanded(true)}>
-                <div className="portrait-drag-handle" aria-hidden="true" />
-              </div>
-
               <div className="collapsed-menu">
                 <div className="tooltip-container button-tooltip">
                   <button
