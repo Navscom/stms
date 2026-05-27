@@ -14,17 +14,24 @@
 }
 
 .map-controls-right .pill-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   border: none;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 20px;
   cursor: pointer;
   position: relative;
+  color: var(--text-primary);
+}
+
+.profile-icon {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
 .map-controls-right .pill-btn:hover {
