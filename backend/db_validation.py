@@ -73,7 +73,7 @@ def is_valid_email(email: str) -> bool:
     if len(parts) != 2:
         return False
     local, domain = parts
-    if not re.fullmatch(r'[A-Za-z0-9]+', local):
+    if not re.fullmatch(r'[A-Za-z0-9._+-]+', local):
         return False
     allowed_domains = {
         'gmail.com',

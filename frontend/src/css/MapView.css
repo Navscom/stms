@@ -56,6 +56,26 @@
   bottom: 14px;
 }
 
+.leaflet-control-attribution {
+  right: 14px;
+  bottom: 1px;
+  z-index: 780;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  padding: 8px 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+html[data-theme='dark'] .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.94);
+  color: #e2e8f0;
+}
+
+.leaflet-control-attribution a {
+  color: inherit;
+}
+
 .leaflet-control-zoom {
   display: grid;
   gap: 12px;

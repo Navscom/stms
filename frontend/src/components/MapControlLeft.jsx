@@ -167,73 +167,79 @@ const MapControlLeft = ({
           </div>
         
           {!isBoxExpanded ? (
-            <div className="collapsed-menu">
-              <div className="tooltip-container button-tooltip">
-                <button
-                  type="button"
-                  className="collapsed-icon-btn"
-                  onClick={handleCollapsedMyLocation}
-                >
-                  <span className="btn-icon">📍</span>
-                </button>
-                <div className="tooltip-text">My Location</div>
+            <>
+              <div className="portrait-collapsed-header" onClick={() => setIsBoxExpanded(true)}>
+                <div className="portrait-drag-handle" aria-hidden="true" />
               </div>
 
-              <div className="tooltip-container button-tooltip">
-                <button
-                  type="button"
-                  className="collapsed-icon-btn"
-                  onClick={handleCollapsedAddMarker}
-                >
-                  <span className="btn-icon">📌</span>
-                </button>
-                <div className="tooltip-text">Add Marker</div>
-              </div>
+              <div className="collapsed-menu">
+                <div className="tooltip-container button-tooltip">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedMyLocation}
+                  >
+                    <span className="btn-icon">📍</span>
+                  </button>
+                  <div className="tooltip-text">My Location</div>
+                </div>
 
-              <div className="tooltip-container button-tooltip">
-                <button
-                  type="button"
-                  className="collapsed-icon-btn"
-                  onClick={handleCollapsedSafetyAlert}
-                >
-                  <span className="btn-icon">⚠️</span>
-                </button>
-                <div className="tooltip-text">Safety Alerts</div>
-              </div>
+                <div className="tooltip-container button-tooltip">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedAddMarker}
+                  >
+                    <span className="btn-icon">📌</span>
+                  </button>
+                  <div className="tooltip-text">Add Marker</div>
+                </div>
 
-              <div className="tooltip-container button-tooltip">
-                <button
-                  type="button"
-                  className="collapsed-icon-btn"
-                  onClick={handleCollapsedReport}
-                >
-                  <span className="btn-icon">📊</span>
-                </button>
-                <div className="tooltip-text">Report Grid</div>
-              </div>
+                <div className="tooltip-container button-tooltip">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedSafetyAlert}
+                  >
+                    <span className="btn-icon">⚠️</span>
+                  </button>
+                  <div className="tooltip-text">Safety Alerts</div>
+                </div>
 
-              <div className="tooltip-container button-tooltip">
-                <button
-                  type="button"
-                  className="collapsed-icon-btn"
-                  onClick={handleCollapsedNearest}
-                >
-                  <span className="btn-icon">🧭</span>
-                </button>
-                <div className="tooltip-text">Nearest Attractions</div>
-              </div>
+                <div className="tooltip-container button-tooltip">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedReport}
+                  >
+                    <span className="btn-icon">📊</span>
+                  </button>
+                  <div className="tooltip-text">Report Grid</div>
+                </div>
 
-              <div className="tooltip-container button-tooltip">
-                <button
-                  type="button"
-                  className="collapsed-icon-btn"
-                  onClick={handleCollapsedDestinations}
-                >
-                  <span className="btn-icon">🗺️</span>
-                </button>
-                <div className="tooltip-text">Tourist Attractions</div>
+                <div className="tooltip-container button-tooltip">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedNearest}
+                  >
+                    <span className="btn-icon">🧭</span>
+                  </button>
+                  <div className="tooltip-text">Nearest Attractions</div>
+                </div>
+
+                <div className="tooltip-container button-tooltip">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedDestinations}
+                  >
+                    <span className="btn-icon">🗺️</span>
+                  </button>
+                  <div className="tooltip-text">Tourist Attractions</div>
+                </div>
               </div>
-            </div>
+            </>
           ) : (
             <>
               {/* 1. MY LOCATION CONTROL */}

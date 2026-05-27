@@ -11,8 +11,8 @@ export function validateAuthForm(form, isRegister = false) {
     return { valid: false, message: 'Enter a valid email address.' };
   }
   const [local, domain] = parts;
-  if (!/^[A-Za-z0-9]+$/.test(local)) {
-    return { valid: false, message: 'Email local part can only contain letters and numbers.' };
+  if (!/^[A-Za-z0-9._+-]+$/.test(local)) {
+    return { valid: false, message: 'Email local part can only contain letters, numbers, periods, underscores, plus, and hyphens.' };
   }
   const allowedProviders = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com'];
   if (!allowedProviders.includes(domain.toLowerCase())) {

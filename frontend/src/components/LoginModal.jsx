@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { validateAuthForm } from '../utils/validation';
 import '../css/Login.css';
 
@@ -7,6 +7,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', role: 'tourist' });
   const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState('');
+  const mouseDownInsideModal = useRef(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -41,11 +42,28 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
     }
   };
 
+  const handleOverlayMouseDown = () => {
+    mouseDownInsideModal.current = false;
+  };
+
+  const handleModalMouseDown = () => {
+    mouseDownInsideModal.current = true;
+  };
+
+  const handleOverlayClick = (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (mouseDownInsideModal.current) {
+      mouseDownInsideModal.current = false;
+      return;
+    }
+    onClose();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validation = validateAuthForm(form, isRegister);
     if (!validation.valid) {
-      setMessage(validation.message);
+      setMessage(isRegister ? validation.message : 'Invalid email or password.');
       return;
     }
     setMessage('Processing...');
@@ -82,12 +100,12 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
+      <div className="modal-box" onMouseDown={handleModalMouseDown} onClick={(e) => e.stopPropagation()}>
         <h2>{isRegister ? 'Register' : 'Login'}</h2>
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
           {isRegister && <input placeholder="Full Name" value={form.name} onChange={(e) => update('name', e.target.value)} required />}
-          <input type="email" placeholder="Email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
+          <input type="text" autoComplete="email" placeholder="Email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
           <input type="password" placeholder="Password" value={form.password} onChange={(e) => update('password', e.target.value)} required />
           {!isRegister && (
             <label className="remember-me">

@@ -1,4 +1,10 @@
-const API = 'http://127.0.0.1:8000';
+const API = import.meta.env.VITE_API_URL || (() => {
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'http://127.0.0.1:8000';
+  }
+  return `http://${host}:8000`;
+})();
 
 async function fetchJson(path, options) {
   const shouldRetry = !options || !options.method || options.method.toUpperCase() === 'GET';
