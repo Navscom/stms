@@ -1,7 +1,7 @@
 .warning-panel {
-  margin: 18px 0;
-  padding: 16px;
-  border-radius: 16px;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 12px;
   box-shadow: var(--shadow-card);
 }
 
@@ -10,10 +10,10 @@
 }
 
 .warning-card {
-  padding: 12px;
-  border-radius: 12px;
+  padding: 8px;
+  border-radius: 8px;
   border: 1px solid var(--border);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   background: rgba(245, 158, 11, 0.08);
 }
 

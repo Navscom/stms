@@ -1,14 +1,14 @@
 .ai-card {
-  padding: 22px 24px;
+  padding: 14px 16px;
   border-left: 6px solid var(--accent);
-  border-radius: 24px;
+  border-radius: 14px;
   text-align: left;
   box-shadow: var(--shadow-xl);
 }
 
 .ai-card h2 {
-  margin: 0 0 12px;
-  font-size: 1.25rem;
+  margin: 0 0 8px;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--accent);
 }
@@ -58,10 +58,10 @@
   }
 
   .ai-card {
-    padding: 24px 20px;
+    padding: 16px 14px;
     border-left: 5px solid var(--accent);
-    border-radius: 20px;
-    font-size: 0.95rem;
+    border-radius: 16px;
+    font-size: 0.9rem;
     box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
     backdrop-filter: blur(8px);
     background: rgba(255, 255, 255, 0.98);
@@ -73,8 +73,8 @@
   }
 
   .ai-card h2 {
-    font-size: 1.3rem;
-    margin: 0 0 12px;
+    font-size: 1.1rem;
+    margin: 0 0 8px;
     font-weight: 800;
     text-align: center;
   }

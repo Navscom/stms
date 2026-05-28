@@ -26,12 +26,12 @@
   gap: 0;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 0;
   box-shadow: var(--shadow-sm);
   box-sizing: border-box;
   transition: width 0.3s ease, overflow 0.3s ease;
-  width: 360px;
+  width: 260px;
   height: 100%;
   position: relative;
   z-index: 9999;
@@ -70,7 +70,7 @@
 }
 
 .controllers-box.expanded {
-  width: 360px;
+  width: 260px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -85,7 +85,7 @@
 }
 
 .controllers-header {
-  padding: 8px 12px 12px;
+  padding: 5px 8px 8px;
   border-bottom: 2px solid #e2e8f0;
   margin-bottom: 0;
 }
@@ -98,7 +98,7 @@
 }
 
 .header-title-row h1 {
-  font-size: 2.2rem !important;
+  font-size: 1.8rem !important;
 }
 
 .header-title-row .status-pill {
@@ -184,15 +184,15 @@
 .expand-btn {
   background: #f1f5f9;
   border: 1px solid #cbd5e0;
-  border-radius: 6px;
-  width: 40px;
-  height: 40px;
+  border-radius: 5px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-weight: bold;
-  font-size: 24px;
+  font-size: 18px;
   color: #475569;
   transition: all 0.2s ease;
   flex-shrink: 0;
@@ -246,8 +246,8 @@
 }
 
 .controllers-header h1 {
-  font-size: 26px;
-  margin: 0 0 10px 0;
+  font-size: 20px;
+  margin: 0 0 6px 0;
   color: #0f172a;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -256,7 +256,7 @@
 }
 
 .controllers-header .subtitle {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   color: #475569;
   margin: 0;
@@ -280,11 +280,11 @@
 
 .destination-search-input {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 9px 10px;
+  border-radius: 8px;
   border: 1px solid #cbd5e0;
   background: #f8fafc;
-  font-size: 16px;
+  font-size: 13px;
   color: #0f172a;
   outline: none;
   box-sizing: border-box;
@@ -299,14 +299,14 @@
 .map-controls-left .tool-btn {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 18px 24px;
+  gap: 12px;
+  padding: 12px 14px;
   background: #ffffff;
   border: 1px solid #cbd5e0;
   border-bottom: 1px solid #cbd5e0;
-  border-radius: 10px;
+  border-radius: 8px;
   font-family: Arial, sans-serif;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: bold;
   color: #1e293b;
   box-shadow: none;
@@ -316,7 +316,7 @@
   min-width: unset;
   transition: all 0.2s ease;
   text-align: left;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 
 .map-controls-left .tool-btn:hover {
@@ -366,8 +366,8 @@
 .collapsed-menu {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 18px 0 20px 0;
+  gap: 10px;
+  padding: 12px 0 14px 0;
   align-items: center;
   justify-content: flex-start;
 }
@@ -379,9 +379,9 @@
   }
 
   .collapsed-icon-btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 18px;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -391,7 +391,7 @@
     cursor: pointer;
     padding: 0;
     margin: 0;
-  font-size: 28px;
+  font-size: 20px;
 }
 
 /* Icon sizing and visibility */
@@ -399,9 +399,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  font-size: 28px;
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
   line-height: 1;
   position: relative;
   z-index: 10000;
@@ -410,7 +410,7 @@
 }
 
 .controllers-box.collapsed .btn-icon {
-  font-size: 26px;
+  font-size: 18px;
 }
 
 /* Clean Form Containers */
@@ -868,12 +868,12 @@
     align-items: center;
     justify-content: center;
     margin: 0 auto;   /* ensures centering */
-    width: 60px;
-    height: 60px;
-    border-radius: 18px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
     cursor: pointer;
     padding: 0;
-    font-size: 28px;
+    font-size: 20px;
   }
 
   .collapsed-menu {
@@ -924,39 +924,57 @@
   }
 
   .map-controls-left .tool-btn {
-    padding: 14px 16px;
-    font-size: 1rem;
+    padding: 12px 14px;
+    font-size: 0.9rem;
     gap: 10px;
   }
 
   .controllers-box.collapsed .tool-btn {
-    width: 52px;
-    height: 52px;
+    width: 40px;
+    height: 40px;
   }
 
   .collapsed-icon-btn {
-    width: 60px;
-    height: 50px;
+    width: 42px;
+    height: 36px;
   }
 
   .collapsed-icon-btn .btn-icon,
   .controllers-box.collapsed .btn-icon {
-    font-size: 28px;
+    font-size: 20px;
   }
 
   .tooltip-text {
-    max-width: min(220px, calc(100vw - 48px));
+    max-width: min(180px, calc(100vw - 40px));
     white-space: normal;
+    bottom: 100%;
     left: 50%;
-    transform: translate(-50%, -110%);
+    top: auto;
+    transform: translateX(-50%);
     box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+
+  .tooltip-container.button-tooltip .tooltip-text {
+    left: 50%;
+    right: auto;
+    bottom: 100%;
+    top: auto;
+    transform: translateX(-50%);
+  }
+
+  .tooltip-container.button-tooltip:hover .tooltip-text {
+    transform: translateX(-50%);
   }
 
   .expand-btn {
-    width: 48px;
-    height: 48px;
-    font-size: 28px;
-    border-radius: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    border-radius: 8px;
   }
 
   .expand-btn:hover {
@@ -966,7 +984,7 @@
   }
 
   .destination-search-input {
-    font-size: 15px;
+    font-size: 13px;
   }
 }
 

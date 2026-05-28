@@ -87,6 +87,15 @@ const MapControlLeft = ({
     setIsSafetyAlertOpen(false);
   };
 
+  // Auto-close menu when a destination is selected in portrait mode
+  const handleDestinationSelected = () => {
+    const isPortraitMode = window.matchMedia('(max-height: 900px) and (max-width: 768px)').matches;
+    if (isPortraitMode) {
+      setIsBoxExpanded(false);
+      setIsDestinationsOpen(false);
+    }
+  };
+
   const handleCollapsedNearest = () => {
     setIsBoxExpanded(true);
     setIsNearestOpen(true);
@@ -503,6 +512,7 @@ const MapControlLeft = ({
                       onZoomToSpot={onZoomToSpot}
                       isPanel={true}
                       inline={true}
+                      onSelectDestination={handleDestinationSelected}
                     />
                   </div>
                 </div>

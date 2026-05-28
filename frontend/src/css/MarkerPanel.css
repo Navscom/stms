@@ -1,18 +1,18 @@
 .marker-panel {
-  margin: 20px 0;
-  padding: 20px;
-  border-radius: 20px;
+  margin: 12px 0;
+  padding: 14px;
+  border-radius: 14px;
   box-shadow: var(--shadow-card);
 }
 
 .marker-panel h2 {
   margin-top: 0;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
 }
 
 .marker-panel p {
   color: var(--muted);
-  font-size: 1.02rem;
+  font-size: 0.9rem;
 }
 
 .marker-type-buttons {
@@ -39,13 +39,13 @@
 .marker-form textarea {
   width: 100%;
   min-width: 0;
-  padding: 14px;
-  font-size: 1.02rem;
-  border-radius: 12px;
+  padding: 10px;
+  font-size: 0.9rem;
+  border-radius: 8px;
 }
 
 .marker-form textarea {
-  min-height: 120px;
+  min-height: 80px;
   resize: vertical;
 }
 

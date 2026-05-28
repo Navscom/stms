@@ -4,20 +4,20 @@
   border-top: 1px solid #ddd;
 }
 .comment-list {
-  max-height: 150px;
+  max-height: 110px;
   overflow-y: auto;
   overflow-x: visible;
-  margin: 8px 0;
+  margin: 4px 0;
   padding-right: 16px;
 }
 .comment-item {
   position: relative;
   overflow: visible;
-  padding: 8px;
-  margin-bottom: 6px;
+  padding: 5px;
+  margin-bottom: 3px;
   background: #f8fafc;
-  border-radius: 10px;
-  font-size: 0.98rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
 }
 [data-theme='dark'] .comment-item {
   background: rgba(255, 255, 255, 0.05);

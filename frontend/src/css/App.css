@@ -50,9 +50,9 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   border-radius: 999px;
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: white;
-  padding: 20px 28px;
+  padding: 14px 20px;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 0.9rem;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.16);
 }
 .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 34px; align-items: start; }
