@@ -130,11 +130,16 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
   }
 
   .header {
-    margin-bottom: 28px;
+    margin-bottom: 12px;
   }
 
   .dashboard-grid {
-    gap: 18px;
+    gap: 0;
+    margin-top: 0;
+  }
+
+  .map-panel {
+    gap: 0;
   }
 
   .map-panel-header {
@@ -152,8 +157,12 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
   }
 
   .map-card {
-    min-height: 58vh;
+    min-height: 100vh;
     border-radius: 24px;
+    position: relative;
+    width: 100%;
+    margin: 0;
+    padding: 0;
   }
 
   .side-panel {

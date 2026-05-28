@@ -5,7 +5,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1000;
+  z-index: 9998;
   box-sizing: border-box;
   overflow-x: hidden;
 }
@@ -17,6 +17,7 @@
   height: 100%;
   pointer-events: auto;
   max-width: 100vw;
+  z-index: 9999;
 }
 
 .controllers-box {
@@ -713,22 +714,22 @@
     width: 100%;
     height: auto;
     pointer-events: none;
-    z-index: 1000;
+    z-index: 9998;
   }
 
   .map-controls-left {
     position: fixed;
-    bottom: 12px;
-    left: 0;
-    right: 0;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
     top: auto;
-    width: 100%;
+    width: auto;
     max-width: 100%;
     height: auto;
-    z-index: 1002;
+    max-height: calc(100vh - 24px);
+    z-index: 10000;
     pointer-events: auto;
-    padding: 0 12px;
-    margin: 0;
+    transition: transform 0.35s ease, bottom 0.35s ease;
   }
 
   .controllers-box,
@@ -737,24 +738,28 @@
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+    overflow: visible;
   }
 
   .controllers-box {
     min-height: auto;
-    max-height: 52vh;
+    max-height: 64vh;
     overflow-y: auto;
     border-radius: 24px;
     padding: 10px;
+    padding-bottom: 20px;
     display: flex;
     flex-direction: column;
+    background: #ffffff;
+    box-shadow: var(--shadow-sm);
   }
 
   .controllers-box.expanded {
     width: 100%;
     max-width: 100%;
     height: auto;
-    max-height: 52vh;
-    padding-bottom: 14px;
+    max-height: 64vh;
+    padding-bottom: 80px;
   }
 
   .controllers-box.collapsed {
@@ -763,10 +768,11 @@
     flex-direction: row;
     justify-content: center;
     align-items: center;
-    padding: 2px 14px;
-    gap: 1px;
+    padding: 8px 12px;
+    gap: 12px;
     height: auto;
-    border-radius: 5px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.96);
   }
 
   .controllers-box.collapsed .header-top {

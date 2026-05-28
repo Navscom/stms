@@ -254,7 +254,16 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
 
 @media (max-width: 900px), (orientation: portrait) {
   .map-container-wrapper {
-    height: 56vh;
+    height: calc(100vh - 92px);
+    transition: height 0.35s ease;
+  }
+
+  .app-shell.sidebar-expanded .map-container-wrapper {
+    height: 44vh;
+  }
+
+  .app-shell.sidebar-collapsed .map-container-wrapper {
+    height: calc(100vh - 92px);
   }
 
   .map-container {
@@ -274,6 +283,10 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
 
 @media (max-width: 600px) {
   .map-container-wrapper {
-    height: 50vh;
+    height: calc(100vh - 84px);
+  }
+
+  .app-shell.sidebar-expanded .map-container-wrapper {
+    height: 40vh;
   }
 } 

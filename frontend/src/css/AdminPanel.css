@@ -295,3 +295,9 @@
   }
 }
 
+@media (orientation: portrait) {
+  .admin-panel {
+    padding: 28px 26px 160px 26px;
+  }
+}
+

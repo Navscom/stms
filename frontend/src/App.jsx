@@ -426,18 +426,17 @@ function App() {
             />
           </div>
         </div>
+        {(user?.role === 'admin' || user?.role === 'administrator') && (
+          <AdminPanel
+            api={API}
+            user={user}
+            destinations={destinations}
+            setAppDestinations={setDestinations}
+            setAppDangerPins={setDangerPins}
+            setAppReport={setReport}
+          />
+        )}
       </section>
-
-      {(user?.role === 'admin' || user?.role === 'administrator') && (
-        <AdminPanel
-          api={API}
-          user={user}
-          destinations={destinations}
-          setAppDestinations={setDestinations}
-          setAppDangerPins={setDangerPins}
-          setAppReport={setReport}
-        />
-      )}
 
       <LoginModal
         isOpen={isModalOpen}
