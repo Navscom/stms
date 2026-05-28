@@ -417,6 +417,7 @@ export default function MapView({
       />
 
       <MapContainer
+        id="map"
         center={initialMapState.center}
         zoom={initialMapState.zoom}
         maxBounds={phBounds}

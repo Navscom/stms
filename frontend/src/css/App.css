@@ -24,13 +24,16 @@
 * { box-sizing: border-box; }
 html {
   font-size: 100%;
-  zoom: 0.8;
+  height: 100%;
+  width: 100%;
 }
 html, body, #root {
   min-height: 100%;
   min-width: 100%;
+  height: 100%;
+  width: 100%;
 }
-body { background: var(--bg-primary); color: var(--text-primary); margin: 0; font-family: Arial, sans-serif; font-size: 1rem; line-height: 1.65; transition: background 0.3s ease, color 0.3s ease; }
+body { background: var(--bg-primary); color: var(--text-primary); margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 1rem; line-height: 1.65; transition: background 0.3s ease, color 0.3s ease; }
 .app-shell {
   padding: 48px 40px;
   width: 100%;
@@ -118,13 +121,15 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
 
   .app-shell.sidebar-expanded > section:not(.dashboard-grid),
   .app-shell.sidebar-expanded > header,
+  .app-shell.sidebar-expanded > .dashboard-grid,
   .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
-  .app-shell.sidebar-collapsed > header {
+  .app-shell.sidebar-collapsed > header,
+  .app-shell.sidebar-collapsed > .dashboard-grid {
     margin-left: 0;
   }
 }
 
-@media (orientation: portrait) {
+@media (max-width: 900px), (orientation: landscape) and (max-height: 820px) {
   .app-shell {
     padding: 14px 12px;
   }
@@ -163,6 +168,17 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
     width: 100%;
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .floating-side-nav-wrapper {
+    order: 2;
+    width: 100%;
+  }
+
+  .map-container-wrapper {
+    order: 1;
   }
 
   .side-panel {
@@ -184,28 +200,86 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; fon
   }
 }
 
-.app-shell.sidebar-expanded > section:not(.dashboard-grid),
-.app-shell.sidebar-expanded > header,
-.app-shell.sidebar-collapsed > section:not(.dashboard-grid),
-.app-shell.sidebar-collapsed > header {
-  transition: margin 0.3s ease;
+@media (orientation: landscape) and (min-width: 900px) {
+  .app-shell {
+    padding: 0;
+    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .header,
+  .advice-section,
+  .map-panel-header,
+  .side-panel {
+    display: none;
+  }
+
+  .dashboard-grid {
+    gap: 0;
+    margin-top: 0;
+    min-height: 100vh;
+    height: 100vh;
+  }
+
+  .map-panel {
+    min-height: 100vh;
+    height: 100%;
+    gap: 0;
+    position: relative;
+  }
+
+  .map-card {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    min-height: 100vh;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-container-wrapper {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
+  }
 }
 
 .app-shell.sidebar-expanded > section:not(.dashboard-grid),
-.app-shell.sidebar-expanded > header {
+.app-shell.sidebar-expanded > header,
+.app-shell.sidebar-expanded > .dashboard-grid,
+.app-shell.sidebar-collapsed > section:not(.dashboard-grid),
+.app-shell.sidebar-collapsed > header,
+.app-shell.sidebar-collapsed > .dashboard-grid {
+  transition: margin 0.3s ease;
+} 
+
+.app-shell.sidebar-expanded > section:not(.dashboard-grid),
+.app-shell.sidebar-expanded > header,
+.app-shell.sidebar-expanded > .dashboard-grid {
   margin-left: 360px;
 }
 
 .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
-.app-shell.sidebar-collapsed > header {
+.app-shell.sidebar-collapsed > header,
+.app-shell.sidebar-collapsed > .dashboard-grid {
   margin-left: 78px;
 }
 
 @media (orientation: portrait) {
   .app-shell.sidebar-expanded > section:not(.dashboard-grid),
   .app-shell.sidebar-expanded > header,
+  .app-shell.sidebar-expanded > .dashboard-grid,
   .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
-  .app-shell.sidebar-collapsed > header {
+  .app-shell.sidebar-collapsed > header,
+  .app-shell.sidebar-collapsed > .dashboard-grid {
     margin-left: 0;
   }
 }

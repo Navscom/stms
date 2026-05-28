@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import '../css/DestinationList.css';
 import { getDestinations } from '../utils';
 import { fetchAdvice as fetchAdviceHelper } from '../utils/LoadData';
@@ -139,28 +139,54 @@ export default function DestinationList({
 
   const list = (sortedNearest && sortedNearest.length) ? sortedNearest : sortedDestinations;
   const selectedDestination = selectedDestinationId ? list.find((d) => d.id === selectedDestinationId) : null;
+  const selectedPanelRef = useRef(null);
+
+  useEffect(() => {
+    if (isPanel && selectedDestination && selectedPanelRef.current) {
+      selectedPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [isPanel, selectedDestination]);
+
+  const panelDestinations = selectedDestination
+    ? [selectedDestination, ...sortedDestinations.filter((d) => d.id !== selectedDestinationId)]
+    : sortedDestinations;
 
   // Panel view for MapControlLeft - show the destination list only
   if (isPanel) {
     return (
       <div className="tourist-spots-list">
-        {sortedDestinations && sortedDestinations.length > 0 ? (
+        {selectedDestination && (
+          <section className="destination-detail-card selected-panel-detail" ref={selectedPanelRef}>
+            <h3>{selectedDestination.name}</h3>
+            <p className="destination-location">{selectedDestination.city}, {selectedDestination.province}</p>
+            <p className="destination-meta">{selectedDestination.category} • {selectedDestination.opening_hours}</p>
+            {renderDistance(selectedDestination)}
+            <p className="destination-description">{selectedDestination.description}</p>
+            <div className="destination-action-row">
+              <button type="button" className="primary-btn" onClick={() => {
+                if (onZoomToSpot) {
+                  onZoomToSpot(selectedDestination);
+                } else if (onCenterSpot) {
+                  onCenterSpot(selectedDestination);
+                }
+              }}>
+                Focus on {selectedDestination.name}
+              </button>
+              <button type="button" className="secondary-btn small-btn" onClick={clearSelection}>
+                Clear Selection
+              </button>
+            </div>
+          </section>
+        )}
+
+        {panelDestinations && panelDestinations.length > 0 ? (
           <div className="destination-list">
-            {sortedDestinations.map((d) => (
-              // Tourist spot card line: each destination renders as a card here
+            {panelDestinations.map((d) => (
               <button
                 key={d.id}
                 type="button"
-                className="destination-card destination-button"
-                onClick={() => {
-                  // Use onZoomToSpot if available (panel mode - just zoom, don't change location)
-                  // Otherwise fall back to onCenterSpot
-                  if (onZoomToSpot) {
-                    onZoomToSpot(d);
-                  } else if (onCenterSpot) {
-                    onCenterSpot(d);
-                  }
-                }}
+                className={`destination-card destination-button ${selectedDestinationId === d.id ? 'selected' : ''}`}
+                onClick={() => handleSelectDestination(d)}
               >
                 <div className="destination-top">
                   <h3>{d.name}</h3>

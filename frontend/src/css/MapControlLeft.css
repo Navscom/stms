@@ -35,7 +35,33 @@
   height: 100%;
   position: relative;
   z-index: 9999;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.45) rgba(148, 163, 184, 0.18);
+}
+
+.controllers-box::-webkit-scrollbar {
+  width: 10px;
+}
+
+.controllers-box::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+}
+
+.controllers-box::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+.controllers-box::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.55);
+}
+
+.controllers-box::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .controllers-box.collapsed {
@@ -47,6 +73,7 @@
   width: 360px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .header-top {
@@ -403,11 +430,21 @@
 }
 
 .dropdown-panel.open {
-  max-height: 560px;
+  max-height: none;
   opacity: 1;
-  overflow-y: auto;
+  overflow: visible;
   border: none;
   pointer-events: auto;
+}
+
+.dropdown-panel.open.destinations-dropdown {
+  max-height: none;
+}
+
+.map-controls-left .destination-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 @media (max-width: 600px) {
@@ -704,7 +741,7 @@
    PORTRAIT MODE CSS
    Media queries for mobile and portrait orientation
    ======================================== */
-@media (max-width: 900px), (orientation: portrait) {
+@media (max-width: 900px) {
   .map-controls-wrapper {
     position: fixed;
     bottom: 0;
@@ -745,6 +782,7 @@
     min-height: auto;
     max-height: 64vh;
     overflow-y: auto;
+    overflow-x: hidden;
     border-radius: 24px;
     padding: 10px;
     padding-bottom: 20px;
@@ -759,7 +797,37 @@
     max-width: 100%;
     height: auto;
     max-height: 64vh;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding-bottom: 80px;
+  }
+
+  .map-controls-left .controllers-box {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.45) rgba(148, 163, 184, 0.18);
+  }
+
+  .map-controls-left .controllers-box::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .map-controls-left .controllers-box::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 999px;
+  }
+
+  .map-controls-left .controllers-box::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.35);
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+  }
+
+  .map-controls-left .controllers-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.55);
+  }
+
+  .map-controls-left .controllers-box::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   .controllers-box.collapsed {
@@ -899,5 +967,92 @@
 
   .destination-search-input {
     font-size: 15px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 900px) {
+  .map-controls-wrapper {
+    top: 0;
+    left: 0;
+    width: auto;
+    height: 100vh;
+    pointer-events: none;
+  }
+
+  .map-controls-left {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    pointer-events: auto;
+  }
+
+  .controllers-box {
+    width: 78px;
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
+    border-radius: 0 24px 24px 0;
+    padding: 12px 10px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: 0 24px 68px rgba(0, 0, 0, 0.25);
+    overflow: visible;
+  }
+
+  .controllers-box.expanded {
+    width: 360px;
+    height: 100vh;
+    max-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .controllers-box.collapsed {
+    width: 78px;
+    height: 100vh;
+    border-radius: 0 24px 24px 0;
+  }
+
+  .controllers-box.collapsed .collapsed-menu {
+    flex-direction: column;
+    gap: 16px;
+    padding: 14px 8px;
+    justify-content: flex-start;
+    align-items: center;
+    width: auto;
+  }
+
+  .controllers-header {
+    padding: 16px 14px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .controllers-box.collapsed .header-top {
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    border-right: none;
+  }
+
+  .collapsed-icon-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+  }
+
+  .map-controls-left .tool-btn {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 18px;
+  }
+
+  .tooltip-container.button-tooltip .tooltip-text {
+    left: 100%;
+    transform: translateX(14px) translateY(-50%);
   }
 }
