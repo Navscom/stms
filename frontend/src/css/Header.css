@@ -65,11 +65,8 @@
   border-radius: 999px;
   padding: 14px 22px;
   font-size: 1.02rem;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: white;
-  font-weight: 700;
   cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
 }
 .secondary-btn:hover {
@@ -80,7 +77,6 @@
   opacity: 0.95;
 }
 [data-theme='dark'] .secondary-btn {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: white;
 }
 [data-theme='dark'] .secondary-btn:hover {

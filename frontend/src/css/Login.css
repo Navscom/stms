@@ -6,13 +6,6 @@
   padding: 12px;
   border-radius: 12px;
   font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.auth-form input:focus,
-.auth-form select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 .toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; margin-left: 5px; }
 .helper-text { color: var(--muted); font-size: 0.9rem; }
@@ -21,11 +14,8 @@
   border: none;
   border-radius: 12px;
   padding: 12px 18px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: white;
-  font-weight: 700;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 .primary-btn:hover {
   transform: translateY(-1px);
