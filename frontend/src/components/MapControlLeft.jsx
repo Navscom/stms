@@ -87,13 +87,14 @@ const MapControlLeft = ({
     setIsSafetyAlertOpen(false);
   };
 
-  // Auto-close menu when a destination is selected in portrait mode
+  // Keep destination panel open after selection so the user can manually click Focus
   const handleDestinationSelected = () => {
-    const isPortraitMode = window.matchMedia('(max-height: 900px) and (max-width: 768px)').matches;
-    if (isPortraitMode) {
-      setIsBoxExpanded(false);
-      setIsDestinationsOpen(false);
-    }
+    // intentionally preserve current panel state for mobile users
+  };
+
+  const handleDestinationFocus = () => {
+    setIsBoxExpanded(false);
+    setIsDestinationsOpen(false);
   };
 
   const handleCollapsedNearest = () => {
@@ -510,6 +511,7 @@ const MapControlLeft = ({
                       selectedLocation={selectedLocation}
                       onCenterSpot={onCenterTouristSpot}
                       onZoomToSpot={onZoomToSpot}
+                      onFocusDestination={handleDestinationFocus}
                       isPanel={true}
                       inline={true}
                       onSelectDestination={handleDestinationSelected}

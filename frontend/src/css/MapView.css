@@ -1,5 +1,5 @@
 .map-container-wrapper {
-  height: 100vh;
+  height: calc(100vh - 100px);
   width: 100%;
   max-width: 100%;
   flex: 1 1 auto;
@@ -52,14 +52,18 @@
 
 .app-shell.sidebar-expanded .map-card .leaflet-top.leaflet-left {
   left: calc(360px + 18px) !important;
+  top: 14px !important;
 }
 
 .app-shell.sidebar-collapsed .map-card .leaflet-top.leaflet-left {
   left: calc(78px + 18px) !important;
+  top: 14px !important;
 }
 
 .leaflet-top.leaflet-left {
   margin-left: 6px;
+  top: 14px !important;
+  left: 14px !important;
 }
 .leaflet-bottom.leaflet-right {
   right: 14px;
@@ -75,6 +79,12 @@
   padding: 8px 12px;
   box-shadow: var(--shadow-md);
   transition: background 0.2s ease, opacity 0.2s ease;
+  margin-left: 10px;
+}
+
+.leaflet-control-zoom,
+.leaflet-control-attribution {
+  margin-left: 10px;
 }
 
 html[data-theme='dark'] .leaflet-control-attribution {
@@ -259,13 +269,13 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
 
 @media (max-width: 900px), (orientation: landscape) and (max-height: 820px) {
   .map-container-wrapper {
-    height: calc(100vh - 92px);
+    height: calc(100vh - 180px);
     transition: height 0.35s ease;
   }
 
   .app-shell.sidebar-expanded .map-container-wrapper,
   .app-shell.sidebar-collapsed .map-container-wrapper {
-    height: calc(100vh - 92px);
+    height: calc(100vh - 180px);
   }
 
   .map-container {
@@ -278,8 +288,23 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
   }
 
   .leaflet-control-attribution {
-    right: 10px;
+    right: 0px;
     bottom: 8px;
+    z-index: 10001;
+  }
+
+  .leaflet-control-zoom {
+    z-index: 10001;
+    left: 10px;
+  }
+}
+
+@media (orientation: portrait) {
+  .map-container-wrapper,
+  .app-shell.sidebar-expanded .map-container-wrapper,
+  .app-shell.sidebar-collapsed .map-container-wrapper {
+    height: calc(100vh - 220px);
+    transition: height 0.35s ease;
   }
 }
 
@@ -301,7 +326,16 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
   .map-container-wrapper,
   .app-shell.sidebar-expanded .map-container-wrapper,
   .app-shell.sidebar-collapsed .map-container-wrapper {
-    height: calc(100vh - 84px);
+    height: calc(100vh - 180px);
+  }
+}
+
+@media (orientation: portrait) and (max-width: 600px) {
+  .map-container-wrapper,
+  .app-shell.sidebar-expanded .map-container-wrapper,
+  .app-shell.sidebar-collapsed .map-container-wrapper {
+    height: calc(100vh - 200px) !important;
+    transition: height 0.35s ease;
   }
 }
 

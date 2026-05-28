@@ -26,6 +26,7 @@ export default function DestinationList({
   onClearSelection, 
   onCenterSpot,
   onZoomToSpot,
+  onFocusDestination,
   selectedLocation = null,
   inline = false,
   isPanel = false 
@@ -121,16 +122,14 @@ export default function DestinationList({
     if (onClearSelection) onClearSelection();
   };
 
-  const handleCenterClick = () => {
-    const spot = getCenterSpot();
-    if (!spot) return;
-    // Use onZoomToSpot if available (panel mode - just zoom, don't change location)
-    // Otherwise fall back to onCenterSpot (changes location)
+  const focusDestination = (destination) => {
+    if (!destination) return;
     if (onZoomToSpot) {
-      onZoomToSpot(spot);
+      onZoomToSpot(destination);
     } else if (onCenterSpot) {
-      onCenterSpot(spot);
+      onCenterSpot(destination);
     }
+    if (onFocusDestination) onFocusDestination(destination);
   };
 
   const getCenterSpot = () => {
@@ -163,13 +162,7 @@ export default function DestinationList({
             {renderDistance(selectedDestination)}
             <p className="destination-description">{selectedDestination.description}</p>
             <div className="destination-action-row">
-              <button type="button" className="primary-btn" onClick={() => {
-                if (onZoomToSpot) {
-                  onZoomToSpot(selectedDestination);
-                } else if (onCenterSpot) {
-                  onCenterSpot(selectedDestination);
-                }
-              }}>
+              <button type="button" className="primary-btn" onClick={() => focusDestination(selectedDestination)}>
                 Focus on {selectedDestination.name}
               </button>
               <button type="button" className="secondary-btn small-btn" onClick={clearSelection}>
@@ -225,7 +218,7 @@ export default function DestinationList({
           {renderDistance(selectedDestination)}
           <p className="destination-description">{selectedDestination.description}</p>
           <div className="destination-action-row">
-            <button type="button" className="primary-btn" onClick={() => handleSelectDestination(selectedDestination)}>
+            <button type="button" className="primary-btn" onClick={() => focusDestination(selectedDestination)}>
               Focus on {selectedDestination.name}
             </button>
           </div>

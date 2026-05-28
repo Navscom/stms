@@ -118,6 +118,16 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
     width: 100%;
     max-width: 100%;
   }
+}
+
+@media (orientation: portrait) {
+  .map-card,
+  .map-panel,
+  .dashboard-grid {
+    min-height: auto;
+    height: auto;
+  }
+}
 
   .app-shell.sidebar-expanded > section:not(.dashboard-grid),
   .app-shell.sidebar-expanded > header,
