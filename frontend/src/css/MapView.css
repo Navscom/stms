@@ -45,9 +45,14 @@
   color: #f8fafc;
 }
 
-.map-card .leaflet-top.leaflet-left {
-  left: 96px !important;
+.app-shell.sidebar-expanded .map-card .leaflet-top.leaflet-left {
+  left: calc(360px + 18px) !important;
 }
+
+.app-shell.sidebar-collapsed .map-card .leaflet-top.leaflet-left {
+  left: calc(78px + 18px) !important;
+}
+
 .leaflet-top.leaflet-left {
   margin-left: 6px;
 }
