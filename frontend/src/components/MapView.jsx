@@ -247,6 +247,42 @@ function MapSyncHandler({ theme }) {
   return null;
 }
 
+function MapResizeHandler() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return undefined;
+
+    const invalidate = () => {
+      try {
+        map.invalidateSize({ animate: false });
+      } catch {
+        // ignore invalidation errors during unmount
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(() => invalidate());
+    const container = map.getContainer();
+    if (container) {
+      resizeObserver.observe(container);
+    }
+
+    window.addEventListener('resize', invalidate);
+    window.addEventListener('orientationchange', invalidate);
+
+    const timeoutId = window.setTimeout(invalidate, 250);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', invalidate);
+      window.removeEventListener('orientationchange', invalidate);
+      window.clearTimeout(timeoutId);
+    };
+  }, [map]);
+
+  return null;
+}
+
 function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin }) {
   const map = useMap();
 
@@ -398,13 +434,26 @@ export default function MapView({
   };
 
   const [initialMapState] = useState(loadStoredMapState);
+  const [mapReady, setMapReady] = useState(false);
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
   const mapWrapperStyle = {
     '--map-rotation': `${mapRotation}deg`,
   };
 
+  const tileEventHandlers = {
+    tileloadstart: () => setMapReady(false),
+    load: () => setMapReady(true),
+    tileerror: () => setMapReady(true),
+  };
+
   return (
     <div className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
+      <div className={`map-loading-overlay ${mapReady ? 'map-loaded' : 'map-loading'}`}>
+        <div className="map-spinner">
+          <div className="spinner-ring" />
+          <span>Loading map…</span>
+        </div>
+      </div>
       
       <MapControlRight
         user={user}
@@ -433,6 +482,7 @@ export default function MapView({
           updateWhenIdle={false}
           updateWhenZooming={true}
           keepBuffer={2}
+          eventHandlers={tileEventHandlers}
         />
         <MapClickHandler onLocationClick={onLocationClick} />
         <ZoomControlHandler />
@@ -444,6 +494,7 @@ export default function MapView({
         />
         <MapFocusHandler location={focusLocation} zoom={focusZoom} />
         <MapSyncHandler theme={theme} />
+        <MapResizeHandler />
 
         {destinations.map((d) => {
           const highlightAllDestinations = reportHighlight === 'all-destinations';

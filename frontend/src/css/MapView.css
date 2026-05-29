@@ -22,6 +22,50 @@
   overflow: hidden;
 }
 
+.map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 1005;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+}
+
+.map-loading-overlay.map-loaded {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.map-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.spinner-ring {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 3px solid rgba(37, 99, 235, 0.18);
+  border-top-color: rgba(37, 99, 235, 1);
+  animation: spinner-rotate 0.85s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
 .theme-toggle-btn {
   position: absolute;
   top: 20px;

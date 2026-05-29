@@ -42,9 +42,8 @@
   margin-bottom: 20px;
 }
 
-/* Portrait and compact landscape: Float AI Guidance over map */
-@media (max-width: 900px), (orientation: landscape) and (max-height: 820px)
-  {
+/* Portrait and landscape: Float AI Guidance over map */
+@media (max-width: 900px), (orientation: landscape) {
   .advice-section {
     position: fixed;
     top: 12px;
