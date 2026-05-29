@@ -90,6 +90,19 @@
   margin-bottom: 0;
 }
 
+[data-theme='light'] .map-controls-left .controllers-header {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme='light'] .map-controls-left .controllers-header h1 {
+  color: #0f172a;
+}
+
+[data-theme='light'] .map-controls-left .subtitle {
+  color: #475569;
+}
+
 /* Title row: place STMS and Live pill inline */
 .header-title-row {
   display: flex;
@@ -112,6 +125,12 @@
 /* Push the expand/collapse button to the far right of the title row */
 .header-title-row .button-tooltip {
   margin-left: auto;
+}
+
+[data-theme='light'] .map-controls-left .controllers-box {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme='dark'] .map-controls-left .controllers-box {
@@ -200,6 +219,12 @@
   color: #475569;
   transition: all 0.2s ease;
   flex-shrink: 0;
+}
+
+[data-theme='light'] .map-controls-left .expand-btn {
+  background: #f1f5f9;
+  border-color: #cbd5e0;
+  color: #475569;
 }
 
 .expand-btn:hover {
@@ -321,6 +346,12 @@
   transition: all 0.2s ease;
   text-align: left;
   margin: 2px 0;
+}
+
+[data-theme='light'] .map-controls-left .tool-btn {
+  background: #ffffff;
+  border-color: #cbd5e0;
+  color: #1e293b;
 }
 
 .map-controls-left .tool-btn:hover {
