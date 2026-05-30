@@ -356,12 +356,11 @@ function App() {
         onDeleteAccount={handleDeleteAccount}
       />
 
-      <AIGuidance advice={advice} nearest={nearest} />
-
       <section className="dashboard-grid">
 
         <div className="map-panel">
           <div className="map-card">
+            <AIGuidance advice={advice} nearest={nearest} />
             <div className="floating-side-nav-wrapper">
               <MapControlLeft
                 onMyLocation={toggleLocationMode}

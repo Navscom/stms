@@ -43,18 +43,45 @@
 }
 
 /* Portrait and landscape: Float AI Guidance over map */
-@media (max-width: 900px), (orientation: landscape) {
+@media (max-width: 900px) {
+  .advice-section {
+    margin: 0;
+    pointer-events: auto;
+  }
+}
+
+@media (orientation: portrait) {
+  .map-card {
+    position: relative;
+  }
+
+  .map-card .advice-section {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    transform: none;
+    margin: 0;
+    max-width: min(340px, calc(100% - 88px));
+    width: 100%;
+    z-index: 500;
+    pointer-events: auto;
+  }
+}
+
+/* Landscape only: move AI Guidance card to left edge */
+@media (orientation: landscape) {
   .advice-section {
     position: fixed;
     top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 140px;
+    transform: none;
     margin: 0;
     z-index: 500;
-    max-width: calc(100vw - 48px);
-    width: 100%;
+    max-width: calc(100vw - 160px);
+    width: auto;
     pointer-events: auto;
   }
+}
 
   .ai-card {
     padding: 16px 14px;
@@ -104,4 +131,4 @@
   .ai-card-meta li {
     margin-bottom: 4px;
   }
-}
+
