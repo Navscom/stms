@@ -11,7 +11,14 @@ def hash_password(password: str) -> str:
 
 
 def haversine(lat1, lon1, lat2, lon2):
-    radius = 6371
+    try:
+        lat1 = float(lat1 or 0)
+        lon1 = float(lon1 or 0)
+        lat2 = float(lat2 or 0)
+        lon2 = float(lon2 or 0)
+    except Exception:
+        return float("inf")
+    radius = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
@@ -46,6 +53,15 @@ def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance
 
 
 def safe_data(response: Any) -> List[Dict[str, Any]]:
+    if not response:
+        return []
+    # If the response is already a list, return it
+    if isinstance(response, list):
+        return response
+    # If the response is a plain dict, try common keys
+    if isinstance(response, dict):
+        return response.get('data') or response.get('body') or []
+    # Fallback to attribute access used by some clients
     return getattr(response, 'data', []) or []
 
 
@@ -116,7 +132,7 @@ def _is_duration_expired(pin: Dict[str, Any]) -> bool:
     created = parse_timestamp(pin.get("created_at"))
     if not created:
         return False
-    return datetime.now() > (created + timedelta(hours=duration))
+    return datetime.now(timezone.utc) > (created + timedelta(hours=duration))
 
 
 def move_expired_pins(supabase: Client) -> int:
@@ -127,22 +143,27 @@ def move_expired_pins(supabase: Client) -> int:
         return 0
 
     insert_rows = []
-    ids_to_delete = []
+    expired_ids = []
     for p in expired:
-        row = dict(p)
-        row["moved_at"] = datetime.now().isoformat()
-        insert_rows.append(row)
-        if p.get("id") is not None:
-            ids_to_delete.append(p.get("id"))
+        pin_id = p.get("id")
+        if pin_id is None:
+            continue
+        insert_rows.append({
+            "pin_id": pin_id,
+            "moved_at": now_iso(),
+            "status": "expired"
+        })
+        expired_ids.append(pin_id)
 
     try:
-        supabase.table("expired_pins").upsert(insert_rows).execute()
+        supabase.table("pin_history").insert(insert_rows).execute()
     except Exception:
         return 0
 
-    try:
-        supabase.table("danger_pins").delete().in_("id", ids_to_delete).execute()
-    except Exception:
-        pass
+    for pin_id in expired_ids:
+        try:
+            supabase.table("danger_pins").update({"removed_at": now_iso()}).eq("id", pin_id).execute()
+        except Exception:
+            pass
 
-    return len(ids_to_delete)
+    return len(expired_ids)

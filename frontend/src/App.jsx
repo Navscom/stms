@@ -4,7 +4,7 @@ import MapView from './components/MapView';
 import LoginModal from './components/LoginModal';
 import AdminPanel from './components/AdminPanel.jsx';
 import MapControlLeft from './components/MapControlLeft';
-import MarkerPanel from './components/MarkerPanel';
+
 import AIGuidance from './components/AIGuidance';
 import { useUserSession } from './utils/useUserSession';
 import { API, deleteAccount, postPinComment, updatePinComment, deletePinComment, deleteDangerPin } from './utils';
@@ -32,7 +32,6 @@ function App() {
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const [pinMode, setPinMode] = useState(false);
   const [locationMode, setLocationMode] = useState(false);
-  const [showDestinations, setShowDestinations] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [reportHighlight, setReportHighlight] = useState(null);
@@ -124,7 +123,7 @@ function App() {
     try {
       await postPinComment(pinId, {
         comment,
-        commented_by: user?.name || 'Anonymous Tourist',
+        user_id: user?.id ?? null,
       });
       await loadDangerPins(setDangerPins);
       setAdvice('Comment added to marker.');
@@ -136,7 +135,7 @@ function App() {
   const updateMarkerComment = async (pinId, commentId, comment) => {
     try {
       await updatePinComment(pinId, commentId, { comment }, {
-        requesting_by: user?.name,
+        requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
       await loadDangerPins(setDangerPins);
@@ -149,7 +148,7 @@ function App() {
   const deleteMarkerComment = async (pinId, commentId) => {
     try {
       await deletePinComment(pinId, commentId, {
-        requesting_by: user?.name,
+        requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
       await loadDangerPins(setDangerPins);
@@ -161,7 +160,7 @@ function App() {
 
   const deletePin = async (pinId) => {
     const pin = dangerPins.find((p) => p.id === pinId);
-    const isPinOwner = pin && user?.name && pin.reported_by === user.name;
+    const isPinOwner = pin && user?.id && pin.user_id === user.id;
     const isAdmin = user?.role === 'administrator' || user?.role === 'admin';
 
     if (!isPinOwner && !isAdmin) {
@@ -171,7 +170,7 @@ function App() {
 
     try {
       await deleteDangerPin(pinId, {
-        requesting_by: user?.name,
+        requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
       await loadDangerPins(setDangerPins);
@@ -204,7 +203,6 @@ function App() {
     setPinMode((prev) => {
       const next = !prev;
       if (next) {
-        setShowDestinations(false);
         setPendingMarkerLocation(null);
         const targetLocation = (locationMode && selectedLocation) ? selectedLocation : lastClickLocation;
         if (targetLocation) {
@@ -217,11 +215,6 @@ function App() {
       }
       return next;
     });
-  };
-
-  const toggleShowDestinations = () => {
-    setPinMode(false);
-    setShowDestinations((prev) => !prev);
   };
 
   const toggleLocationMode = () => {
@@ -239,7 +232,6 @@ function App() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         setLocationMode(true);
-        setShowDestinations(false);
         setSelectedDestinationId(null);
         const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(currentLocation);
@@ -382,7 +374,6 @@ function App() {
                 setIsBoxExpanded={setIsNavExpanded}
                 isPinMode={pinMode}
                 onAddMarker={togglePinMode}
-                onDestinations={toggleShowDestinations}
                 markerForm={markerForm}
                 setMarkerForm={setMarkerForm}
                 selectedMarkerType={selectedMarkerType}

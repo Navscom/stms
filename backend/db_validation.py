@@ -5,6 +5,7 @@ import re
 
 class RegisterRequest(BaseModel):
     name: str
+    displayName: str
     email: EmailStr
     password: str
     role: str = "tourist"
@@ -29,6 +30,7 @@ class DestinationRequest(BaseModel):
 
 class CrowdUpdateRequest(BaseModel):
     crowd_level: str
+    user_id: Optional[int] = None
 
 class DangerPinRequest(BaseModel):
     title: str
@@ -39,23 +41,32 @@ class DangerPinRequest(BaseModel):
     radius_meters: int = 300
     description: str
     duration_hours: float = 0
-    reported_by: str = "Anonymous"
+    duration_minutes: Optional[int] = None
+    user_id: int
 
     @root_validator(pre=True)
     def normalize_duration(cls, values):
         if values.get("duration_hours") is None:
-            minutes = values.get("duration")
-            if minutes is not None:
+            duration_minutes = values.get("duration_minutes")
+            duration = values.get("duration")
+            if duration_minutes is not None:
                 try:
-                    values["duration_hours"] = float(minutes) / 60.0
+                    values["duration_hours"] = float(duration_minutes) / 60.0
                 except Exception:
                     values["duration_hours"] = 0
+            elif duration is not None:
+                try:
+                    values["duration_hours"] = float(duration)
+                except Exception:
+                    values["duration_hours"] = 0
+            else:
+                values["duration_hours"] = 0
         return values
 
 class MarkerCommentRequest(BaseModel):
     comment: str
-    commented_by: str = "Anonymous"
-    requesting_by: Optional[str] = None
+    user_id: Optional[int] = None
+    requesting_user_id: Optional[int] = None
     requesting_role: Optional[str] = None
 
 class RouteRequest(BaseModel):
@@ -75,14 +86,9 @@ def is_valid_email(email: str) -> bool:
     local, domain = parts
     if not re.fullmatch(r'[A-Za-z0-9._+-]+', local):
         return False
-    allowed_domains = {
-        'gmail.com',
-        'yahoo.com',
-        'outlook.com',
-        'hotmail.com',
-        'icloud.com',
-    }
-    return domain.lower() in allowed_domains
+    if not re.fullmatch(r'[A-Za-z0-9.-]+\.[A-Za-z]{2,}', domain):
+        return False
+    return True
 
 
 def validate_register(data: RegisterRequest) -> None:
@@ -92,6 +98,8 @@ def validate_register(data: RegisterRequest) -> None:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
     if data.role not in ["tourist", "admin", "administrator"]:
         raise HTTPException(status_code=400, detail="Invalid role.")
+    if not getattr(data, 'displayName', None) or not str(data.displayName).strip():
+        raise HTTPException(status_code=400, detail="Display name is required.")
 
 
 def validate_crowd_level(data: CrowdUpdateRequest) -> None:

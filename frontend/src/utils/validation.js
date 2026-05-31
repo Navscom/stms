@@ -25,6 +25,9 @@ export function validateAuthForm(form, isRegister = false) {
     return { valid: false, message: 'Password is required.' };
   }
   if (isRegister) {
+    if (!form.displayName?.trim()) {
+      return { valid: false, message: 'Display name is required.' };
+    }
     if (!form.name?.trim()) {
       return { valid: false, message: 'Full name is required.' };
     }

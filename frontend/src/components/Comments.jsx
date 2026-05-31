@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../css/Comments.css';
 
-export default function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment }) {
+export default function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment, onLogin }) {
   const [comment, setComment] = useState('');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -10,6 +10,11 @@ export default function CommentBox({ pin, user, onAddComment, onUpdateComment, o
 
   const submit = (e) => {
     e.preventDefault();
+    if (!user) {
+      if (typeof onLogin === 'function') onLogin();
+      else alert('Please login to comment.');
+      return;
+    }
     if (!comment.trim()) {
       alert('Please type a comment first.');
       return;
@@ -21,14 +26,14 @@ export default function CommentBox({ pin, user, onAddComment, onUpdateComment, o
 
   const canEditComment = (commentEntry) => {
     if (!user) return false;
-    return user?.name === commentEntry.commented_by || user?.role === 'administrator';
+    return user?.id === commentEntry.user_id || user?.role === 'administrator';
   };
 
   const canDeleteComment = (commentEntry) => {
     if (!user) return false;
     return (
-      user?.name === commentEntry.commented_by ||
-      user?.name === pin.reported_by ||
+      user?.id === commentEntry.user_id ||
+      user?.id === pin.user_id ||
       user?.role === 'administrator' ||
       user?.role === 'admin'
     );

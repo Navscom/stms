@@ -43,6 +43,7 @@ export async function submitMarker({
     radius_meters: Number(markerForm.radius_meters || 300),
     duration_hours: totalHours,
     description: markerForm.description,
+    user_id: user?.id ?? null,
     reported_by: user?.name || 'Anonymous Tourist',
   });
 
@@ -63,7 +64,7 @@ export async function addMarkerComment(pinId, comment, user, setAdvice, loadDang
 
   await postPinComment(pinId, {
     comment,
-    commented_by: user?.name || 'Anonymous Tourist',
+    user_id: user?.id ?? null,
   });
 
   await loadDangerPins();

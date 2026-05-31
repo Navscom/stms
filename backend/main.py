@@ -1,11 +1,17 @@
 import os
+import sys
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
 from datetime import datetime, timedelta, timezone
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+# Allow running as a top-level script from the backend directory.
+if __package__ is None:
+    sys.path.append(os.path.dirname(__file__))
+
 from db_validation import (
     RegisterRequest,
     LoginRequest,
@@ -82,6 +88,7 @@ def register(data: RegisterRequest):
     hashed_pw = hash_password(data.password)
     response = supabase.table("users").insert({
         "name": data.name,
+        "display_name": getattr(data, 'displayName', None),
         "email": data.email,
         "password": hashed_pw,
         "role": data.role,
@@ -90,7 +97,7 @@ def register(data: RegisterRequest):
 
     if getattr(response, 'error', None):  # type: ignore
         raise HTTPException(status_code=400, detail="Email already exists.")
-    return {"message": "Registration successful", "user": {"name": data.name, "email": data.email, "role": data.role}}
+    return {"message": "Registration successful", "user": {"name": data.name, "display_name": getattr(data, 'displayName', None), "email": data.email, "role": data.role}}
 
 @app.post("/login")
 def login(data: LoginRequest):
@@ -144,6 +151,8 @@ def get_destinations():
 @app.put("/destinations/{destination_id}/crowd")
 def update_crowd(destination_id: int, data: CrowdUpdateRequest):
     validate_crowd_level(data)
+    if data.user_id is None:
+        raise HTTPException(status_code=400, detail="user_id is required for crowd reports.")
 
     response = supabase.table("destinations").update({
         "crowd_level": data.crowd_level,
@@ -156,8 +165,11 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
     supabase.table("crowd_reports").insert({
         "destination_id": destination_id,
         "crowd_level": data.crowd_level,
+        "user_id": data.user_id,
         "reported_at": now_iso()
     }).execute()
+
+    return {"message": "Crowd level updated", "destination_id": destination_id, "crowd_level": data.crowd_level}
 
 @app.get("/safety-check")
 def safety_check(lat: float, lng: float):
@@ -191,9 +203,9 @@ def safety_check(lat: float, lng: float):
 @app.get("/ai-advice")
 def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
     dest_response = supabase.table("destinations").select("*").execute()
-    destinations: List[Dict[str, Any]] = dest_response.data if dest_response.data else []  # type: ignore
+    destinations: List[Dict[str, Any]] = safe_data(dest_response)
     pin_response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = pin_response.data if pin_response.data else []  # type: ignore
+    pins: List[Dict[str, Any]] = safe_data(pin_response)
     pins = filter_active_pins(pins)
 
     ranked = []
@@ -295,15 +307,77 @@ def get_danger_pins():
     response = supabase.table("danger_pins").select("*").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
     visible = []
+    # collect user ids referenced by pins and comments so we can fetch user display names in one go
+    referenced_user_ids = set()
     for pin in pins:
         if _pin_inactive(pin):
             continue
         pin_id = pin.get("id")
+        uid_val = pin.get("user_id")
+        if uid_val is not None:
+            try:
+                referenced_user_ids.add(int(uid_val))
+            except Exception:
+                pass
         if pin_id is not None:
             comments_response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
             comments = safe_data(comments_response)
+            for c in comments:
+                if c and c.get("user_id") is not None:
+                    cuid_val = c.get("user_id")
+                    try:
+                        if cuid_val is not None:
+                            referenced_user_ids.add(int(cuid_val))
+                    except Exception:
+                        pass
             pin["comments"] = comments
         visible.append(pin)
+
+    # fetch users once
+    users_map: Dict[int, Dict[str, Any]] = {}
+    if referenced_user_ids:
+        try:
+            users_resp = supabase.table("users").select("id, name, display_name").in_("id", list(referenced_user_ids)).execute()
+            users_list = safe_data(users_resp)
+            for u in users_list:
+                if isinstance(u, dict):
+                    try:
+                        uid_val = u.get("id")
+                        if uid_val is not None:
+                            users_map[int(uid_val)] = u
+                    except Exception:
+                        pass
+        except Exception:
+            users_map = {}
+
+    # attach display names
+    for pin in visible:
+        uid = pin.get("user_id")
+        reporter = None
+        uid_key = None
+        try:
+            if uid is not None:
+                uid_key = int(uid)
+        except Exception:
+            uid_key = None
+        if uid_key is not None and uid_key in users_map:
+            reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("name")
+        pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
+        # attach commented_by for each comment
+        comments = pin.get("comments") or []
+        for c in comments:
+            cuid = c.get("user_id")
+            commenter = None
+            cuid_key = None
+            try:
+                if cuid is not None:
+                    cuid_key = int(cuid)
+            except Exception:
+                cuid_key = None
+            if cuid_key is not None and cuid_key in users_map:
+                commenter = users_map[cuid_key].get("display_name") or users_map[cuid_key].get("name")
+            c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
+
     return visible
 
 @app.post("/danger-pins")
@@ -315,10 +389,10 @@ def add_danger_pin(data: DangerPinRequest):
         "lng": data.lng,
         "severity": data.severity,
         "radius_meters": data.radius_meters,
-        "duration_minutes": int(data.duration_hours * 60),  # ✅ match schema
+        "duration_hours": data.duration_hours,
         "description": data.description,
-        "reported_by": data.reported_by,
-        "removed_at": None,                                # ✅ optional column
+        "user_id": data.user_id,
+        "removed_at": None,
         "created_at": now_iso()
     }).execute()
 
@@ -330,10 +404,13 @@ def add_danger_pin(data: DangerPinRequest):
 
 @app.post("/danger-pins/{pin_id}/comments")
 def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
+    if data.user_id is None:
+        raise HTTPException(status_code=400, detail="user_id is required for marker comments.")
+
     response = supabase.table("marker_comments").insert({
         "pin_id": pin_id,
         "comment": data.comment.strip(),
-        "commented_by": data.commented_by,
+        "user_id": data.user_id,
         "created_at": now_iso()
     }).execute()
     data_list: List[Dict[str, Any]] = safe_data(response)
@@ -343,7 +420,7 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
 
 @app.put("/danger-pins/{pin_id}/comments/{comment_id}")
 def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentRequest):
-    requestor = data.requesting_by or data.commented_by
+    requestor_user_id = data.requesting_user_id
     requestor_role = (data.requesting_role or "tourist").lower()
 
     comment_response = supabase.table("marker_comments").select("*").eq("id", comment_id).eq("pin_id", pin_id).execute()
@@ -352,7 +429,7 @@ def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentReque
         raise HTTPException(status_code=404, detail="Comment not found")
     comment_item = comments[0]
 
-    if requestor != comment_item.get("commented_by") and requestor_role != "administrator":
+    if requestor_user_id != comment_item.get("user_id") and requestor_role != "administrator":
         raise HTTPException(status_code=403, detail="Not authorized to edit this comment.")
 
     response = supabase.table("marker_comments").update({
@@ -364,7 +441,7 @@ def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentReque
     return {"message": "Comment updated"}
 
 @app.delete("/danger-pins/{pin_id}/comments/{comment_id}")
-def delete_marker_comment(pin_id: int, comment_id: int, requesting_by: str = "Anonymous", requesting_role: str = "tourist"):
+def delete_marker_comment(pin_id: int, comment_id: int, requesting_user_id: Optional[int] = None, requesting_role: str = "tourist"):
     comment_response = supabase.table("marker_comments").select("*").eq("id", comment_id).eq("pin_id", pin_id).execute()
     comments = safe_data(comment_response)
     if not comments:
@@ -378,7 +455,7 @@ def delete_marker_comment(pin_id: int, comment_id: int, requesting_by: str = "An
     pin_item = pins[0]
 
     requestor_role_lower = requesting_role.lower()
-    if requesting_by != comment_item.get("commented_by") and requesting_by != pin_item.get("reported_by") and requestor_role_lower not in {"administrator", "admin"}:
+    if requesting_user_id != comment_item.get("user_id") and requesting_user_id != pin_item.get("user_id") and requestor_role_lower not in {"administrator", "admin"}:
         raise HTTPException(status_code=403, detail="Not authorized to delete this comment.")
 
     response = supabase.table("marker_comments").delete().eq("id", comment_id).eq("pin_id", pin_id).execute()
@@ -405,7 +482,7 @@ def delete_destination(destination_id: int):
 @app.delete("/danger-pins/{pin_id}")
 def delete_danger_pin(
     pin_id: int,
-    requesting_by: str = "Anonymous",
+    requesting_user_id: Optional[int] = None,
     requesting_role: str = "tourist",
 ):
     pin_response = supabase.table("danger_pins").select("*").eq("id", pin_id).execute()
@@ -415,8 +492,15 @@ def delete_danger_pin(
 
     pin_item = pin_items[0]
     requestor_role_lower = (requesting_role or "").lower()
-    if requesting_by != pin_item.get("reported_by") and requestor_role_lower not in {"administrator", "admin"}:
+    if requesting_user_id != pin_item.get("user_id") and requestor_role_lower not in {"administrator", "admin"}:
         raise HTTPException(status_code=403, detail="Not allowed to delete this pin.")
+
+    history_row = {
+        "pin_id": pin_id,
+        "moved_at": now_iso(),
+        "status": "removed"
+    }
+    supabase.table("pin_history").insert(history_row).execute()
 
     response = supabase.table("danger_pins").update({"removed_at": now_iso()}).eq("id", pin_id).execute()
     data_list = safe_data(response)

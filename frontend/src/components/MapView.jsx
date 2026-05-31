@@ -283,7 +283,7 @@ function MapResizeHandler() {
   return null;
 }
 
-function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin }) {
+function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin, onLogin }) {
   const map = useMap();
 
   return (
@@ -302,7 +302,7 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
       )}
       <Circle
         center={[pin.lat, pin.lng]}
-        radius={pin.radius_meters}
+        radius={Number(pin.radius_meters) || 0}
         pathOptions={{
           color: style.color,
           fillColor: style.color,
@@ -336,6 +336,7 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
               onAddComment={onAddComment}
               onUpdateComment={onUpdateComment}
               onDeleteComment={onDeleteComment}
+              onLogin={onLogin}
             />
             <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
           </div>
@@ -347,7 +348,7 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
 
 function DeletePinBox({ pin, user, onDeletePin }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const canDelete = user?.name === pin.reported_by || user?.role === 'administrator' || user?.role === 'admin';
+  const canDelete = user?.id === pin.user_id || user?.role === 'administrator' || user?.role === 'admin';
 
   if (!canDelete) {
     return (

@@ -49,9 +49,16 @@ function AdminPanel({ api, user, destinations, setAppDestinations, setAppDangerP
   };
 
   const updateCrowd = async (id, crowd_level) => {
-    await fetch(`${api}/destinations/${id}/crowd`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crowd_level })
+    const res = await fetch(`${api}/destinations/${id}/crowd`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ crowd_level, user_id: user?.id ?? null })
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.detail || 'Failed to update crowd status.');
+      return;
+    }
     await refreshAll();
   };
 

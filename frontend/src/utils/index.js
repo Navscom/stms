@@ -73,7 +73,7 @@ export function updatePinComment(pinId, commentId, payload, meta = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...payload,
-      requesting_by: meta.requesting_by,
+      requesting_user_id: meta.requesting_user_id ?? null,
       requesting_role: meta.requesting_role,
     }),
   });
@@ -81,7 +81,7 @@ export function updatePinComment(pinId, commentId, payload, meta = {}) {
 
 export function deletePinComment(pinId, commentId, meta = {}) {
   const params = new URLSearchParams();
-  if (meta.requesting_by) params.append('requesting_by', meta.requesting_by);
+  if (meta.requesting_user_id) params.append('requesting_user_id', String(meta.requesting_user_id));
   if (meta.requesting_role) params.append('requesting_role', meta.requesting_role);
   const query = params.toString();
   return fetchJson(`/danger-pins/${pinId}/comments/${commentId}${query ? `?${query}` : ''}`, {
@@ -91,7 +91,7 @@ export function deletePinComment(pinId, commentId, meta = {}) {
 
 export function deleteDangerPin(pinId, meta = {}) {
   const params = new URLSearchParams();
-  if (meta.requesting_by) params.append('requesting_by', meta.requesting_by);
+  if (meta.requesting_user_id) params.append('requesting_user_id', String(meta.requesting_user_id));
   if (meta.requesting_role) params.append('requesting_role', meta.requesting_role);
   const query = params.toString();
   return fetchJson(`/danger-pins/${pinId}${query ? `?${query}` : ''}`, {

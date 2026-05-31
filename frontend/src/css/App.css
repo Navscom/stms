@@ -129,14 +129,13 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   }
 }
 
-  .app-shell.sidebar-expanded > section:not(.dashboard-grid),
-  .app-shell.sidebar-expanded > header,
-  .app-shell.sidebar-expanded > .dashboard-grid,
-  .app-shell.sidebar-collapsed > section:not(.dashboard-grid),
-  .app-shell.sidebar-collapsed > header,
-  .app-shell.sidebar-collapsed > .dashboard-grid {
-    margin-left: 0;
-  }
+.app-shell.sidebar-expanded > section:not(.dashboard-grid),
+.app-shell.sidebar-expanded > header,
+.app-shell.sidebar-expanded > .dashboard-grid,
+.app-shell.sidebar-collapsed > section:not(.dashboard-grid),
+.app-shell.sidebar-collapsed > header,
+.app-shell.sidebar-collapsed > .dashboard-grid {
+  margin-left: 0;
 }
 
 @media (max-width: 900px), (orientation: landscape) and (max-height: 820px) {
