@@ -59,6 +59,33 @@ export function postAiGenerate(payload) {
   });
 }
 
+export function postCrowdyPinScan({ window_hours = 1, user_threshold = 10, duplicate_radius_m = 500 } = {}) {
+  const query = `?window_hours=${window_hours}&user_threshold=${user_threshold}&duplicate_radius_m=${duplicate_radius_m}`;
+  return fetchJson(`/ai/crowd-pins/scan${query}`, {
+    method: 'POST',
+  });
+}
+
+export function getCrowdPatterns(destinationId, hoursAhead = 6) {
+  return fetchJson(`/ai/crowd-patterns/${destinationId}?hours_ahead=${hoursAhead}`);
+}
+
+export function postModerateComment(comment) {
+  return fetchJson('/ai/moderate-comment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comment }),
+  });
+}
+
+export function postTranslateAlert(text, language = 'en') {
+  return fetchJson('/ai/translate-alert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, language }),
+  });
+}
+
 export function postDangerPin(payload) {
   return fetchJson('/danger-pins', {
     method: 'POST',

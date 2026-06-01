@@ -370,6 +370,13 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   transform: scale(1.05);
   box-shadow: 0 0 0 6px rgba(255,255,255,0.25), 0 14px 24px rgba(0,0,0,0.24);
 }
+
+.danger-pin--highlighted {
+  /* colored halo to indicate highlight */
+  box-shadow: 0 0 0 4px rgba(124,58,237,0.95), 0 12px 28px rgba(124,58,237,0.18);
+  border-color: rgba(124,58,237,0.95);
+  transform: scale(1.08);
+}
 .person-pin-icon {
   background: transparent !important;
   border: none !important;

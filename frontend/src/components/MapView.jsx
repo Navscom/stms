@@ -52,8 +52,8 @@ const dangerMarkerMeta = {
   'Hazard on Area': { color: '#7c3aed', emoji: '⚠️', extraClass: 'hazard-area' },
 };
 
-const createDangerIcon = ({ color, emoji, extraClass, isNearby = false }) => new L.DivIcon({
-  html: `<div class="danger-pin danger-pin--${extraClass}${isNearby ? ' danger-pin--nearby' : ''}" style="background: ${color};">` +
+const createDangerIcon = ({ color, emoji, extraClass, isNearby = false, highlighted = false }) => new L.DivIcon({
+  html: `<div class="danger-pin danger-pin--${extraClass}${isNearby ? ' danger-pin--nearby' : ''}${highlighted ? ' danger-pin--highlighted' : ''}" style="background: ${color};">` +
     `<span>${emoji}</span></div>`,
   className: 'danger-pin-icon',
   iconSize: [44, 56],
@@ -61,9 +61,9 @@ const createDangerIcon = ({ color, emoji, extraClass, isNearby = false }) => new
   popupAnchor: [0, -44],
 });
 
-const getDangerIcon = (pin, isNearby) => {
+const getDangerIcon = (pin, isNearby, highlighted = false) => {
   const meta = dangerMarkerMeta[pin.danger_type] || dangerMarkerMeta['Danger Area'];
-  return createDangerIcon({ ...meta, isNearby });
+  return createDangerIcon({ ...meta, isNearby, highlighted });
 };
 
 const formatTimestamp = (timestamp) => {
@@ -293,18 +293,6 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
 
   return (
     <Fragment>
-      {highlighted && (
-        <Circle
-          center={center}
-          radius={Math.max(radiusMeters + 40, 140)}
-          pathOptions={{
-            color: '#7c3aed',
-            weight: 3,
-            dashArray: '6 5',
-            fillOpacity: 0,
-          }}
-        />
-      )}
       <Circle
         center={center}
         radius={radiusMeters}
@@ -540,8 +528,8 @@ export default function MapView({
 
         {visibleDangerPins.map((pin) => {
           const style = dangerStyles[pin.danger_type] || dangerStyles['Danger Area'];
-          const icon = getDangerIcon(pin, nearbyIds.has(pin.id));
           const highlightHighDanger = reportHighlight === 'high-danger' && pin.severity === 'High';
+          const icon = getDangerIcon(pin, nearbyIds.has(pin.id), highlightHighDanger);
           return (
             <DangerMarker
               key={`danger-${pin.id}`}

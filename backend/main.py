@@ -60,6 +60,359 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Smart Tourism Management System API")
 
+
+def _is_wildlife_alert(pin: Dict[str, Any]) -> bool:
+    if not isinstance(pin, dict):
+        return False
+    danger_type = str(pin.get("danger_type", "")).lower()
+    title = str(pin.get("title", "")).lower()
+    description = str(pin.get("description", "")).lower()
+    return any(keyword in danger_type for keyword in ["animal", "wildlife"]) or \
+        any(keyword in title for keyword in ["animal", "wildlife"]) or \
+        any(keyword in description for keyword in ["animal", "wildlife"])
+
+
+def _fetch_recent_crowd_reports(hours: int = 1) -> List[Dict[str, Any]]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    response = supabase.table("crowd_reports").select("*").gte("reported_at", cutoff.isoformat()).execute()
+    return safe_data(response)
+
+
+def _predict_crowd_patterns(destination_id: int, hours_ahead: int = 6) -> Dict[str, Any]:
+    """Predict crowd patterns for a destination based on historical reports."""
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        response = supabase.table("crowd_reports").select("*").eq("destination_id", destination_id).gte("reported_at", cutoff.isoformat()).execute()
+        reports: List[Dict[str, Any]] = safe_data(response)
+        if not reports:
+            return {"prediction": "Insufficient data", "confidence": 0.0}
+
+        hourly_counts: Dict[int, Dict[str, int]] = {}
+        for report in reports:
+            if not isinstance(report, dict):
+                continue
+            reported_at = report.get("reported_at")
+            if not reported_at:
+                continue
+            try:
+                dt = parse_timestamp(reported_at)
+                if dt:
+                    hour = dt.hour
+                    if hour not in hourly_counts:
+                        hourly_counts[hour] = {"Low": 0, "Moderate": 0, "High": 0}
+                    level = str(report.get("crowd_level", "Low"))
+                    if level in hourly_counts[hour]:
+                        hourly_counts[hour][level] += 1
+            except Exception:
+                continue
+
+        if not hourly_counts:
+            return {"prediction": "Insufficient data", "confidence": 0.0}
+
+        now_hour = datetime.now(timezone.utc).hour
+        predictions = []
+        for i in range(1, min(hours_ahead + 1, 7)):
+            pred_hour = (now_hour + i) % 24
+            if pred_hour in hourly_counts:
+                counts = hourly_counts[pred_hour]
+                total = sum(counts.values())
+                high_ratio = counts["High"] / total if total > 0 else 0
+                moderate_ratio = counts["Moderate"] / total if total > 0 else 0
+                if high_ratio > 0.5:
+                    pred_level = "High"
+                elif moderate_ratio > 0.4:
+                    pred_level = "Moderate"
+                else:
+                    pred_level = "Low"
+                predictions.append({"hour": pred_hour, "predicted_level": pred_level, "confidence": min(0.95, 0.5 + (total / 50))})
+
+        if predictions:
+            return {
+                "destination_id": destination_id,
+                "predictions": predictions,
+                "confidence": min(0.95, len(reports) / 50),
+                "based_on_reports": len(reports),
+            }
+        return {"prediction": "Insufficient data", "confidence": 0.0}
+    except Exception:
+        return {"prediction": "Error analyzing patterns", "confidence": 0.0}
+
+
+def _moderate_comment_on_insert(comment_text: str) -> Dict[str, Any]:
+    """Check if a comment should be flagged before insertion."""
+    if gemini_client is None:
+        return {"flagged": False, "reason": "no_ai_available"}
+    try:
+        result = gemini_client.moderate_comment(comment_text)
+        return result
+    except Exception:
+        return {"flagged": False, "reason": "moderation_error"}
+
+
+def _translate_alert(text: str, language: str = "en") -> str:
+    """Translate a safety alert to the user's preferred language."""
+    if gemini_client is None or not text:
+        return text
+    try:
+        return gemini_client.translate_to_language(text, language)
+    except Exception:
+        return text
+
+
+def _fetch_destinations_map() -> Dict[int, Dict[str, Any]]:
+    response = supabase.table("destinations").select("*").execute()
+    destinations: List[Dict[str, Any]] = safe_data(response)
+    result: Dict[int, Dict[str, Any]] = {}
+    for destination in destinations:
+        if not isinstance(destination, dict):
+            continue
+        dest_id = destination.get("id")
+        try:
+            if dest_id is not None:
+                result[int(dest_id)] = destination
+        except Exception:
+            continue
+    return result
+
+
+def _existing_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> bool:
+    response = supabase.table("danger_pins").select("*").eq("danger_type", "Crowdy Area").execute()
+    pins: List[Dict[str, Any]] = safe_data(response)
+    for pin in pins:
+        if not isinstance(pin, dict) or _pin_inactive(pin):
+            continue
+        distance_km = haversine(lat, lng, pin.get("lat", 0), pin.get("lng", 0))
+        if distance_km <= radius_meters / 1000.0:
+            return True
+    return False
+
+
+def _find_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> Optional[Dict[str, Any]]:
+    """Find the closest active Crowdy Area marker within radius. Returns the marker or None."""
+    response = supabase.table("danger_pins").select("*").eq("danger_type", "Crowdy Area").execute()
+    pins: List[Dict[str, Any]] = safe_data(response)
+    closest = None
+    closest_distance = float("inf")
+    for pin in pins:
+        if not isinstance(pin, dict) or _pin_inactive(pin):
+            continue
+        distance_km = haversine(lat, lng, pin.get("lat", 0), pin.get("lng", 0))
+        if distance_km <= radius_meters / 1000.0 and distance_km < closest_distance:
+            closest = pin
+            closest_distance = distance_km
+    return closest
+
+
+def _extend_crowdy_marker_with_trend(
+    pin_id: int,
+    destination: Dict[str, Any],
+    report_count: int,
+    unique_user_count: int,
+    crowd_level: str,
+) -> bool:
+    """Extend an existing Crowdy Area marker duration to 7 days and update description with trend."""
+    trend_description = _generate_crowdy_marker_trend_description(destination, report_count, unique_user_count, crowd_level)
+    try:
+        response = supabase.table("danger_pins").update({
+            "duration_hours": 168,
+            "description": trend_description,
+            "updated_at": now_iso(),
+        }).eq("id", pin_id).execute()
+        return bool(safe_data(response))
+    except Exception:
+        return False
+
+
+def _generate_crowdy_marker_trend_description(
+    destination: Dict[str, Any],
+    report_count: int,
+    unique_user_count: int,
+    crowd_level: str,
+) -> str:
+    """Generate a description for a trending crowdy area (existing marker being extended)."""
+    name = str(destination.get("name", "This area"))
+    city = str(destination.get("city", "nearby"))
+    province = str(destination.get("province", ""))
+    if gemini_client is not None:
+        try:
+            prompt = (
+                "You are writing an update to a crowded area marker that is showing a strong trend. "
+                f"Location: {name}, {city}, {province}. "
+                f"Multiple reports (unique {unique_user_count} users, {report_count} total) confirm sustained crowds. "
+                f"The crowd level is {crowd_level}. "
+                "Write one concise sentence warning that this is an ongoing trend, without mentioning AI or data fields. "
+                "Use a human tone."
+            )
+            ai_raw = gemini_client.generate_text(prompt=prompt, temperature=0.4, max_output_tokens=100)
+            description = gemini_client._extract_text(ai_raw)
+            if description:
+                return description
+        except Exception:
+            pass
+
+    return (
+        f"{name} is showing sustained crowd levels with {unique_user_count} users reporting in the last hour. "
+        "This is an ongoing trend. Expect continued congestion for the next few hours."
+    )
+
+
+def _generate_crowdy_marker_description(
+    destination: Dict[str, Any],
+    report_count: int,
+    unique_user_count: int,
+    crowd_level: str,
+) -> str:
+    name = str(destination.get("name", "This area"))
+    city = str(destination.get("city", "nearby"))
+    province = str(destination.get("province", ""))
+    if gemini_client is not None:
+        try:
+            return gemini_client.generate_crowdy_marker_description(
+                location_name=name,
+                city=city,
+                province=province,
+                report_count=report_count,
+                unique_user_count=unique_user_count,
+                crowd_level=crowd_level,
+            )
+        except Exception:
+            pass
+
+    return (
+        f"{name} is busy right now with {unique_user_count} user reports in the last hour. "
+        "Use caution and consider a quieter route if possible."
+    )
+
+
+def _create_auto_crowdy_area_markers(
+    threshold: int = 10,
+    window_hours: int = 1,
+    duplicate_radius_m: int = 500,
+) -> List[Dict[str, Any]]:
+    reports = _fetch_recent_crowd_reports(window_hours)
+    destinations = _fetch_destinations_map()
+    if not reports or not destinations:
+        return []
+
+    grouped: Dict[int, Dict[str, Any]] = {}
+    for report in reports:
+        if not isinstance(report, dict):
+            continue
+        destination_id = report.get("destination_id")
+        if destination_id is None:
+            continue
+        try:
+            destination_id = int(destination_id)
+        except Exception:
+            continue
+        if destination_id not in destinations:
+            continue
+        bucket = grouped.setdefault(destination_id, {"reports": [], "users": set()})
+        bucket["reports"].append(report)
+        user_id = report.get("user_id")
+        if user_id is not None:
+            try:
+                bucket["users"].add(int(user_id))
+            except Exception:
+                pass
+
+    created_markers: List[Dict[str, Any]] = []
+    for destination_id, bucket in grouped.items():
+        unique_users = bucket["users"]
+        report_count = len(bucket["reports"])
+
+        destination = destinations[destination_id]
+        crowd_levels = [str(r.get("crowd_level", "Low")) for r in bucket["reports"] if isinstance(r.get("crowd_level", "Low"), str)]
+
+        dest_crowd_level = str(destination.get("crowd_level", "Low"))
+        if dest_crowd_level not in {"Low", "Moderate", "High"}:
+            high_count = sum(1 for level in crowd_levels if level == "High")
+            moderate_count = sum(1 for level in crowd_levels if level == "Moderate")
+            if high_count >= moderate_count and high_count > 0:
+                dest_crowd_level = "High"
+            elif moderate_count > 0:
+                dest_crowd_level = "Moderate"
+            else:
+                dest_crowd_level = "Low"
+
+        level_thresholds = {
+            "Low": 10,
+            "Moderate": 20,
+            "High": 30,
+        }
+        required_users = level_thresholds.get(dest_crowd_level, 10)
+        if len(unique_users) < required_users:
+            continue
+
+        destination = destinations[destination_id]
+        lat = destination.get("lat")
+        lng = destination.get("lng")
+        if lat is None or lng is None:
+            continue
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except Exception:
+            continue
+
+        if _existing_crowdy_marker_within(lat, lng, duplicate_radius_m):
+            existing_marker = _find_crowdy_marker_within(lat, lng, duplicate_radius_m)
+            if existing_marker:
+                marker_id = existing_marker.get("id")
+                try:
+                    marker_id = int(marker_id) if marker_id is not None else None
+                except Exception:
+                    marker_id = None
+                if marker_id is not None:
+                    crowd_level = dest_crowd_level
+                    if _extend_crowdy_marker_with_trend(
+                        marker_id,
+                        destination,
+                        report_count,
+                        len(unique_users),
+                        crowd_level,
+                    ):
+                        created_markers.append({
+                            "destination_id": destination_id,
+                            "title": existing_marker.get("title", "Crowdy Area"),
+                            "lat": lat,
+                            "lng": lng,
+                            "user_count": len(unique_users),
+                            "report_count": report_count,
+                            "action": "extended_7days_trend",
+                        })
+            continue
+
+        crowd_level = dest_crowd_level
+        description = _generate_crowdy_marker_description(destination, report_count, len(unique_users), crowd_level)
+        title = f"Crowdy Area - {destination.get('name', 'Busy spot')}"
+        insert_data = {
+            "title": title,
+            "danger_type": "Crowdy Area",
+            "lat": lat,
+            "lng": lng,
+            "severity": "High",
+            "radius_meters": 300,
+            "duration_hours": 4,
+            "description": description,
+            "user_id": None,
+            "reported_by": "Crowd AI",
+            "removed_at": None,
+            "created_at": now_iso(),
+        }
+        response = supabase.table("danger_pins").insert(insert_data).execute()
+        if safe_data(response):
+            created_markers.append({
+                "destination_id": destination_id,
+                "title": title,
+                "lat": lat,
+                "lng": lng,
+                "user_count": len(unique_users),
+                "report_count": report_count,
+            })
+
+    return created_markers
+
 # Optional Gemini client (uses GEMINI_API_KEY or GOOGLE_API_KEY env var)
 try:
     from gemini_client import GeminiClient
@@ -93,6 +446,20 @@ async def start_periodic_expiry_move():
                 pass
             await asyncio.sleep(60)
     asyncio.create_task(_periodic())
+
+
+@app.on_event("startup")
+async def start_periodic_crowd_marker_scan():
+    async def _crowd_scan():
+        while True:
+            try:
+                created = await asyncio.to_thread(_create_auto_crowdy_area_markers, 10, 1, 500)
+                if created:
+                    logger.info(f"[Backend] Created {len(created)} auto crowdy area marker(s)")
+            except Exception:
+                logger.exception("[Backend] Crowd scan failed")
+            await asyncio.sleep(300)
+    asyncio.create_task(_crowd_scan())
 
 
 @app.get("/")
@@ -190,7 +557,7 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
     return {"message": "Crowd level updated", "destination_id": destination_id, "crowd_level": data.crowd_level}
 
 @app.get("/safety-check")
-def safety_check(lat: float, lng: float):
+def safety_check(lat: float, lng: float, language: str = "en"):
     response = supabase.table("danger_pins").select("*").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
     # filter out expired or removed pins
@@ -216,10 +583,21 @@ def safety_check(lat: float, lng: float):
         f"Safety alert: {pin.get('title', 'Danger area')} ({pin.get('danger_type', 'danger')}) is {pin.get('distance_km', 0)} km away."
         for pin in nearby if isinstance(pin, dict)
     ]
-    return {"risk_level": risk_level, "nearby_dangers": nearby[:8], "alerts": alerts}
+    
+    if language.lower() not in ["en", "english"]:
+        alerts = [_translate_alert(alert, language) for alert in alerts]
+    
+    wildlife_alerts = [pin for pin in nearby if _is_wildlife_alert(pin)]
+    return {
+        "risk_level": risk_level,
+        "nearby_dangers": nearby[:8],
+        "alerts": alerts,
+        "wildlife_alerts": wildlife_alerts[:8],
+        "language": language
+    }
 
 @app.get("/ai-advice")
-def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
+def get_ai_advice(lat: float, lng: float, location_type: str = "general", language: str = "en"):
     dest_response = supabase.table("destinations").select("*").execute()
     destinations: List[Dict[str, Any]] = safe_data(dest_response)
     pin_response = supabase.table("danger_pins").select("*").execute()
@@ -249,6 +627,7 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         if p["inside_zone"]:
             danger_nearby.append(p)
     danger_nearby.sort(key=lambda x: x.get("distance_km", 0))
+    wildlife_alerts = [p for p in danger_nearby if _is_wildlife_alert(p)]
 
     # Delegate AI generation and fallback to GeminiClient
     ai_used = False
@@ -256,7 +635,7 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
     advice = None
     if gemini_client is not None:
         try:
-            ai_result = gemini_client.generate_advice(nearest, danger_nearby, lat, lng)
+            ai_result = gemini_client.generate_advice(nearest, danger_nearby, wildlife_alerts, lat, lng)
             advice = ai_result.get("advice")
             ai_used = bool(ai_result.get("ai_used"))
             ai_raw = ai_result.get("ai_raw")
@@ -285,6 +664,9 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
             first = danger_nearby[0] if isinstance(danger_nearby[0], dict) else {}
             advice += f" Also, there is a safety concern: {first.get('title', 'a danger area')} ({first.get('danger_type', 'danger')}) about {first.get('distance_km', 0)} km away. {first.get('description', '')}"
 
+    if language.lower() not in ["en", "english"]:
+        advice = _translate_alert(advice, language)
+
     return {
         "latitude": lat,
         "longitude": lng,
@@ -292,7 +674,9 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         "ai_used": ai_used,
         "ai_raw": ai_raw,
         "nearest_destinations": nearby_tourist_spots,
-        "nearby_dangers": danger_nearby[:8]
+        "nearby_dangers": danger_nearby[:8],
+        "wildlife_alerts": wildlife_alerts[:8],
+        "language": language
     }
 
 
@@ -320,6 +704,64 @@ def generate_ai(payload: Dict[str, Any] = Body(...)):
         return {"ok": True, "text": text, "raw": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/crowd-pins/scan")
+def scan_crowdy_area_markers(window_hours: int = 1, user_threshold: int = 10, duplicate_radius_m: int = 500):
+    """Scan recent crowd reports and automatically create Crowdy Area markers."""
+    try:
+        created = _create_auto_crowdy_area_markers(user_threshold, window_hours, duplicate_radius_m)
+        return {
+            "created_count": len(created),
+            "created_markers": created,
+            "window_hours": window_hours,
+            "user_threshold": user_threshold,
+            "duplicate_radius_m": duplicate_radius_m,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create crowdy area markers: {str(e)}")
+
+@app.get("/ai/crowd-patterns/{destination_id}")
+def get_crowd_patterns(destination_id: int, hours_ahead: int = 6):
+    """Predict crowd patterns for a destination."""
+    try:
+        predictions = _predict_crowd_patterns(destination_id, hours_ahead)
+        return predictions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to predict crowd patterns: {str(e)}")
+
+@app.post("/ai/moderate-comment")
+def moderate_comment(payload: Dict[str, Any] = Body(...)):
+    """Check if a comment is spam/inappropriate before posting."""
+    comment_text = payload.get("comment", "")
+    if not isinstance(comment_text, str):
+        raise HTTPException(status_code=400, detail="comment must be a string")
+    try:
+        result = _moderate_comment_on_insert(comment_text)
+        return {
+            "comment": comment_text[:100],
+            "is_spam": result.get("is_spam", False),
+            "reason": result.get("reason", "unknown"),
+            "confidence": result.get("confidence", 0.0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to moderate comment: {str(e)}")
+
+@app.post("/ai/translate-alert")
+def translate_alert_endpoint(payload: Dict[str, Any] = Body(...)):
+    """Translate a safety alert to a different language."""
+    text = payload.get("text", "")
+    language = payload.get("language", "en")
+    if not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="text must be a string")
+    try:
+        translated = _translate_alert(text, language)
+        return {
+            "original_text": text,
+            "translated_text": translated,
+            "language": language,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to translate alert: {str(e)}")
 
 @app.get("/reports/summary")
 def reports_summary():
@@ -473,16 +915,26 @@ def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
     if data.user_id is None:
         raise HTTPException(status_code=400, detail="user_id is required for marker comments.")
 
+    moderation_result = _moderate_comment_on_insert(data.comment.strip())
+    flagged = moderation_result.get("is_spam", False)
+
     response = supabase.table("marker_comments").insert({
         "pin_id": pin_id,
         "comment": data.comment.strip(),
         "user_id": data.user_id,
-        "created_at": now_iso()
+        "created_at": now_iso(),
+        "moderation_flagged": flagged,
+        "moderation_reason": moderation_result.get("reason", "none")
     }).execute()
     data_list: List[Dict[str, Any]] = safe_data(response)
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add comment")
-    return {"message": "Comment added", "id": data_list[0]["id"]}
+    return {
+        "message": "Comment added",
+        "id": data_list[0]["id"],
+        "moderation_flagged": flagged,
+        "moderation_reason": moderation_result.get("reason", "none")
+    }
 
 @app.put("/danger-pins/{pin_id}/comments/{comment_id}")
 def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentRequest):
