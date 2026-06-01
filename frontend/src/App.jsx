@@ -8,7 +8,7 @@ import MapControlLeft from './components/MapControlLeft';
 import AIGuidance from './components/AIGuidance';
 import { useUserSession } from './utils/useUserSession';
 import { API, deleteAccount, postPinComment, updatePinComment, deletePinComment, deleteDangerPin } from './utils';
-import { loadAppData, loadDestinations, loadDangerPins, loadReport, fetchAdvice as fetchAdviceHelper } from './utils/LoadData';
+import { loadAppData, loadDestinations, loadDangerPins, loadReport, fetchAdvice as fetchAdviceHelper, fetchNearbyInfo, fetchDestinationDescription } from './utils/LoadData';
 import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommentAction, deletePin as deletePinAction } from './utils/markerActions';
 import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
@@ -242,7 +242,9 @@ function App() {
     );
   };
 
-  const handleSelectDestination = async (destination) => {
+  const handleDestinationSelection = async (destination, preserveLocation = false) => {
+    if (!destination) return;
+
     if (selectedDestinationId === destination.id) {
       setSelectedDestinationId(null);
       setSelectedLocation(null);
@@ -251,34 +253,33 @@ function App() {
     }
 
     setSelectedDestinationId(destination.id);
-    setSelectedLocation({ lat: destination.lat, lng: destination.lng });
-    await fetchAdvice(destination.lat, destination.lng);
+    if (!preserveLocation) {
+      setSelectedLocation({ lat: destination.lat, lng: destination.lng });
+    }
+    setLastClickLocation({ lat: destination.lat, lng: destination.lng });
+    setAdvice(`Loading details for ${destination.name}...`);
+
+    await fetchNearbyInfo(
+      destination.lat,
+      destination.lng,
+      preserveLocation ? () => {} : setSelectedLocation,
+      setNearest,
+      setNearbyDangers
+    );
+    await fetchDestinationDescription(destination, setAdvice);
+  };
+
+  const handleSelectDestination = async (destination) => {
+    await handleDestinationSelection(destination);
   };
 
   const toggleDestinationFocus = async (destination) => {
-    if (!destination) return;
-    if (selectedDestinationId === destination.id) {
-      setSelectedDestinationId(null);
-      setSelectedLocation(null);
-      setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
-      return;
-    }
-
-    setSelectedDestinationId(destination.id);
-    setSelectedLocation({ lat: destination.lat, lng: destination.lng });
-    await fetchAdvice(destination.lat, destination.lng);
+    await handleDestinationSelection(destination);
   };
 
   const zoomToDestination = async (destination) => {
     if (!destination) return;
-    
-    // Only zoom/focus on the destination without changing the current location reference
-    setSelectedDestinationId(destination.id);
-    setLastClickLocation({ lat: destination.lat, lng: destination.lng });
-    
-    // Don't change selectedLocation - keep user's current location
-    // Just update advice based on the destination
-    await fetchAdvice(destination.lat, destination.lng);
+    await handleDestinationSelection(destination, true);
   };
 
   const clearSelectedDestination = () => {

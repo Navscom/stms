@@ -1,4 +1,4 @@
-import { getDestinations, getDangerPins, getReportSummary, getSafetyCheck, getAiAdvice } from './index';
+import { getDestinations, getDangerPins, getReportSummary, getSafetyCheck, getAiAdvice, postAiGenerate } from './index';
 import { filterActivePins } from './pinHelpers';
 
 export async function loadDestinations(setDestinations, { fallbackDestinations } = {}) {
@@ -63,11 +63,55 @@ export async function fetchAdvice(lat, lng, setSelectedLocation, setAdvice, setN
 
   try {
     const adviceData = await getAiAdvice(lat, lng);
-    const safety = await checkSafety(lat, lng, setNearbyDangers);
-    setAdvice(`${adviceData.advice} ${safety.alerts?.join(' ') || ''}`);
+    await checkSafety(lat, lng, setNearbyDangers);
+    setAdvice(adviceData.advice);
     setNearest(adviceData.nearest_destinations || []);
     setNearbyDangers(filterActivePins(adviceData.nearby_dangers || []));
   } catch (error) {
     setAdvice('Backend error. Make sure FastAPI is running on http://127.0.0.1:8000');
+  }
+}
+
+export async function fetchNearbyInfo(lat, lng, setSelectedLocation, setNearest, setNearbyDangers) {
+  setSelectedLocation({ lat, lng });
+  try {
+    const adviceData = await getAiAdvice(lat, lng);
+    setNearest(adviceData.nearest_destinations || []);
+    setNearbyDangers(filterActivePins(adviceData.nearby_dangers || []));
+    return adviceData;
+  } catch (error) {
+    console.error('Failed to load nearby info:', error);
+    setNearest([]);
+    setNearbyDangers([]);
+    return { nearest_destinations: [], nearby_dangers: [] };
+  }
+}
+
+export async function fetchDestinationDescription(destination, setAdvice) {
+  if (!destination) {
+    setAdvice('Unable to load destination details.');
+    return;
+  }
+
+  const descriptionPrompt = [
+    `Write a short, friendly travel description for the attraction named "${destination.name}" located in ${destination.city || 'an unknown city'}, ${destination.province || 'an unknown province'}.`,
+    destination.category ? `It is a ${destination.category} attraction.` : '',
+    destination.opening_hours ? `Opening hours are ${destination.opening_hours}.` : '',
+    `Keep the tone warm and helpful, mention what visitors can expect, and do not mention that you are an AI.`
+  ].filter(Boolean).join(' ');
+
+  setAdvice(`Looking up ${destination.name} details...`);
+
+  try {
+    const result = await postAiGenerate({ prompt: descriptionPrompt });
+    const text = result?.text?.trim();
+    if (text) {
+      setAdvice(text);
+      return;
+    }
+    setAdvice(destination.description || `Description for ${destination.name} is not available.`);
+  } catch (error) {
+    console.error('Failed to generate destination description:', error);
+    setAdvice(destination.description || `Description for ${destination.name} is not available.`);
   }
 }

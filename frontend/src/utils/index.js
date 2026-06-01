@@ -51,6 +51,14 @@ export function getAiAdvice(lat, lng) {
   return fetchJson(`/ai-advice?lat=${lat}&lng=${lng}`);
 }
 
+export function postAiGenerate(payload) {
+  return fetchJson('/ai/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function postDangerPin(payload) {
   return fetchJson('/danger-pins', {
     method: 'POST',

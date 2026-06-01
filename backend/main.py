@@ -1,7 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
 from datetime import datetime, timedelta, timezone
@@ -54,6 +54,16 @@ SUPABASE_KEY = _require_env("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Smart Tourism Management System API")
+
+# Optional Gemini client (uses GEMINI_API_KEY or GOOGLE_API_KEY env var)
+try:
+    from gemini_client import GeminiClient
+    try:
+        gemini_client = GeminiClient()
+    except Exception:
+        gemini_client = None
+except Exception:
+    gemini_client = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -216,7 +226,8 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
         d["distance_km"] = round(distance, 2)
         ranked.append(d)
     ranked.sort(key=lambda item: item.get("distance_km", 0))
-    nearby_tourist_spots = [d for d in ranked if isinstance(d, dict) and d.get("distance_km", 0) <= 10]
+    max_recommend_distance_km = 2.0
+    nearby_tourist_spots = [d for d in ranked if isinstance(d, dict) and d.get("distance_km", 0) <= max_recommend_distance_km]
     nearest = nearby_tourist_spots[:1]
 
     danger_nearby = []
@@ -231,29 +242,76 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general"):
             danger_nearby.append(p)
     danger_nearby.sort(key=lambda x: x.get("distance_km", 0))
 
-    if nearest:
-        top = nearest[0] if isinstance(nearest[0], dict) else {}
-        crowd_level = top.get("crowd_level")
-        crowd_note = {
-            "Low": "Crowd level is low, good time to visit.",
-            "Moderate": "Crowd level is moderate, expect some waiting.",
-            "High": "Crowd level is high, consider alternatives."
-        }.get(crowd_level, "Crowd status unavailable.") if isinstance(crowd_level, str) else "Crowd status unavailable."
-        advice = f"Nearest tourist spot: {top.get('name', 'Unknown')} in {top.get('city', 'Unknown')} ({top.get('distance_km', 0)} km away). {crowd_note}"
-    else:
-        advice = "No tourist spots are nearby."
+    # Delegate AI generation and fallback to GeminiClient
+    ai_used = False
+    ai_raw = None
+    advice = None
+    if gemini_client is not None:
+        try:
+            ai_result = gemini_client.generate_advice(nearest, danger_nearby, lat, lng)
+            advice = ai_result.get("advice")
+            ai_used = bool(ai_result.get("ai_used"))
+            ai_raw = ai_result.get("ai_raw")
+        except Exception:
+            advice = None
 
-    if danger_nearby:
-        first = danger_nearby[0] if isinstance(danger_nearby[0], dict) else {}
-        advice += f" Safety alert: {first.get('title', 'Danger area')} ({first.get('danger_type', 'danger')}) is {first.get('distance_km', 0)} km away. {first.get('description', '')}"
+    # final fallback if AI unavailable or failed
+    if not advice:
+        if nearest:
+            top = nearest[0] if isinstance(nearest[0], dict) else {}
+            distance_km = top.get('distance_km', 0)
+            cl = top.get("crowd_level")
+            # Only include crowd warning if within 0.5km
+            if distance_km <= 0.5:
+                crowd_note = {
+                    "Low": "It is a quiet time, so this spot should be a good choice.",
+                    "Moderate": "It is a bit busy right now, so expect some waiting.",
+                    "High": "It is crowded at the moment, so you may want to consider a different spot or wait."
+                }.get(cl, "Crowd status is unavailable.") if isinstance(cl, str) else "Crowd status is unavailable."
+                advice = f"The nearest tourist spot is {top.get('name', 'an unknown place')} in {top.get('city', 'an unknown city')}, about {distance_km} km away. {crowd_note}"
+            else:
+                advice = f"The nearest tourist spot is {top.get('name', 'an unknown place')} in {top.get('city', 'an unknown city')}, about {distance_km} km away."
+        else:
+            advice = "There are no tourist spots within 2 km nearby right now."
+        if danger_nearby:
+            first = danger_nearby[0] if isinstance(danger_nearby[0], dict) else {}
+            advice += f" Also, there is a safety concern: {first.get('title', 'a danger area')} ({first.get('danger_type', 'danger')}) about {first.get('distance_km', 0)} km away. {first.get('description', '')}"
 
     return {
         "latitude": lat,
         "longitude": lng,
         "advice": advice,
+        "ai_used": ai_used,
+        "ai_raw": ai_raw,
         "nearest_destinations": nearby_tourist_spots,
         "nearby_dangers": danger_nearby[:8]
     }
+
+
+@app.post("/ai/generate")
+def generate_ai(payload: Dict[str, Any] = Body(...)):
+    """Generate text using Gemini/Generative Language API.
+
+    Expects JSON body: { "prompt": "...", "model": "models/text-bison-001" }
+    """
+    prompt = payload.get("prompt")
+    model = payload.get("model", "models/text-bison-001")
+    if not prompt or not isinstance(prompt, str):
+        raise HTTPException(status_code=400, detail="'prompt' (string) is required in request body.")
+    if gemini_client is None:
+        raise HTTPException(status_code=500, detail="Gemini client not configured. Set GEMINI_API_KEY environment variable.")
+    try:
+        res = gemini_client.generate_text(prompt=prompt, model=model)
+        text = None
+        if isinstance(res, dict):
+            if "candidates" in res and isinstance(res["candidates"], list) and res["candidates"]:
+                first = res["candidates"][0]
+                text = first.get("output") or first.get("content") or first.get("text")
+            elif "output" in res:
+                text = res.get("output")
+        return {"ok": True, "text": text, "raw": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/reports/summary")
 def reports_summary():
