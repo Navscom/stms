@@ -85,6 +85,9 @@ const DEFAULT_MAP_CENTER = [14.5994, 120.9842];
 const DEFAULT_MAP_ZOOM = 12;
 const MAP_STATE_KEY = 'stms_map_state';
 
+const normalizeLatLng = (lat, lng) => [Number(lat) || 0, Number(lng) || 0];
+const normalizeRadius = (radius) => Math.max(Number(radius) || 0, 0);
+
 const loadStoredMapState = () => {
   try {
     const stored = window.localStorage.getItem(MAP_STATE_KEY);
@@ -285,13 +288,15 @@ function MapResizeHandler() {
 
 function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin, onLogin }) {
   const map = useMap();
+  const center = normalizeLatLng(pin.lat, pin.lng);
+  const radiusMeters = normalizeRadius(pin.radius_meters);
 
   return (
     <Fragment>
       {highlighted && (
         <Circle
-          center={[pin.lat, pin.lng]}
-          radius={Math.max(pin.radius_meters + 40, 140)}
+          center={center}
+          radius={Math.max(radiusMeters + 40, 140)}
           pathOptions={{
             color: '#7c3aed',
             weight: 3,
@@ -301,8 +306,8 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
         />
       )}
       <Circle
-        center={[pin.lat, pin.lng]}
-        radius={Number(pin.radius_meters) || 0}
+        center={center}
+        radius={radiusMeters}
         pathOptions={{
           color: style.color,
           fillColor: style.color,
@@ -372,16 +377,16 @@ function DeletePinBox({ pin, user, onDeletePin }) {
 }
 
 export default function MapView({
-  onLocationClick,
-  destinations,
-  dangerPins,
-  nearbyDangers,
+  onLocationClick = () => {},
+  destinations = [],
+  dangerPins = [],
+  nearbyDangers = [],
   selectedLocation,
   pendingMarkerLocation,
-  selectedMarkerType,
+  selectedMarkerType = 'Danger Area',
   selectedDestinationId,
   reportHighlight,
-  onDestinationClick,
+  onDestinationClick = () => {},
   user,
   onLogin,
   onLogout,
@@ -415,8 +420,6 @@ export default function MapView({
   const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
 
   const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
-
-  const renderDuration = (pin) => formatDuration(pin);
 
   const destinationRiskColors = {
     Low: '#16a34a',
@@ -468,6 +471,7 @@ export default function MapView({
 
       <MapContainer
         id="map"
+        className="map-container"
         center={initialMapState.center}
         zoom={initialMapState.zoom}
         maxBounds={phBounds}
@@ -479,7 +483,7 @@ export default function MapView({
       >
         <TileLayer
           url={tileLayerUrl}
-          attribution="&copy; OpenStreetMap contributors"
+          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
           updateWhenIdle={false}
           updateWhenZooming={true}
           keepBuffer={2}
@@ -507,12 +511,13 @@ export default function MapView({
             : isHighlightedDestination
               ? { color: '#2563eb', fillColor: '#bfdbfe', fillOpacity: 0.18, weight: 2 }
               : null;
+          const destinationCenter = normalizeLatLng(d.lat, d.lng);
 
           return (
             <Fragment key={`dest-${d.id}`}>
               {(isSelected || isHighlightedDestination) && (
                 <Circle
-                  center={[d.lat, d.lng]}
+                  center={destinationCenter}
                   radius={isSelected ? 500 : 320}
                   pathOptions={circlePathOptions}
                 />

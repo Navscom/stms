@@ -1,53 +1,90 @@
 import os
 import random
-import requests
+import logging
 from typing import Optional, Dict, Any, List
+
+try:
+    import google.genai as genai
+except ImportError:
+    print("Warning: google-genai not installed. Install with: pip install google-genai")
+    genai = None
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class GeminiClient:
-    """Lightweight Gemini/Generative Language REST client using API key.
+    """Lightweight Gemini client using the google-genai SDK."""
 
-    This avoids depending on a specific Google client package and works with
-    an API key stored in the `GEMINI_API_KEY` environment variable.
-    """
-
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
-            raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY environment variable is required to use GeminiClient.")
-        # Default to the Generative Language API base
-        self.base_url = base_url or "https://generativelanguage.googleapis.com/v1beta2"
+            raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY environment variable is required.")
+        
+        if not genai:
+            raise RuntimeError("google-genai package is required. Install with: pip install google-genai")
+        
+        # The google-genai SDK doesn't need configuration - just pass the API key when creating the client
+        self.client = genai.Client(api_key=self.api_key)
 
-    def generate_text(self, prompt: str, model: str = "models/text-bison-001", temperature: float = 0.2, max_output_tokens: int = 512) -> Dict[str, Any]:
-        """Generate text from Gemini/Generative Language API.
+    def generate_text(self, prompt: str, model: str = "gemini-2.5-flash-lite", temperature: float = 0.2, max_output_tokens: int = 1024) -> Dict[str, Any]:
+        """Generate text using Gemini API via google-genai SDK.
 
         Args:
             prompt: The input prompt text.
-            model: Model resource name (e.g. "models/text-bison-001").
+            model: Model name (e.g. "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-lite").
         Returns:
-            Parsed JSON response from the API.
+            Dict with response data in consistent format.
         """
-        url = f"{self.base_url}/{model}:generate"
-        params = {"key": self.api_key}
-        body = {
-            "prompt": {"text": prompt},
-            "temperature": temperature,
-            "maxOutputTokens": max_output_tokens,
-        }
-        resp = requests.post(url, params=params, json=body, timeout=30)
         try:
-            resp.raise_for_status()
-        except Exception:
-            # Surface API error details
-            raise RuntimeError(f"Gemini API request failed: {resp.status_code} - {resp.text}")
-        data = resp.json()
-        return data
+            debug = os.getenv("DEBUG_GEMINI")
+            if debug:
+                print(f"[Gemini] Starting generation with model: {model}")
+            
+            # Use the stored client to generate content
+            response = self.client.models.generate_content(
+                model=f"models/{model}" if not model.startswith("models/") else model,
+                contents=prompt,
+                config={
+                    "temperature": temperature,
+                    "max_output_tokens": max_output_tokens,
+                }
+            )
+            
+            if debug:
+                print(f"[Gemini] Response received")
+                response_text = getattr(response, "text", None)
+                if response_text is not None:
+                    print(f"[Gemini] Response text: {str(response_text)[:100]}")
+                else:
+                    print(f"[Gemini] Response object: {response}")
+            
+            response_text = getattr(response, "text", None)
+            if response_text is None and isinstance(response, dict):
+                # Try to extract text from dictionary-shaped response
+                response_text = response.get("text") or response.get("output")
 
-    def generate_advice(self, nearest: Optional[List[Dict[str, Any]]], danger_nearby: List[Dict[str, Any]], lat: float, lng: float, model: str = "models/text-bison-001") -> Dict[str, Any]:
+            return {
+                "candidates": [{
+                    "content": {
+                        "parts": [{
+                            "text": str(response_text) if response_text is not None else ""
+                        }]
+                    }
+                }]
+            }
+        except Exception as e:
+            print(f"[Gemini] ERROR: {type(e).__name__}: {str(e)}")
+            raise RuntimeError(f"Gemini API request failed: {str(e)}")
+
+    def generate_advice(self, nearest: Optional[List[Dict[str, Any]]], danger_nearby: List[Dict[str, Any]], lat: float, lng: float, model: Optional[str] = None) -> Dict[str, Any]:
         """Compose context from nearby destinations and danger pins, call the model, and return advice.
 
         Returns a dict: { 'advice': str, 'ai_used': bool, 'ai_raw': Optional[dict] }
         """
+        # Use environment model or fall back to parameter/default
+        if model is None:
+            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
         # Build context lines
         context_lines: List[str] = []
         if nearest:
@@ -146,23 +183,43 @@ class GeminiClient:
                 + f"\n\nUser location: lat={lat}, lng={lng}.\nRespond in natural language only."
             )
             ai_raw = self.generate_text(prompt=prompt, model=model)
+            generated_text = None
+            
             if isinstance(ai_raw, dict):
+                # Modern API format: candidates[0].content.parts[0].text
                 if "candidates" in ai_raw and isinstance(ai_raw["candidates"], list) and ai_raw["candidates"]:
-                    first = ai_raw["candidates"][0]
-                    generated_text = first.get("output") or first.get("content") or first.get("text")
-                elif "output" in ai_raw:
-                    generated_text = ai_raw.get("output")
-                else:
-                    generated_text = None
-            else:
-                generated_text = None
+                    first_candidate = ai_raw["candidates"][0]
+                    
+                    # Try modern format: content.parts[0].text
+                    if "content" in first_candidate and isinstance(first_candidate["content"], dict):
+                        parts = first_candidate["content"].get("parts", [])
+                        if parts and isinstance(parts[0], dict):
+                            generated_text = parts[0].get("text")
+                    
+                    # Fallback to old format: output/content/text
+                    if not generated_text:
+                        generated_text = first_candidate.get("output") or first_candidate.get("content") or first_candidate.get("text")
+                
+                # Try direct root-level keys for backward compatibility
+                if not generated_text:
+                    generated_text = ai_raw.get("output") or ai_raw.get("text")
+            
             if generated_text:
                 generated_text = generated_text.strip()
                 if not generated_text.endswith(".") and not generated_text.endswith("!") and not generated_text.endswith("?"):
                     generated_text += "."
                 ai_used = True
+                if os.getenv("DEBUG_GEMINI"):
+                    logger.info(f"[Gemini Advice] Generated: {generated_text[:100]}")
                 return {"advice": generated_text, "ai_used": True, "ai_raw": ai_raw}
-        except Exception:
+            else:
+                if os.getenv("DEBUG_GEMINI"):
+                    logger.warning(f"[Gemini Advice] No generated text extracted, falling back")
+        except Exception as e:
+            if os.getenv("DEBUG_GEMINI"):
+                logger.error(f"[Gemini Advice] Exception: {type(e).__name__}: {str(e)}")
             pass
 
+        if os.getenv("DEBUG_GEMINI"):
+            logger.warning(f"[Gemini Advice] Using fallback")
         return {"advice": fallback, "ai_used": False, "ai_raw": ai_raw}

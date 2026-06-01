@@ -1,6 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
+import logging
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
@@ -42,6 +43,10 @@ from helpers import (
 #Load .env
 load_dotenv()
 
+# Configure basic logging
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger(__name__)
+
 def _require_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -60,9 +65,12 @@ try:
     from gemini_client import GeminiClient
     try:
         gemini_client = GeminiClient()
-    except Exception:
+        logger.info("[Backend] GeminiClient initialized successfully")
+    except Exception as e:
+        logger.exception("[Backend] Failed to init GeminiClient")
         gemini_client = None
-except Exception:
+except Exception as e:
+    logger.exception("[Backend] Failed to import GeminiClient")
     gemini_client = None
 
 app.add_middleware(

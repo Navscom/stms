@@ -6,3 +6,4 @@ email-validator
 python-dotenv
 supabase
 requests
+google-genai

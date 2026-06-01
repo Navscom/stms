@@ -63,7 +63,6 @@ export async function fetchAdvice(lat, lng, setSelectedLocation, setAdvice, setN
 
   try {
     const adviceData = await getAiAdvice(lat, lng);
-    await checkSafety(lat, lng, setNearbyDangers);
     setAdvice(adviceData.advice);
     setNearest(adviceData.nearest_destinations || []);
     setNearbyDangers(filterActivePins(adviceData.nearby_dangers || []));
