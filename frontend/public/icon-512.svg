@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="STMS logo">
+  <defs>
+    <linearGradient id="g3" x1="0" x2="1">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <filter id="s3" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#g3)" />
+  <g transform="translate(256,210)" filter="url(#s3)">
+    <path d="M0,-110 C38,-110 76,-80 76,-34 C76,38 0,110 0,110 C0,110 -76,38 -76,-34 C-76,-80 -38,-110 0,-110 Z" fill="#fff"/>
+    <circle cx="0" cy="-34" r="28" fill="#0f172a" />
+  </g>
+  <text x="256" y="420" font-family="Segoe UI, Roboto, Arial, sans-serif" font-size="96" fill="white" font-weight="700" text-anchor="middle">STMS</text>
+</svg>
