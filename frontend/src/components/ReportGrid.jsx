@@ -28,9 +28,9 @@ export default function ReportGrid({ report = {}, reportHighlight = null, onRepo
     },
     {
       id: 'moderated-comments',
-      label: 'Moderated Comments',
-      value: report.moderated_comments || 0,
-      subtitle: 'Comments flagged by moderation',
+      label: 'Comments Removed',
+      value: report.removed_comments || 0,
+      subtitle: 'Comments removed by moderation',
     },
   ];
 

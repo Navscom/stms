@@ -27,15 +27,17 @@ class GeminiClient:
         # The google-genai SDK doesn't need configuration - just pass the API key when creating the client
         self.client = genai.Client(api_key=self.api_key)
 
-    def generate_text(self, prompt: str, model: str = "gemini-2.5-flash-lite", temperature: float = 0.2, max_output_tokens: int = 1024) -> Dict[str, Any]:
+    def generate_text(self, prompt: str, model: Optional[str] = None, temperature: float = 0.2, max_output_tokens: int = 1024) -> Dict[str, Any]:
         """Generate text using Gemini API via google-genai SDK.
 
         Args:
             prompt: The input prompt text.
-            model: Model name (e.g. "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-lite").
+            model: Model name (e.g. "gemini-3.1-flash"). If None, uses GEMINI_MODEL from .env.
         Returns:
             Dict with response data in consistent format.
         """
+        if model is None:
+            model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash")
         try:
             debug = os.getenv("DEBUG_GEMINI")
             if debug:
@@ -104,7 +106,7 @@ class GeminiClient:
         model: Optional[str] = None,
     ) -> str:
         if model is None:
-            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+            model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash")
         prompt = (
             "You are writing a short, friendly safety marker description for a crowded area. "
             f"Location: {location_name}, {city}, {province}. "
@@ -135,7 +137,7 @@ class GeminiClient:
             wildlife_alerts = []
         # Use environment model or fall back to parameter/default
         if model is None:
-            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+            model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash")
         # Build context lines
         context_lines: List[str] = []
         if nearest:
@@ -293,7 +295,7 @@ class GeminiClient:
         if not text or target_language.lower() in ["en", "english"]:
             return text
         if model is None:
-            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+            model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash")
         prompt = (
             f"Translate this safety alert to {target_language} language. Keep it concise and natural. "
             f"Do NOT add any other text, only the translation:\n\n{text}"
@@ -337,7 +339,7 @@ class GeminiClient:
             return {"is_spam": True, "reason": "excessive_repetition", "confidence": 0.7}
 
         if model is None:
-            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+            model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash")
 
         try:
             prompt = (

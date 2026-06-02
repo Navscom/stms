@@ -88,6 +88,24 @@ const MAP_STATE_KEY = 'stms_map_state';
 const normalizeLatLng = (lat, lng) => [Number(lat) || 0, Number(lng) || 0];
 const normalizeRadius = (radius) => Math.max(Number(radius) || 0, 0);
 
+// How many pixels above the marker the map center should be (positive moves center up,
+// which places the marker lower on the screen). Adjust this value to taste.
+const DEFAULT_FOCUS_OFFSET_PX = 120;
+
+const centerMapWithOffset = (map, latlng, zoom, offsetY = DEFAULT_FOCUS_OFFSET_PX) => {
+  if (!map || !latlng) return;
+  const targetZoom = typeof zoom === 'number' ? zoom : map.getZoom();
+  try {
+    const point = map.project(L.latLng(latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]), targetZoom);
+    const targetPoint = L.point(point.x, point.y - offsetY);
+    const targetLatLng = map.unproject(targetPoint, targetZoom);
+    map.flyTo(targetLatLng, targetZoom, { animate: true, duration: 0.6 });
+  } catch (e) {
+    // Fallback to simple setView if projection fails
+    try { map.flyTo([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], targetZoom, { animate: true, duration: 0.6 }); } catch { /* ignore */ }
+  }
+};
+
 const loadStoredMapState = () => {
   try {
     const stored = window.localStorage.getItem(MAP_STATE_KEY);
@@ -233,7 +251,9 @@ function MapFocusHandler({ location, zoom }) {
 
   useEffect(() => {
     if (!map || !location) return;
-    map.setView([location.lat, location.lng], zoom || map.getZoom(), { animate: true });
+    // Center the map with a vertical offset so the focused marker appears slightly
+    // below the visual center of the map.
+    centerMapWithOffset(map, location, zoom);
   }, [map, location, zoom]);
 
   return null;
@@ -307,10 +327,7 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
         icon={icon}
         eventHandlers={{
           click: (event) => {
-            map.flyTo(event.latlng || [pin.lat, pin.lng], 18, {
-              animate: true,
-              duration: 0.6,
-            });
+            centerMapWithOffset(map, event.latlng || { lat: pin.lat, lng: pin.lng }, 18);
           },
         }}
       >
@@ -433,7 +450,7 @@ export default function MapView({
   };
 
   const tileEventHandlers = {
-    tileloadstart: () => setMapReady(false),
+    loading: () => setMapReady(false),
     load: () => setMapReady(true),
     tileerror: () => setMapReady(true),
   };
@@ -472,8 +489,8 @@ export default function MapView({
         <TileLayer
           url={tileLayerUrl}
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-          updateWhenIdle={false}
-          updateWhenZooming={true}
+          updateWhenIdle={true}
+          updateWhenZooming={false}
           keepBuffer={2}
           eventHandlers={tileEventHandlers}
         />
@@ -513,7 +530,16 @@ export default function MapView({
               <Marker
                 position={[d.lat, d.lng]}
                 icon={DESTINATION_ICON}
-                eventHandlers={onDestinationClick ? { click: () => onDestinationClick(d) } : undefined}
+                eventHandlers={{
+                  click: (e) => {
+                    try {
+                      const map = e?.target?._map;
+                      const latlng = e?.latlng || { lat: d.lat, lng: d.lng };
+                      if (map) centerMapWithOffset(map, latlng);
+                    } catch { /* ignore */ }
+                    if (onDestinationClick) onDestinationClick(d);
+                  }
+                }}
               >
                 <Popup>
                   <strong>{d.name}</strong><br />

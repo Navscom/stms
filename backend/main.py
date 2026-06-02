@@ -149,6 +149,32 @@ def _moderate_comment_on_insert(comment_text: str) -> Dict[str, Any]:
         return {"flagged": False, "reason": "moderation_error"}
 
 
+async def _moderate_comment_after_delay(comment_id: int, comment_text: str, delay_seconds: int = 300):
+    await asyncio.sleep(delay_seconds)
+    moderation_result = _moderate_comment_on_insert(comment_text)
+    is_spam = moderation_result.get("is_spam", False)
+    reason = moderation_result.get("reason", "approved")
+
+    if is_spam:
+        try:
+            await asyncio.to_thread(lambda: supabase.table("marker_comments").update({
+                "moderation_flagged": True,
+                "moderation_reason": "deleted_by_moderation",
+            }).eq("id", comment_id).execute())
+            logger.info(f"[Backend] Marked spam comment id={comment_id} as deleted_by_moderation")
+        except Exception:
+            logger.exception(f"[Backend] Failed to mark spam comment id={comment_id}")
+        return
+
+    try:
+        await asyncio.to_thread(lambda: supabase.table("marker_comments").update({
+            "moderation_flagged": False,
+            "moderation_reason": reason,
+        }).eq("id", comment_id).execute())
+    except Exception:
+        logger.exception(f"[Backend] Failed to update moderated comment id={comment_id}")
+
+
 def _translate_alert(text: str, language: str = "en") -> str:
     """Translate a safety alert to the user's preferred language."""
     if gemini_client is None or not text:
@@ -426,6 +452,7 @@ except Exception as e:
     logger.exception("[Backend] Failed to import GeminiClient")
     gemini_client = None
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -684,10 +711,11 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general", langua
 def generate_ai(payload: Dict[str, Any] = Body(...)):
     """Generate text using Gemini/Generative Language API.
 
-    Expects JSON body: { "prompt": "...", "model": "models/text-bison-001" }
+    Expects JSON body: { "prompt": "..." }. The model is taken from GEMINI_MODEL in .env
+    unless an explicit model override is provided.
     """
     prompt = payload.get("prompt")
-    model = payload.get("model", "models/text-bison-001")
+    model = payload.get("model")
     if not prompt or not isinstance(prompt, str):
         raise HTTPException(status_code=400, detail="'prompt' (string) is required in request body.")
     if gemini_client is None:
@@ -799,11 +827,19 @@ def reports_summary():
             if isinstance(severity, str):
                 danger_summary[severity] = danger_summary.get(severity, 0) + 1
 
+        removed_comments = 0
+        try:
+            removed_response = supabase.table("marker_comments").select("id").eq("moderation_reason", "deleted_by_moderation").execute()
+            removed_comments = len(safe_data(removed_response))
+        except Exception:
+            removed_comments = 0
+
         return {
             "total_destinations": total_destinations,
             "total_users": total_users,
             "crowd_summary": crowd_summary,
             "danger_summary": danger_summary,
+            "removed_comments": removed_comments,
             "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes."
         }
     except Exception as e:
@@ -829,7 +865,11 @@ def get_danger_pins():
                 pass
         if pin_id is not None:
             comments_response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
-            comments = safe_data(comments_response)
+            comments = safe_data(comments_response) or []
+            comments = [
+                c for c in comments
+                if isinstance(c, dict) and c.get("moderation_reason") != "deleted_by_moderation"
+            ]
             for c in comments:
                 if c and c.get("user_id") is not None:
                     cuid_val = c.get("user_id")
@@ -911,29 +951,37 @@ def add_danger_pin(data: DangerPinRequest):
     return {"message": "Danger pin added", "id": data_list[0]["id"]}
 
 @app.post("/danger-pins/{pin_id}/comments")
-def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
+async def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
     if data.user_id is None:
         raise HTTPException(status_code=400, detail="user_id is required for marker comments.")
 
-    moderation_result = _moderate_comment_on_insert(data.comment.strip())
-    flagged = moderation_result.get("is_spam", False)
-
-    response = supabase.table("marker_comments").insert({
+    insert_data = {
         "pin_id": pin_id,
         "comment": data.comment.strip(),
         "user_id": data.user_id,
         "created_at": now_iso(),
-        "moderation_flagged": flagged,
-        "moderation_reason": moderation_result.get("reason", "none")
-    }).execute()
+        "moderation_flagged": False,
+        "moderation_reason": "pending"
+    }
+
+    response = await asyncio.to_thread(lambda: supabase.table("marker_comments").insert(insert_data).execute())
     data_list: List[Dict[str, Any]] = safe_data(response)
     if not data_list:
         raise HTTPException(status_code=500, detail="Failed to add comment")
+
+    comment_id_raw = data_list[0].get("id")
+    if comment_id_raw is None:
+        raise HTTPException(status_code=500, detail="Failed to determine new comment id")
+
+    comment_id = int(comment_id_raw)
+    comment_text = data.comment.strip()
+    asyncio.create_task(_moderate_comment_after_delay(comment_id, comment_text, delay_seconds=300))
+
     return {
-        "message": "Comment added",
-        "id": data_list[0]["id"],
-        "moderation_flagged": flagged,
-        "moderation_reason": moderation_result.get("reason", "none")
+        "message": "Comment added and pending moderation",
+        "id": comment_id,
+        "moderation_flagged": False,
+        "moderation_reason": "pending"
     }
 
 @app.put("/danger-pins/{pin_id}/comments/{comment_id}")
