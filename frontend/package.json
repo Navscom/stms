@@ -5,12 +5,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "leaflet": "latest",
-    "react-leaflet": "latest"
+    "@vitejs/plugin-react": "^6.0.1",
+    "leaflet": "^1.9.4",
+    "react-dom": "^19.2.5",
+    "react-leaflet": "^5.0.0",
+    "react": "^19.2.5",
+    "vite": "^8.0.10"
   },
-  "devDependencies": {}
-}
+ "devDependencies": {}
+}  
