@@ -27,6 +27,7 @@ const MapControlLeft = ({
   isBoxExpanded = false,
   setIsBoxExpanded = () => {},
   isPinMode = false,
+  locationMode = false,
   markerForm,
   setMarkerForm,
   selectedMarkerType,
@@ -174,7 +175,7 @@ const MapControlLeft = ({
           {!isBoxExpanded ? (
             <>
               <div className="collapsed-menu">
-                <TooltipPortal content="My Location">
+                <TooltipPortal content={`My Location${locationMode ? ' : On' : ''}`}>
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -241,7 +242,7 @@ const MapControlLeft = ({
               <div className="control-card-wrapper">
                 <button type="button" className="tool-btn" onClick={onMyLocation}>
                   <span className="btn-icon">📍</span>
-                  <span className="btn-text">My Location</span>
+                  <span className="btn-text">{`My Location${locationMode ? ' : On' : ''}`}</span>
                 </button>
               </div>
 
@@ -502,7 +503,9 @@ const MapControlLeft = ({
                     </div>
                     <DestinationList
                       destinations={filteredDestinations}
+                      selectedDestinationId={selectedDestinationId}
                       selectedLocation={selectedLocation}
+                      onClearSelection={onClearSelection}
                       onCenterSpot={onCenterTouristSpot}
                       onZoomToSpot={onZoomToSpot}
                       onFocusDestination={handleDestinationFocus}

@@ -42,6 +42,11 @@
   margin-bottom: 20px;
 }
 
+/* smooth show/hide transitions (default) */
+.advice-section {
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
 /* Portrait and landscape: Float AI Guidance over map */
 @media (max-width: 900px) {
   .advice-section {
@@ -65,6 +70,13 @@
     width: 100%;
     z-index: 500;
     pointer-events: auto;
+  }
+
+  /* Hide when idle: reduce opacity and disable interactions */
+  .advice-section.hidden {
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
   }
 }
 

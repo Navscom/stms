@@ -14,6 +14,19 @@ import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
 function App() {
   const [advice, setAdvice] = useState('');
+
+  // Wrapper for setAdvice that also notifies the AI guidance to show
+  const setAdviceWithNotify = (val) => {
+    try {
+      setAdvice(val);
+      // dispatch notification so AIGuidance can reset its idle timer
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ai:notify'));
+      }
+    } catch (e) {
+      setAdvice(val);
+    }
+  };
   const [nearest, setNearest] = useState([]);
   const [destinations, setDestinations] = useState([]);
   const [dangerPins, setDangerPins] = useState([]);
@@ -55,7 +68,13 @@ function App() {
   });
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const [pinMode, setPinMode] = useState(false);
-  const [locationMode, setLocationMode] = useState(false);
+  const [locationMode, setLocationMode] = useState(() => {
+    try {
+      return window.localStorage.getItem('stms_location_mode') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [reportHighlight, setReportHighlight] = useState(null);
@@ -107,7 +126,7 @@ function App() {
   }, [destinations, dangerPins, selectedDestinationId, user]);
 
   const fetchAdvice = async (lat, lng) => {
-    await fetchAdviceHelper(lat, lng, setSelectedLocation, setAdvice, setNearest, setNearbyDangers);
+    await fetchAdviceHelper(lat, lng, setSelectedLocation, setAdviceWithNotify, setNearest, setNearbyDangers);
   };
 
   const startMarkerPlacement = (lat, lng) => {
@@ -140,7 +159,7 @@ function App() {
       setPendingMarkerLocation,
       setMarkerForm,
       setShowNotification,
-      setAdvice,
+      setAdvice: setAdviceWithNotify,
       loadDangerPins: () => loadDangerPins(setDangerPins),
       loadReport: () => loadReport(setReport),
     });
@@ -153,7 +172,7 @@ function App() {
         user_id: user?.id ?? null,
       });
       await loadDangerPins(setDangerPins);
-      setAdvice('Comment added to marker.');
+      setAdviceWithNotify('Comment added to marker.');
     } catch (err) {
       alert(err.message);
     }
@@ -166,7 +185,7 @@ function App() {
         requesting_role: user?.role,
       });
       await loadDangerPins(setDangerPins);
-      setAdvice('Comment updated successfully.');
+      setAdviceWithNotify('Comment updated successfully.');
     } catch (err) {
       alert(err.message);
     }
@@ -179,7 +198,7 @@ function App() {
         requesting_role: user?.role,
       });
       await loadDangerPins(setDangerPins);
-      setAdvice('Comment deleted.');
+      setAdviceWithNotify('Comment deleted.');
     } catch (err) {
       alert(err.message);
     }
@@ -201,7 +220,7 @@ function App() {
         requesting_role: user?.role,
       });
       await loadDangerPins(setDangerPins);
-      setAdvice('Marker deleted successfully.');
+      setAdviceWithNotify('Marker deleted successfully.');
     } catch (err) {
       alert(err.message);
     }
@@ -210,13 +229,16 @@ function App() {
   const handleMapClick = (lat, lng) => {
     if (pinMode) return startMarkerPlacement(lat, lng);
     if (locationMode) {
-      setAdvice('My Location ON. Turn it off to select another spot.');
+      setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
       return;
     }
     const clickedLocation = { lat, lng };
     setLastClickLocation(clickedLocation);
     setUserLocation(clickedLocation);
     setSelectedLocation(clickedLocation);
+    // Zoom in slightly when the user explicitly selects a location on the map
+    // so behavior matches the My Location flow and gives a closer view.
+    setFocusZoom(15);
     setSelectedDestinationId(null);
     return fetchAdvice(lat, lng);
   };
@@ -248,27 +270,63 @@ function App() {
   const toggleLocationMode = () => {
     if (locationMode) {
       setLocationMode(false);
-      setAdvice('Location mode is off. Click the map to select another spot.');
+      try { window.localStorage.setItem('stms_location_mode', 'false'); } catch {}
+      setAdviceWithNotify('Location mode is off. Click the map to select another spot.');
       return;
     }
 
     if (!navigator.geolocation) {
-      setAdvice('Geolocation is not supported by your browser.');
+      setAdviceWithNotify('Geolocation is not supported by your browser.');
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         setLocationMode(true);
+        try { window.localStorage.setItem('stms_location_mode', 'true'); } catch {}
         setSelectedDestinationId(null);
         const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(currentLocation);
         setSelectedLocation(currentLocation);
+        // Zoom in when using My Location to provide a closer view of the surroundings
+        setFocusZoom(15);
         await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
       },
-      () => setAdvice('Location permission denied. You can still click on the map.')
+      () => {
+        setAdviceWithNotify('Location permission denied. You can still click on the map.');
+        try { window.localStorage.setItem('stms_location_mode', 'false'); } catch {}
+      }
     );
   };
+
+  // If location mode was persisted as enabled, attempt to re-acquire position on load
+  useEffect(() => {
+    if (!locationMode) return;
+    if (!navigator.geolocation) {
+      setAdviceWithNotify('Geolocation is not supported by your browser.');
+      setLocationMode(false);
+      try { window.localStorage.setItem('stms_location_mode', 'false'); } catch {}
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocationMode(true);
+        try { window.localStorage.setItem('stms_location_mode', 'true'); } catch {}
+        setSelectedDestinationId(null);
+        const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(currentLocation);
+        setSelectedLocation(currentLocation);
+        setFocusZoom(15);
+        await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
+      },
+      () => {
+        setAdviceWithNotify('Location permission denied. You can still click on the map.');
+        setLocationMode(false);
+        try { window.localStorage.setItem('stms_location_mode', 'false'); } catch {}
+      }
+    );
+  }, []);
 
   const handleDestinationSelection = async (destination, preserveLocation = false) => {
     if (!destination) return;
@@ -279,7 +337,7 @@ function App() {
     if (selectedDestinationId === destination.id) {
       setSelectedDestinationId(null);
       setSelectedLocation(null);
-      setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
+      setAdviceWithNotify('Showing all tourist destinations. Click any destination to focus on it.');
       return;
     }
 
@@ -287,7 +345,7 @@ function App() {
     setFocusLoading(true);
     setSelectedDestinationId(destination.id);
     setLastClickLocation({ lat: destination.lat, lng: destination.lng });
-    setAdvice(`Loading details for ${destination.name}...`);
+    setAdviceWithNotify(`Loading details for ${destination.name}...`);
 
     await fetchNearbyInfo(
       destination.lat,
@@ -296,7 +354,7 @@ function App() {
       setNearest,
       setNearbyDangers
     );
-    await fetchDestinationDescription(destination, setAdvice);
+    await fetchDestinationDescription(destination, setAdviceWithNotify);
 
     // After loading finished, set the selected location (if not preserved) and stop loading overlay
     if (!preserveLocation) {
@@ -315,13 +373,24 @@ function App() {
 
   const zoomToDestination = async (destination) => {
     if (!destination) return;
-    await handleDestinationSelection(destination, true);
+    // When zooming to a destination from the UI, we should focus the
+    // destination itself (do not preserve the previous user-selected
+    // location) to avoid the map snapping back to the user's marker.
+    await handleDestinationSelection(destination, false);
   };
 
   const clearSelectedDestination = () => {
+    console.debug('clearSelectedDestination called', { userLocation, selectedDestinationId });
     setSelectedDestinationId(null);
-    setSelectedLocation(null);
-    setAdvice('Showing all tourist destinations. Click any destination to focus on it.');
+    // Restore selection to the user's current location (if available) and zoom in.
+    if (userLocation) {
+      setSelectedLocation(userLocation);
+      setFocusZoom(15);
+    } else {
+      setSelectedLocation(null);
+      setFocusZoom(undefined);
+    }
+    setAdviceWithNotify('Showing all tourist destinations. Click any destination to focus on it.');
   };
 
   const handleReportHover = (type) => setHoverReportHighlight(type);
@@ -430,7 +499,7 @@ function App() {
 
   const handleDeleteAccount = async () => {
     if (!user?.email) {
-      setAdvice('Unable to delete account: no logged in user.');
+      setAdviceWithNotify('Unable to delete account: no logged in user.');
       return;
     }
 
@@ -441,9 +510,9 @@ function App() {
       setIsModalOpen(false);
       setPinMode(false);
       setPendingMarkerLocation(null);
-      setAdvice('Your account has been deleted. Login or register again to continue.');
+      setAdviceWithNotify('Your account has been deleted. Login or register again to continue.');
     } catch (error) {
-      setAdvice(error.message || 'Failed to delete account.');
+      setAdviceWithNotify(error.message || 'Failed to delete account.');
     }
   };
 
@@ -492,6 +561,7 @@ function App() {
                 report={report}
                 selectedDestinationId={selectedDestinationId}
                 selectedLocation={userLocation}
+                locationMode={locationMode}
                 isBoxExpanded={isNavExpanded}
                 setIsBoxExpanded={setIsNavExpanded}
                 isPinMode={pinMode}

@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../css/MapView.css';
 import MapControlRight from './MapControlRight';
@@ -93,6 +93,9 @@ const DEFAULT_MAP_CENTER = [14.5994, 120.9842];
 const DEFAULT_MAP_ZOOM = 12;
 const MAP_STATE_KEY = 'stms_map_state';
 
+// Shared canvas renderer for vector layers to reduce SVG overhead during zoom/pan
+const SHARED_CANVAS_RENDERER = L.canvas({ padding: 0.5 });
+
 const normalizeLatLng = (lat, lng) => [Number(lat) || 0, Number(lng) || 0];
 const normalizeRadius = (radius) => Math.max(Number(radius) || 0, 0);
 
@@ -107,10 +110,16 @@ const centerMapWithOffset = (map, latlng, zoom, offsetY = DEFAULT_FOCUS_OFFSET_P
     const point = map.project(L.latLng(latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]), targetZoom);
     const targetPoint = L.point(point.x, point.y - offsetY);
     const targetLatLng = map.unproject(targetPoint, targetZoom);
-    map.flyTo(targetLatLng, targetZoom, { animate: true, duration: 0.6 });
+    // Use a slightly quicker, smooth fly animation for focus changes
+    map.flyTo(targetLatLng, targetZoom, { animate: true, duration: 0.45 });
   } catch (e) {
     // Fallback to simple setView if projection fails
-    try { map.flyTo([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], targetZoom, { animate: true, duration: 0.6 }); } catch { /* ignore */ }
+    try {
+      // Prefer animated setView/flyTo where possible for smooth zooming
+      map.flyTo([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], targetZoom, { animate: true, duration: 0.45 });
+    } catch {
+      try { map.setView([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], targetZoom, { animate: true }); } catch { /* ignore */ }
+    }
   }
 };
 
@@ -138,6 +147,7 @@ const loadStoredMapState = () => {
 function MapClickHandler({ onLocationClick }) {
   useMapEvents({
     click(e) {
+      try { window.dispatchEvent(new Event('ai:user-click')); } catch (e) { /* ignore */ }
       onLocationClick(e.latlng.lat, e.latlng.lng);
     },
   });
@@ -259,6 +269,7 @@ function MapFocusHandler({ location, zoom, loading = false }) {
 
   useEffect(() => {
     if (!map || !location) return;
+    console.debug('MapFocusHandler triggered', { location, zoom, loading });
     if (loading) return; // Wait until loading finishes before moving the map
 
     // Center the map with a vertical offset so the focused marker appears slightly
@@ -336,6 +347,135 @@ function MapResizeHandler() {
   return null;
 }
 
+// Defer heavy tile redraws until the user finishes interacting (zooming/panning).
+function TileLoadOnIdle({ tileLayerRef, idleDelay = 200 }) {
+  const map = useMap();
+  const idleTimer = useRef(null);
+
+  useEffect(() => {
+    if (!map) return undefined;
+
+    const scheduleIdle = () => {
+      if (idleTimer.current) window.clearTimeout(idleTimer.current);
+      idleTimer.current = window.setTimeout(() => {
+        try {
+          if (tileLayerRef && tileLayerRef.current && typeof tileLayerRef.current.redraw === 'function') {
+            tileLayerRef.current.redraw();
+          }
+        } catch (e) { /* ignore */ }
+        try { map.invalidateSize(); } catch (e) { /* ignore */ }
+      }, idleDelay);
+    };
+
+    const onInteractionStart = () => {
+      if (idleTimer.current) {
+        window.clearTimeout(idleTimer.current);
+        idleTimer.current = null;
+      }
+    };
+
+    map.on('zoomstart movestart', onInteractionStart);
+    map.on('zoomend moveend', scheduleIdle);
+
+    return () => {
+      map.off('zoomstart movestart', onInteractionStart);
+      map.off('zoomend moveend', scheduleIdle);
+      if (idleTimer.current) window.clearTimeout(idleTimer.current);
+    };
+  }, [map, tileLayerRef, idleDelay]);
+
+  return null;
+}
+
+// Smooth, Apple-Maps-like wheel zoom: intercept wheel and animate fractional zoom
+function SmoothWheelZoom({ sensitivity = 0.0015, easing = 0.18, tileLayerRef }) {
+  const map = useMap();
+  const rafRef = useRef(null);
+  const targetZoomRef = useRef(null);
+  const lastInteractionRef = useRef(0);
+
+  useEffect(() => {
+    if (!map) return undefined;
+
+    // Disable built-in wheel zoom to implement custom smooth zoom
+    try { map.scrollWheelZoom.disable(); } catch { /* ignore */ }
+
+    const clamp = (z) => Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z));
+
+    const step = () => {
+      rafRef.current = null;
+      const target = targetZoomRef.current;
+      if (target == null) return;
+      const curr = map.getZoom();
+      const delta = (target - curr) * easing;
+      if (Math.abs(delta) < 0.0005) {
+        map.setZoom(target, { animate: false });
+        // Fire zoomend so other handlers (TileLoadOnIdle) react
+        try { map.fire('zoomend'); } catch (e) { /* ignore */ }
+        targetZoomRef.current = null;
+        // Do not call tile redraw here — TileLoadOnIdle will handle redraw after idle.
+        return;
+      }
+      map.setZoom(curr + delta, { animate: false });
+      rafRef.current = window.requestAnimationFrame(step);
+    };
+
+    const onWheel = (ev) => {
+      // only handle vertical wheel (pinch/scroll)
+      ev.preventDefault();
+      const delta = ev.deltaY || ev.wheelDelta || 0;
+      const change = -delta * sensitivity; // invert so scroll-up zooms in
+      const currTarget = targetZoomRef.current != null ? targetZoomRef.current : map.getZoom();
+      targetZoomRef.current = clamp(currTarget + change);
+      lastInteractionRef.current = Date.now();
+      if (!rafRef.current) rafRef.current = window.requestAnimationFrame(step);
+    };
+
+    const container = map.getContainer();
+    container.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
+      try { map.scrollWheelZoom.enable(); } catch { /* ignore */ }
+    };
+  }, [map, sensitivity, easing, tileLayerRef]);
+
+  return null;
+}
+
+// TileLayer wrapper that ensures integer zoom in tile URLs (prevents fractional z values)
+function SafeTileLayer({ url, tileLayerRef, options = {}, eventHandlers = {} }) {
+  const map = useMap();
+  const layerRef = useRef(null);
+
+  useEffect(() => {
+    if (!map) return undefined;
+
+    const SafeLayer = L.TileLayer.extend({
+      getTileUrl: function (coords) {
+        // Round zoom to nearest integer to avoid requests like z=15.68 which OSM rejects
+        const safeCoords = { x: coords.x, y: coords.y, z: Math.round(coords.z) };
+        return L.TileLayer.prototype.getTileUrl.call(this, safeCoords);
+      }
+    });
+
+    const layer = new SafeLayer(url, { ...options });
+    layerRef.current = layer;
+    if (tileLayerRef) tileLayerRef.current = layer;
+    if (eventHandlers && typeof eventHandlers === 'object') layer.on(eventHandlers);
+    layer.addTo(map);
+
+    return () => {
+      try { layer.off(); layer.remove(); } catch (e) { /* ignore */ }
+      if (tileLayerRef) tileLayerRef.current = null;
+      layerRef.current = null;
+    };
+  }, [map, url]);
+
+  return null;
+}
+
 function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin, onLogin }) {
   const map = useMap();
   const center = normalizeLatLng(pin.lat, pin.lng);
@@ -345,6 +485,7 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
     <Fragment>
       <Circle
         center={center}
+        renderer={SHARED_CANVAS_RENDERER}
         radius={radiusMeters}
         pathOptions={{
           color: style.color,
@@ -474,9 +615,12 @@ export default function MapView({
   };
 
   const [initialMapState] = useState(loadStoredMapState);
-  const [mapReady, setMapReady] = useState(false);
   const destinationMarkerRefs = useRef({});
+  const tileLayerRef = useRef(null);
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
+  const totalMarkers = (destinations?.length || 0) + ((dangerPins || []).length || 0);
+  // When many markers are present, use canvas-based CircleMarker to reduce DOM nodes
+  const useCanvasMarkers = totalMarkers > 150;
   const mapWrapperStyle = {
     '--map-rotation': `${mapRotation}deg`,
   };
@@ -524,10 +668,26 @@ export default function MapView({
     if (!marker) return;
 
     try {
-      // Try to center the map on the marker first (if available)
+      // Try to center the map on the marker first (if available).
+      // However, if the parent already provided a `focusLocation` prop that
+      // points somewhere else (for example the user's selected location),
+      // avoid re-centering here to prevent an oscillation between the
+      // destination and the user's location.
       const map = marker._map || (marker.getPopup && marker._map);
       const latlng = (marker.getLatLng && marker.getLatLng()) || { lat: marker._latlng?.lat, lng: marker._latlng?.lng };
-      if (map && latlng) centerMapWithOffset(map, latlng);
+      if (map && latlng) {
+        const focusLat = focusLocation && (focusLocation.lat ?? focusLocation[0]);
+        const focusLng = focusLocation && (focusLocation.lng ?? focusLocation[1]);
+        const markerLat = latlng.lat ?? latlng[0];
+        const markerLng = latlng.lng ?? latlng[1];
+        const sameFocus = (typeof focusLat === 'number' && typeof focusLng === 'number')
+          && Math.abs(focusLat - markerLat) < 1e-6
+          && Math.abs(focusLng - markerLng) < 1e-6;
+
+        if (!focusLocation || sameFocus) {
+          centerMapWithOffset(map, latlng);
+        }
+      }
     } catch (e) { /* ignore */ }
 
     // Slight delay to ensure map has moved before opening popup
@@ -539,22 +699,20 @@ export default function MapView({
     }, 450);
 
     return () => clearTimeout(t);
-  }, [selectedDestinationId]);
+  }, [selectedDestinationId, focusLocation]);
 
-  const tileEventHandlers = {
-    loading: () => setMapReady(false),
-    load: () => setMapReady(true),
-    tileerror: () => setMapReady(true),
-  };
+  // Intentionally not attaching tile loading handlers: let the tile server and
+  // browser manage tile loading. This avoids toggling a full-screen overlay
+  // during normal map interactions which can make the UI look white or flash.
+  // Provide an empty handlers object so the TileLayer `eventHandlers` prop
+  // can be safely passed without causing a ReferenceError.
+  const tileEventHandlers = {};
 
   return (
     <div ref={wrapperRef} className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
-      <div className={`map-loading-overlay ${(!mapReady || focusLoading) ? 'map-loading' : 'map-loaded'}`}>
-        <div className="map-spinner">
-          <div className="spinner-ring" />
-          <span>Loading map…</span>
-        </div>
-      </div>
+      {/* Removed full-screen loading overlay to avoid white flashes during tile loads.
+          Let the browser/OSM handle tile loading; consider a small non-blocking
+          indicator elsewhere if needed. */}
       
       <MapControlRight
         user={user}
@@ -576,15 +734,26 @@ export default function MapView({
         minZoom={6}
         maxZoom={18}
         zoomControl={false}
+        // Enable smoother zoom animations / interactions and prefer canvas for vectors
+        zoomAnimation={true}
+        // Use default integer zoom snapping so tiles load at integer z levels
+        zoomSnap={1}
+        zoomDelta={1}
+        scrollWheelZoom={true}
+        doubleClickZoom={true}
+        preferCanvas={true}
+        markerZoomAnimation={true}
+        fadeAnimation={true}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
+          ref={tileLayerRef}
           url={tileLayerUrl}
-          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-          updateWhenIdle={true}
+          attribution="&copy; OpenStreetMap contributors"
           updateWhenZooming={false}
+          updateWhenIdle={true}
           keepBuffer={2}
-          eventHandlers={tileEventHandlers}
+          detectRetina={false}
         />
         <MapClickHandler onLocationClick={onLocationClick} />
         <ZoomControlHandler />
@@ -621,36 +790,45 @@ export default function MapView({
                 <Circle
                   center={destinationCenter}
                   radius={500}
+                  renderer={SHARED_CANVAS_RENDERER}
                   pathOptions={circlePathOptions}
                 />
               )}
-              <Marker
-                ref={(ref) => {
-                  try {
-                    if (ref) destinationMarkerRefs.current[d.id] = ref;
-                    else if (destinationMarkerRefs.current[d.id]) delete destinationMarkerRefs.current[d.id];
-                  } catch (e) { /* ignore */ }
-                }}
-                position={[d.lat, d.lng]}
-                icon={getDestinationIcon(isHighlightedDestination || isSelected)}
-                eventHandlers={{
-                  click: (e) => {
+              {useCanvasMarkers ? (
+                <CircleMarker
+                  center={destinationCenter}
+                  radius={8}
+                  pathOptions={{ color: circlePathOptions?.color || '#2563eb', fillColor: circlePathOptions?.fillColor || '#2563eb', fillOpacity: 1 }}
+                />
+              ) : (
+                <Marker
+                  ref={(ref) => {
                     try {
-                      const map = e?.target?._map;
-                      const latlng = e?.latlng || { lat: d.lat, lng: d.lng };
-                      if (map) centerMapWithOffset(map, latlng);
-                    } catch { /* ignore */ }
-                    if (onDestinationClick) onDestinationClick(d);
-                  }
-                }}
-              >
-                <Popup>
-                  <strong>{d.name}</strong><br />
-                  {d.city}, {d.province}<br />
-                  Crowd: <b>{d.crowd_level}</b><br />
-                  {d.opening_hours}
-                </Popup>
-              </Marker>
+                      if (ref) destinationMarkerRefs.current[d.id] = ref;
+                      else if (destinationMarkerRefs.current[d.id]) delete destinationMarkerRefs.current[d.id];
+                    } catch (e) { /* ignore */ }
+                  }}
+                  position={[d.lat, d.lng]}
+                  icon={getDestinationIcon(isHighlightedDestination || isSelected)}
+                  eventHandlers={{
+                    click: (e) => {
+                      try {
+                        const map = e?.target?._map;
+                        const latlng = e?.latlng || { lat: d.lat, lng: d.lng };
+                        if (map) centerMapWithOffset(map, latlng);
+                      } catch { /* ignore */ }
+                      if (onDestinationClick) onDestinationClick(d);
+                    }
+                  }}
+                >
+                  <Popup>
+                    <strong>{d.name}</strong><br />
+                    {d.city}, {d.province}<br />
+                    Crowd: <b>{d.crowd_level}</b><br />
+                    {d.opening_hours}
+                  </Popup>
+                </Marker>
+              )}
             </Fragment>
           );
         })}
@@ -659,7 +837,17 @@ export default function MapView({
           const style = dangerStyles[pin.danger_type] || dangerStyles['Danger Area'];
           const highlightHighDanger = reportHighlight === 'high-danger' && pin.severity === 'High';
           const icon = getDangerIcon(pin, nearbyIds.has(pin.id), highlightHighDanger);
-          return (
+          return useCanvasMarkers ? (
+            <Fragment key={`danger-${pin.id}`}>
+              <Circle
+                center={[pin.lat, pin.lng]}
+                renderer={SHARED_CANVAS_RENDERER}
+                radius={pin.radius_meters}
+                pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: nearbyIds.has(pin.id) ? 0.35 : 0.16 }}
+              />
+              <CircleMarker center={[pin.lat, pin.lng]} radius={6} pathOptions={{ color: style.color, fillColor: style.color, fillOpacity: 1 }} />
+            </Fragment>
+          ) : (
             <DangerMarker
               key={`danger-${pin.id}`}
               pin={pin}

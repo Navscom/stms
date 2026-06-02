@@ -1,5 +1,6 @@
 .map-controls-right {
-  position: fixed;
+  /* Anchor to map container instead of the viewport */
+  position: absolute;
   top: 12px;
   right: 12px;
   display: flex;

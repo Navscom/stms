@@ -17,6 +17,16 @@
   height: 100%;
 }
 
+/* Hint to browser to use the GPU for map transforms and tile rendering */
+.leaflet-container,
+.map-container,
+.leaflet-pane,
+.leaflet-tile {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 .map-container {
   border-radius: 16px 0 0 16px;
   overflow: hidden;

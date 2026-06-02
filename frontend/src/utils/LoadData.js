@@ -103,11 +103,24 @@ export async function fetchDestinationDescription(destination, setAdvice) {
 
   try {
     const result = await postAiGenerate({ prompt: descriptionPrompt });
-    const text = result?.text?.trim();
+    // Be defensive: the backend AI endpoint may return different shapes
+    // (e.g., { text: '...' } or { choices: [{ text: '...' }] } or nested data).
+    let text = null;
+    if (typeof result?.text === 'string') text = result.text.trim();
+    // Common OpenAI-like shape
+    if (!text && Array.isArray(result?.choices) && typeof result.choices[0]?.text === 'string') text = result.choices[0].text.trim();
+    // Some APIs return data array
+    if (!text && Array.isArray(result?.data) && typeof result.data[0]?.text === 'string') text = result.data[0].text.trim();
+    // If the API returned a plain string (rare), coerce it
+    if (!text && typeof result === 'string') text = result.trim();
+
     if (text) {
       setAdvice(text);
       return;
     }
+
+    // Unknown response shape — log for debugging
+    console.error('Unexpected AI generate response shape:', result);
     setAdvice(destination.description || `Description for ${destination.name} is not available.`);
   } catch (error) {
     console.error('Failed to generate destination description:', error);
