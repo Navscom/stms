@@ -36,6 +36,8 @@ function App() {
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [reportHighlight, setReportHighlight] = useState(null);
   const [hoverReportHighlight, setHoverReportHighlight] = useState(null);
+  const [focusZoom, setFocusZoom] = useState(undefined);
+  const [focusLoading, setFocusLoading] = useState(false);
   const [resetMapFlag, setResetMapFlag] = useState(0);
   const [user, setUser] = useUserSession();
   const [report, setReport] = useState(null);
@@ -252,10 +254,9 @@ function App() {
       return;
     }
 
+    // Show loading overlay on the map while we fetch details
+    setFocusLoading(true);
     setSelectedDestinationId(destination.id);
-    if (!preserveLocation) {
-      setSelectedLocation({ lat: destination.lat, lng: destination.lng });
-    }
     setLastClickLocation({ lat: destination.lat, lng: destination.lng });
     setAdvice(`Loading details for ${destination.name}...`);
 
@@ -267,6 +268,12 @@ function App() {
       setNearbyDangers
     );
     await fetchDestinationDescription(destination, setAdvice);
+
+    // After loading finished, set the selected location (if not preserved) and stop loading overlay
+    if (!preserveLocation) {
+      setSelectedLocation({ lat: destination.lat, lng: destination.lng });
+    }
+    setFocusLoading(false);
   };
 
   const handleSelectDestination = async (destination) => {
@@ -290,7 +297,88 @@ function App() {
 
   const handleReportHover = (type) => setHoverReportHighlight(type);
   const handleReportHoverEnd = () => setHoverReportHighlight(null);
-  const handleReportSelect = (type) => setReportHighlight((prev) => (prev === type ? null : type));
+  const computeCenterAndZoom = (coords) => {
+    if (!coords || !coords.length) {
+      return { center: null, zoom: undefined };
+    }
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    coords.forEach(([lat, lng]) => {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    });
+    const center = [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
+    const latDiff = maxLat - minLat;
+    const lngDiff = maxLng - minLng;
+    const maxDiff = Math.max(latDiff, lngDiff);
+    let zoom;
+    if (maxDiff < 0.01) zoom = 15;
+    else if (maxDiff < 0.05) zoom = 13;
+    else if (maxDiff < 0.2) zoom = 11;
+    else if (maxDiff < 1) zoom = 9;
+    else zoom = 6;
+    return { center, zoom };
+  };
+
+  const handleReportSelect = (type) => {
+    // Clear hover highlight immediately so active highlight updates predictably
+    setHoverReportHighlight(null);
+
+    // If selecting the same type again, deselect and clear focus
+    if (reportHighlight === type) {
+      setReportHighlight(null);
+      setSelectedLocation(null);
+      setFocusZoom(undefined);
+      return;
+    }
+
+    // Otherwise set the new highlight and compute focus
+    setReportHighlight(type);
+
+    // Determine which coordinates to focus based on the report type
+    let coords = [];
+    if (!type) {
+      setSelectedLocation(null);
+      setFocusZoom(undefined);
+      return;
+    }
+
+    if (type === 'all-destinations') {
+      coords = destinations.map((d) => [Number(d.lat), Number(d.lng)]).filter((c) => c[0] && c[1]);
+    } else if (type === 'high-crowd') {
+      coords = destinations.filter((d) => d.crowd_level === 'High').map((d) => [Number(d.lat), Number(d.lng)]).filter((c) => c[0] && c[1]);
+    } else if (type === 'high-danger') {
+      coords = dangerPins.filter((p) => p.severity === 'High').map((p) => [Number(p.lat), Number(p.lng)]).filter((c) => c[0] && c[1]);
+    } else if (type && type.startsWith('marker-')) {
+      const matchType = type.replace('marker-', '').replace(/-/g, ' ');
+      coords = dangerPins.filter((p) => (p.danger_type || '').toLowerCase() === matchType.toLowerCase()).map((p) => [Number(p.lat), Number(p.lng)]).filter((c) => c[0] && c[1]);
+    } else if (type && type.startsWith('recent-')) {
+      // recent report selection: try to find by id
+      const id = type.replace('recent-', '');
+      const found = (report?.recent_reports || []).find((r) => String(r.id) === String(id));
+      if (found && found.coords) {
+        const parts = String(found.coords).split(',').map((s) => Number(s.trim()));
+        if (parts.length >= 2) coords = [[parts[0], parts[1]]];
+      }
+    }
+
+    const { center, zoom } = computeCenterAndZoom(coords);
+    if (center) {
+      setSelectedLocation({ lat: center[0], lng: center[1] });
+      // If there are multiple coordinates, zoom out slightly to ensure all highlighted markers are visible.
+      if ((coords || []).length > 1) {
+        const targetZoom = Math.max(6, (typeof zoom === 'number' ? zoom : 8) - 1);
+        setFocusZoom(targetZoom);
+      } else {
+        // Single item: focus closer for detail
+        setFocusZoom(15);
+      }
+    } else {
+      // fallback: don't change zoom, just clear selection
+      setSelectedLocation(null);
+    }
+  };
   const activeReportHighlight = hoverReportHighlight || reportHighlight;
 
   const resetMapView = () => {
@@ -360,6 +448,7 @@ function App() {
                 onHazardSubmit={submitMarker}
                 onCenterTouristSpot={toggleDestinationFocus}
                 onZoomToSpot={zoomToDestination}
+                onSelectDestination={handleSelectDestination}
                 onClearSelection={clearSelectedDestination}
                 onReportHover={handleReportHover}
                 onReportHoverEnd={handleReportHoverEnd}
@@ -395,6 +484,7 @@ function App() {
               dangerPins={dangerPins}
               nearbyDangers={nearbyDangers}
               selectedLocation={selectedLocation}
+              focusLoading={focusLoading}
               pendingMarkerLocation={pendingMarkerLocation}
               selectedMarkerType={selectedMarkerType}
               reportHighlight={activeReportHighlight}
@@ -412,7 +502,7 @@ function App() {
               onDeleteComment={deleteMarkerComment}
               onDeletePin={deletePin}
               focusLocation={selectedLocation || lastClickLocation}
-              focusZoom={selectedDestinationId ? 15 : undefined}
+              focusZoom={focusZoom ?? (selectedDestinationId ? 15 : undefined)}
               userLocation={userLocation}
             />
           </div>

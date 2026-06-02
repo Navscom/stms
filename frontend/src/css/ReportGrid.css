@@ -197,6 +197,8 @@
   border: 1px solid rgba(2,6,23,0.06);
   color: #0f172a;
 }
+.info-card { cursor: pointer; }
+.info-card.active { transform: translateY(-2px); box-shadow: 0 16px 30px rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.45); }
 .info-card .card-top { display:flex; justify-content:space-between; align-items:center; }
 .info-card .card-value { font-size:1.25rem; font-weight:800; color:var(--accent-dark, #1d4ed8) }
 .info-card .card-label { font-size:0.9rem; font-weight:700; margin-top:8px; color:#0f172a }
@@ -244,7 +246,7 @@
   }
 
   .report-grid-title h3 { font-size: 1rem; }
-  .report-grid-title p { font-size: 0.85rem; }
+  .report-grid-title p { font-size: 0.8rem; }
 
   /* reduce title block height so it doesn't occupy large vertical space */
   .report-grid-title {

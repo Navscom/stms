@@ -62,6 +62,23 @@
   animation: spinner-rotate 0.85s linear infinite;
 }
 
+/* Dark-mode variations for the loading overlay and spinner */
+[data-theme='dark'] .map-loading-overlay {
+  background: rgba(6, 10, 18, 0.84);
+}
+
+[data-theme='dark'] .map-spinner {
+  background: rgba(12, 18, 28, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
+  color: #e6eef8;
+}
+
+[data-theme='dark'] .spinner-ring {
+  border: 3px solid rgba(255, 255, 255, 0.08);
+  border-top-color: #60a5fa;
+}
+
 @keyframes spinner-rotate {
   to { transform: rotate(360deg); }
 }
@@ -380,6 +397,22 @@ html[data-theme='dark'] .leaflet-popup-tip-path,
     width: 100% !important;
     height: 100%;
   }
+}
+
+/* Prevent CSS transitions/animations from interfering with Leaflet's flyTo/zoom
+   animations. Some UI rules elsewhere apply transform/transition globally —
+   explicitly disable them for Leaflet layers so programmatic map movement
+   remains smooth and controlled by Leaflet. */
+.leaflet-container,
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-pane,
+.leaflet-zoom-animated,
+.leaflet-zoom-hide {
+  transition: none !important;
+  animation: none !important;
 }
 
 @media (max-width: 600px) {

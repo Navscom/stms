@@ -111,7 +111,6 @@ export default function DestinationList({
       console.error('Failed to fetch advice for destination:', err);
     }
 
-    if (onSelectDestination) onSelectDestination(destination);
   }
 
   const clearSelection = () => {
@@ -162,7 +161,14 @@ export default function DestinationList({
             {renderDistance(selectedDestination)}
             <p className="destination-description">{selectedDestination.description}</p>
             <div className="destination-action-row">
-              <button type="button" className="primary-btn" onClick={() => focusDestination(selectedDestination)}>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => focusDestination(selectedDestination)}
+                onMouseEnter={(e) => e.stopPropagation()}
+                onMouseOver={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
+              >
                 Focus on {selectedDestination.name}
               </button>
               <button type="button" className="secondary-btn small-btn" onClick={clearSelection}>
@@ -218,7 +224,14 @@ export default function DestinationList({
           {renderDistance(selectedDestination)}
           <p className="destination-description">{selectedDestination.description}</p>
           <div className="destination-action-row">
-            <button type="button" className="primary-btn" onClick={() => focusDestination(selectedDestination)}>
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={() => focusDestination(selectedDestination)}
+              onMouseEnter={(e) => e.stopPropagation()}
+              onMouseOver={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+            >
               Focus on {selectedDestination.name}
             </button>
           </div>

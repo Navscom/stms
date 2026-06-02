@@ -471,6 +471,12 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   position: relative;
   z-index: 1;
 }
+
+.destination-pin--highlighted {
+  box-shadow: 0 0 0 4px rgba(124,58,237,0.95), 0 12px 28px rgba(124,58,237,0.18);
+  border-color: rgba(124,58,237,0.95);
+  transform: scale(1.06);
+}
 @media (max-width: 900px) {
   .safety-toolbar { flex-direction: column; }
 }

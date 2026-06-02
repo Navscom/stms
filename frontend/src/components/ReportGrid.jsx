@@ -128,16 +128,29 @@ export default function ReportGrid({ report = {}, reportHighlight = null, onRepo
         <div className="report-cards">
           <h4 className="section-heading">REPORT BREAKDOWN</h4>
           <div className="cards-grid">
-            {dashboardCards.map((card) => (
-              <div key={card.id} className={`info-card ${card.color}`}>
-                <div className="card-top">
-                  <div className="card-value">{card.value}</div>
-                  <div className="card-spark"><Sparkline values={card.spark} stroke="#7c3aed" /></div>
+            {dashboardCards.map((card) => {
+              const nonSelectable = new Set(['moderated-comments', 'predictions-generated']);
+              const isSelectable = !nonSelectable.has(card.id);
+              return (
+                <div
+                  key={card.id}
+                  className={`info-card ${card.color} ${reportHighlight === card.id ? 'active' : ''} ${!isSelectable ? 'not-selectable' : ''}`}
+                  onMouseEnter={() => onReportHover(card.id)}
+                  onMouseLeave={() => onReportHoverEnd(card.id)}
+                  onClick={() => { if (isSelectable && onReportSelect) onReportSelect(card.id); }}
+                  role={isSelectable ? 'button' : 'presentation'}
+                  tabIndex={isSelectable ? 0 : -1}
+                  onKeyDown={(e) => { if (isSelectable && (e.key === 'Enter' || e.key === ' ')) onReportSelect(card.id); }}
+                >
+                  <div className="card-top">
+                    <div className="card-value">{card.value}</div>
+                    <div className="card-spark"><Sparkline values={card.spark} stroke="#7c3aed" /></div>
+                  </div>
+                  <div className="card-label">{card.label}</div>
+                  <div className="card-sub">{card.subtitle}</div>
                 </div>
-                <div className="card-label">{card.label}</div>
-                <div className="card-sub">{card.subtitle}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -171,7 +184,14 @@ export default function ReportGrid({ report = {}, reportHighlight = null, onRepo
                   <td>{r.type || '—'}</td>
                   <td>{r.severity || '—'}</td>
                   <td>{r.coords || '—'}</td>
-                  <td><button className="link-btn">View Details</button></td>
+                  <td>
+                    <button
+                      className="link-btn"
+                      onClick={() => onReportSelect(r.id || `recent-${idx}`)}
+                    >
+                      View Details
+                    </button>
+                  </td>
                 </tr>
               ))}
               {(!(report.recent_reports || []).length) && (

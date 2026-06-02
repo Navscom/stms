@@ -12,6 +12,7 @@ const MapControlLeft = ({
   onAddMarker,
   onCenterTouristSpot,
   onZoomToSpot,
+  onSelectDestination,
   onClearSelection,
   onReportHover = () => {},
   onReportHoverEnd = () => {},
@@ -424,7 +425,12 @@ const MapControlLeft = ({
                         reportHighlight={reportHighlight}
                         onReportHover={onReportHover}
                         onReportHoverEnd={onReportHoverEnd}
-                        onReportSelect={onReportSelect}
+                        onReportSelect={(type) => {
+                          try { if (onReportSelect) onReportSelect(type); } catch (e) { /* ignore */ }
+                          // Close the report panel and collapse the left controls to reveal the map
+                          setIsReportOpen(false);
+                          setIsBoxExpanded(false);
+                        }}
                       />
                     ) : (
                       <p className="panel-subtitle">Report data is not available yet.</p>
@@ -502,7 +508,7 @@ const MapControlLeft = ({
                       onFocusDestination={handleDestinationFocus}
                       isPanel={true}
                       inline={true}
-                      onSelectDestination={handleDestinationSelected}
+                      onSelectDestination={onSelectDestination || handleDestinationSelected}
                     />
                   </div>
                 </div>

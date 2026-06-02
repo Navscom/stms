@@ -44,6 +44,14 @@ const DESTINATION_ICON = new L.DivIcon({
   popupAnchor: [0, -56],
 });
 
+const getDestinationIcon = (highlighted = false) => new L.DivIcon({
+  html: `<div class="destination-pin${highlighted ? ' destination-pin--highlighted' : ''}"><span>🏛️</span></div>`,
+  className: 'destination-pin-icon',
+  iconSize: [52, 68],
+  iconAnchor: [26, 68],
+  popupAnchor: [0, -56],
+});
+
 const dangerMarkerMeta = {
   'Danger Area': { color: '#dc2626', emoji: '❗', extraClass: 'danger-area' },
   'Dark Area': { color: '#111827', emoji: '🌙', extraClass: 'dark-area' },
@@ -246,15 +254,18 @@ function MapResetHandler({ defaultCenter, defaultZoom, resetFlag }) {
   return null;
 }
 
-function MapFocusHandler({ location, zoom }) {
+function MapFocusHandler({ location, zoom, loading = false }) {
   const map = useMap();
 
   useEffect(() => {
     if (!map || !location) return;
+    if (loading) return; // Wait until loading finishes before moving the map
+
     // Center the map with a vertical offset so the focused marker appears slightly
-    // below the visual center of the map.
+    // below the visual center of the map and fly to it so the user sees the zoom
+    // and the selected destination's circle/radius.
     centerMapWithOffset(map, location, zoom);
-  }, [map, location, zoom]);
+  }, [map, location, zoom, loading]);
 
   return null;
 }
@@ -405,6 +416,7 @@ export default function MapView({
   resetMapFlag,
   focusLocation,
   focusZoom,
+  focusLoading = false,
   userLocation,
   theme = 'light',
   mapRotation = 0,
@@ -444,6 +456,7 @@ export default function MapView({
 
   const [initialMapState] = useState(loadStoredMapState);
   const [mapReady, setMapReady] = useState(false);
+  const destinationMarkerRefs = useRef({});
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
   const mapWrapperStyle = {
     '--map-rotation': `${mapRotation}deg`,
@@ -485,6 +498,30 @@ export default function MapView({
     };
   }, []);
 
+  // Open the popup for the selected destination when selection changes.
+  useEffect(() => {
+    if (!selectedDestinationId) return;
+    const marker = destinationMarkerRefs.current[selectedDestinationId];
+    if (!marker) return;
+
+    try {
+      // Try to center the map on the marker first (if available)
+      const map = marker._map || (marker.getPopup && marker._map);
+      const latlng = (marker.getLatLng && marker.getLatLng()) || { lat: marker._latlng?.lat, lng: marker._latlng?.lng };
+      if (map && latlng) centerMapWithOffset(map, latlng);
+    } catch (e) { /* ignore */ }
+
+    // Slight delay to ensure map has moved before opening popup
+    const t = setTimeout(() => {
+      try {
+        if (typeof marker.openPopup === 'function') marker.openPopup();
+        else if (marker.leafletElement && typeof marker.leafletElement.openPopup === 'function') marker.leafletElement.openPopup();
+      } catch (e) { /* ignore */ }
+    }, 450);
+
+    return () => clearTimeout(t);
+  }, [selectedDestinationId]);
+
   const tileEventHandlers = {
     loading: () => setMapReady(false),
     load: () => setMapReady(true),
@@ -493,7 +530,7 @@ export default function MapView({
 
   return (
     <div ref={wrapperRef} className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
-      <div className={`map-loading-overlay ${mapReady ? 'map-loaded' : 'map-loading'}`}>
+      <div className={`map-loading-overlay ${(!mapReady || focusLoading) ? 'map-loading' : 'map-loaded'}`}>
         <div className="map-spinner">
           <div className="spinner-ring" />
           <span>Loading map…</span>
@@ -538,34 +575,39 @@ export default function MapView({
           defaultZoom={DEFAULT_MAP_ZOOM}
           resetFlag={resetMapFlag}
         />
-        <MapFocusHandler location={focusLocation} zoom={focusZoom} />
+        <MapFocusHandler location={focusLocation} zoom={focusZoom} loading={focusLoading} />
         <MapSyncHandler theme={theme} />
         <MapResizeHandler />
 
         {destinations.map((d) => {
           const highlightAllDestinations = reportHighlight === 'all-destinations';
           const highlightHighCrowd = reportHighlight === 'high-crowd';
+          const highlightHighDanger = reportHighlight === 'high-danger';
+          // Only highlight all destinations or high-crowd destinations here.
+          // High-danger should only affect danger pins, not every destination.
           const isHighlightedDestination = highlightAllDestinations || (highlightHighCrowd && d.crowd_level === 'High');
           const isSelected = selectedDestinationId === d.id;
-          const circlePathOptions = isSelected
-            ? getDestinationRiskStyle(d.crowd_level)
-            : isHighlightedDestination
-              ? { color: '#2563eb', fillColor: '#bfdbfe', fillOpacity: 0.18, weight: 2 }
-              : null;
+          const circlePathOptions = isSelected ? getDestinationRiskStyle(d.crowd_level) : null;
           const destinationCenter = normalizeLatLng(d.lat, d.lng);
 
           return (
             <Fragment key={`dest-${d.id}`}>
-              {(isSelected || isHighlightedDestination) && (
+              {isSelected && (
                 <Circle
                   center={destinationCenter}
-                  radius={isSelected ? 500 : 320}
+                  radius={500}
                   pathOptions={circlePathOptions}
                 />
               )}
               <Marker
+                ref={(ref) => {
+                  try {
+                    if (ref) destinationMarkerRefs.current[d.id] = ref;
+                    else if (destinationMarkerRefs.current[d.id]) delete destinationMarkerRefs.current[d.id];
+                  } catch (e) { /* ignore */ }
+                }}
                 position={[d.lat, d.lng]}
-                icon={DESTINATION_ICON}
+                icon={getDestinationIcon(isHighlightedDestination || isSelected)}
                 eventHandlers={{
                   click: (e) => {
                     try {
