@@ -11,8 +11,13 @@ export default function CommentBox({ pin, user, onAddComment, onUpdateComment, o
   const submit = (e) => {
     e.preventDefault();
     if (!user) {
-      if (typeof onLogin === 'function') onLogin();
-      else alert('Please login to comment.');
+      if (typeof onLogin === 'function') {
+        onLogin('You need to login first before commenting.');
+      } else if (typeof window !== 'undefined' && typeof window.__stms_open_login === 'function') {
+        window.__stms_open_login('You need to login first before commenting.');
+      } else if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('stms:require-login', { detail: { message: 'You need to login first before commenting.' } }));
+      }
       return;
     }
     if (!comment.trim()) {

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { validateAuthForm } from '../utils/validation';
 import '../css/Login.css';
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promptMessage }) {
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({ name: '', displayName: '', email: '', password: '', confirmPassword: '', role: 'tourist' });
   const [rememberMe, setRememberMe] = useState(false);
@@ -110,6 +110,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
     <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-box" onMouseDown={handleModalMouseDown} onClick={(e) => e.stopPropagation()}>
         <h2>{isRegister ? 'Register' : 'Login'}</h2>
+        {promptMessage && <p className="prompt-message">{promptMessage}</p>}
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           {isRegister && <input placeholder="Display Name" value={form.displayName} onChange={(e) => update('displayName', e.target.value)} required />}
           {isRegister && <input placeholder="Full Name" value={form.name} onChange={(e) => update('name', e.target.value)} required />}
@@ -133,12 +134,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api }) {
           )}
           {isRegister && <input type="password" placeholder="Confirm Password" value={form.confirmPassword} onChange={(e) => update('confirmPassword', e.target.value)} required />}
           {isRegister && (
-            <select value={form.role} onChange={(e) => update('role', e.target.value)}>
-              <option value="tourist">Tourist</option>
-              <option value="admin">Local Admin</option>
-              <option value="administrator">Administrator</option>
-            </select>
-            )}
+            <input type="hidden" value={form.role} />
+          )}
             <button type="submit" className="primary-btn">{isRegister ? 'Sign Up' : 'Sign In'}</button>
         </form>
         <p className="helper-text">The Login Page is case sensitive.</p>

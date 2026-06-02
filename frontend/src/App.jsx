@@ -22,6 +22,30 @@ function App() {
   const [lastClickLocation, setLastClickLocation] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loginPromptMessage, setLoginPromptMessage] = useState('');
+
+  // Expose a global helper and event listener so components can open the login modal
+  // even if they don't receive the `onLogin` prop (robust fallback for older usages).
+  useEffect(() => {
+    const opener = (msg) => {
+      const text = (typeof msg === 'string') ? msg : '';
+      setLoginPromptMessage(text);
+      setIsModalOpen(true);
+    };
+    // attach helper
+    try {
+      window.__stms_open_login = opener;
+    } catch {
+      // ignore in non-browser contexts
+    }
+
+    const handler = (e) => opener(e?.detail?.message || '');
+    window.addEventListener('stms:require-login', handler);
+    return () => {
+      try { delete window.__stms_open_login; } catch {}
+      window.removeEventListener('stms:require-login', handler);
+    };
+  }, []);
   const [theme, setTheme] = useState(() => {
     try {
       return window.localStorage.getItem('stms_theme') || 'light';
@@ -88,6 +112,7 @@ function App() {
 
   const startMarkerPlacement = (lat, lng) => {
     if (!user) {
+      setLoginPromptMessage('');
       setIsModalOpen(true);
       setPinMode(false);
       return;
@@ -198,6 +223,7 @@ function App() {
 
   const togglePinMode = () => {
     if (!user) {
+      setLoginPromptMessage('');
       setIsModalOpen(true);
       return;
     }
@@ -391,11 +417,13 @@ function App() {
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);
     setIsModalOpen(false);
+    setLoginPromptMessage('');
   };
 
   const handleLogout = () => {
     setUser(null);
     setIsModalOpen(false);
+    setLoginPromptMessage('');
     setPinMode(false);
     setPendingMarkerLocation(null);
   };
@@ -421,6 +449,7 @@ function App() {
 
   const closeLoginModal = () => {
     setIsModalOpen(false);
+    setLoginPromptMessage('');
   };
 
   return (
@@ -493,7 +522,7 @@ function App() {
               reportHighlight={activeReportHighlight}
               user={user}
               theme={theme}
-              onLogin={() => setIsModalOpen(true)}
+              onLogin={(msg) => { const text = (typeof msg === 'string') ? msg : ''; if (text) setLoginPromptMessage(text); setIsModalOpen(true); }}
               onLogout={handleLogout}
               onDeleteAccount={handleDeleteAccount}
               onToggleTheme={toggleTheme}
@@ -527,6 +556,7 @@ function App() {
         onClose={closeLoginModal}
         onLoginSuccess={handleLoginSuccess}
         api={API}
+        promptMessage={loginPromptMessage}
       />
     </div>
   );
