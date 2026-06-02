@@ -59,7 +59,28 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
 .map-panel { display: flex; flex-direction: column; gap: 22px; }
 .map-panel-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 22px 30px; border-radius: 24px; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); }
 .map-panel-actions { display: flex; gap: 16px; flex-wrap: wrap; }
-.map-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 34px; min-height: calc(78vh + 20px); overflow: hidden; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12); position: relative; z-index: 1; }
+.map-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 34px; min-height: auto; overflow: hidden; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12); position: relative; z-index: 1; }
+
+/* Make the map container a controlled, responsive height so it displays nicely
+   on shorter viewports and when the sidebar is present. The wrapper defines
+   the visual height while the inner map can fill 100%. */
+.map-container-wrapper {
+  height: 420px;
+  max-height: 78vh;
+  width: 100%;
+}
+
+/* Small screens / narrow widths use a more compact map height */
+@media (max-width: 900px) {
+  .map-container-wrapper {
+    height: 200px;
+    max-height: 45vh;
+  }
+}
+
+/* When in compact landscape where the app shell is fuller-screen, allow the
+   map to expand to fill available space (rules below for large landscape)
+   will still take precedence. */
 .destination-panel-wrapper { padding: 32px; border-radius: 34px; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12); display: flex; flex-direction: column; gap: 22px; }
 .destination-hidden-card { padding: 28px; border-radius: 24px; background: #f8fafc; color: var(--text-primary); }
 [data-theme='dark'] .destination-hidden-card { background: rgba(30, 42, 60, 0.92); color: var(--text-primary); }
@@ -78,7 +99,7 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   .side-panel { max-height: none; overflow: visible; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 900px) {
   .app-shell {
     padding: 12px 10px;
   }
@@ -171,7 +192,7 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   }
 
   .map-card {
-    min-height: 100vh;
+    min-height: auto;
     border-radius: 24px;
     position: relative;
     width: 100%;

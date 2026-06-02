@@ -17,6 +17,15 @@
   overflow-y: auto;
 }
 
+/* Ensure floating report panel sits above map icons */
+.map-controls-left .dropdown-panel.report-dropdown.open .inner-panel-content,
+.map-controls-left .inner-panel-content,
+.report-grid {
+  position: relative;
+  z-index: 9000;
+  isolation: isolate;
+}
+
 .report-grid-header {
   display: flex;
   gap: 8px;
@@ -230,7 +239,7 @@
     border-radius: 6px;
     margin: 10px auto;
     /* constrain height to the available viewport and allow vertical scrolling */
-    max-height: calc(100vh - 220px);
+    max-height: calc(100vh - 500px);
     overflow-y: auto;
   }
 

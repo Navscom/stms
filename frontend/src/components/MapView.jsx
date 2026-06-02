@@ -449,6 +449,42 @@ export default function MapView({
     '--map-rotation': `${mapRotation}deg`,
   };
 
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const adjustHeight = () => {
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+
+      const controls = document.querySelector('.map-controls-wrapper') || document.querySelector('.map-controls-left');
+      const controlsHeight = controls ? (controls.getBoundingClientRect && controls.getBoundingClientRect().height) || 0 : 0;
+
+      const isPortrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
+      const extraReserve = isPortrait ? 150 : 0; // reserve ~150px from the top in portrait
+
+      const newHeight = Math.max(200, window.innerHeight - controlsHeight - extraReserve);
+      wrapper.style.height = `${newHeight}px`;
+      wrapper.style.maxHeight = `${newHeight}px`;
+
+      // Notify layout observers / leaflet resize handlers
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 180);
+    };
+
+    adjustHeight();
+    window.addEventListener('resize', adjustHeight);
+    window.addEventListener('orientationchange', adjustHeight);
+
+    const observedTarget = document.querySelector('.map-controls-wrapper') || document.body;
+    const mo = new MutationObserver(adjustHeight);
+    mo.observe(observedTarget, { attributes: true, childList: true, subtree: true });
+
+    return () => {
+      window.removeEventListener('resize', adjustHeight);
+      window.removeEventListener('orientationchange', adjustHeight);
+      try { mo.disconnect(); } catch (e) { /* ignore */ }
+    };
+  }, []);
+
   const tileEventHandlers = {
     loading: () => setMapReady(false),
     load: () => setMapReady(true),
@@ -456,7 +492,7 @@ export default function MapView({
   };
 
   return (
-    <div className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
+    <div ref={wrapperRef} className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
       <div className={`map-loading-overlay ${mapReady ? 'map-loaded' : 'map-loading'}`}>
         <div className="map-spinner">
           <div className="spinner-ring" />
