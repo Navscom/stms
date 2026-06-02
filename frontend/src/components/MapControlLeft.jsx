@@ -506,6 +506,7 @@ const MapControlLeft = ({
                       onCenterSpot={onCenterTouristSpot}
                       onZoomToSpot={onZoomToSpot}
                       onFocusDestination={handleDestinationFocus}
+                      autoFocusOnSelect={false}
                       isPanel={true}
                       inline={true}
                       onSelectDestination={onSelectDestination || handleDestinationSelected}

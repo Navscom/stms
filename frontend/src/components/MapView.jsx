@@ -270,6 +270,25 @@ function MapFocusHandler({ location, zoom, loading = false }) {
   return null;
 }
 
+// Closes any open popups when certain selection-related props change so that
+// previously-selected marker popups don't interfere with new focus/zoom actions.
+function PopupClearHandler({ selectedDestinationId, reportHighlight, focusLocation, resetMapFlag }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    try {
+      // Close any open popup to ensure new focus/zoom isn't blocked by an existing popup
+      map.closePopup();
+    } catch (e) {
+      // ignore
+    }
+    // Intentionally run when any of these change
+  }, [map, selectedDestinationId, reportHighlight, resetMapFlag, focusLocation && focusLocation.lat, focusLocation && focusLocation.lng]);
+
+  return null;
+}
+
 function MapSyncHandler({ theme }) {
   const map = useMap();
 
@@ -576,6 +595,12 @@ export default function MapView({
           resetFlag={resetMapFlag}
         />
         <MapFocusHandler location={focusLocation} zoom={focusZoom} loading={focusLoading} />
+        <PopupClearHandler
+          selectedDestinationId={selectedDestinationId}
+          reportHighlight={reportHighlight}
+          focusLocation={focusLocation}
+          resetMapFlag={resetMapFlag}
+        />
         <MapSyncHandler theme={theme} />
         <MapResizeHandler />
 

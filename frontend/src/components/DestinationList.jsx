@@ -27,6 +27,7 @@ export default function DestinationList({
   onCenterSpot,
   onZoomToSpot,
   onFocusDestination,
+  autoFocusOnSelect = true,
   selectedLocation = null,
   inline = false,
   isPanel = false 
@@ -90,8 +91,7 @@ export default function DestinationList({
 
   async function handleSelectDestination(destination) {
     if (!destination) return;
-
-    // Toggle selection if already selected
+    // If already selected, toggle off locally and clear parent highlights — do not trigger parent select.
     if (selectedDestinationId === destination.id) {
       setSelectedId(null);
       setSelectedLocation(null);
@@ -101,10 +101,24 @@ export default function DestinationList({
       return;
     }
 
+    // Clear any existing highlights first
+    if (onClearSelection) onClearSelection();
+
+    // Always update local UI state first so the card appears selected.
     setSelectedId(destination.id);
     setSelectedLocation({ lat: destination.lat, lng: destination.lng });
-    
-    // attempt to fetch advice and nearest spots for this location
+
+    // Only notify parent to trigger full map focus/load when `autoFocusOnSelect` is enabled.
+    if (autoFocusOnSelect && onSelectDestination) {
+      try {
+        await onSelectDestination(destination);
+      } catch (err) {
+        console.error('onSelectDestination failed:', err);
+      }
+      return;
+    }
+
+    // Local-only behavior: fetch advice and nearest spots without forcing map focus.
     try {
       await fetchAdviceHelper(destination.lat, destination.lng, setSelectedLocation, setAdvice, setLocalNearest, setNearbyDangers);
     } catch (err) {
@@ -123,6 +137,8 @@ export default function DestinationList({
 
   const focusDestination = (destination) => {
     if (!destination) return;
+    // Clear any existing highlights before focusing
+    if (onClearSelection) onClearSelection();
     if (onZoomToSpot) {
       onZoomToSpot(destination);
     } else if (onCenterSpot) {

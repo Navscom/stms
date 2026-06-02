@@ -675,8 +675,8 @@ def get_ai_advice(lat: float, lng: float, location_type: str = "general", langua
             top = nearest[0] if isinstance(nearest[0], dict) else {}
             distance_km = top.get('distance_km', 0)
             cl = top.get("crowd_level")
-            # Only include crowd warning if within 0.5km
-            if distance_km <= 0.5:
+            # Only include crowd warning if within 1.0km
+            if distance_km <= 1.0:
                 crowd_note = {
                     "Low": "It is a quiet time, so this spot should be a good choice.",
                     "Moderate": "It is a bit busy right now, so expect some waiting.",

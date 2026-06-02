@@ -246,6 +246,9 @@ function App() {
 
   const handleDestinationSelection = async (destination, preserveLocation = false) => {
     if (!destination) return;
+    // Clear any active report/highlight markers so map focus is deterministic
+    setReportHighlight(null);
+    setHoverReportHighlight(null);
 
     if (selectedDestinationId === destination.id) {
       setSelectedDestinationId(null);

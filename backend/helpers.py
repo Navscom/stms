@@ -44,12 +44,19 @@ def make_detour(start_lat, start_lng, end_lat, end_lng, danger_lat, danger_lng):
     return [[start_lat, start_lng], [mid_lat + offset_lat, mid_lng + offset_lng], [end_lat, end_lng]]
 
 
-def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance_meters: int = 70) -> bool:
+def is_within_pin_warning_zone(distance_km: float, radius_meters: Any, allowance_meters: int = 70, min_notify_km: float = 0.3) -> bool:
+    """Return True if `distance_km` is within the pin's warning zone.
+
+    The zone is computed from the pin `radius_meters` plus an `allowance_meters`.
+    To ensure users are notified earlier, a minimum notification radius
+    (`min_notify_km`) is enforced (default 1.0 km).
+    """
     try:
         radius = float(radius_meters)
     except (TypeError, ValueError):
         radius = 0.0
-    return distance_km <= (radius + allowance_meters) / 1000
+    zone_km = max((radius + allowance_meters) / 1000.0, float(min_notify_km))
+    return distance_km <= zone_km
 
 
 def safe_data(response: Any) -> List[Dict[str, Any]]:

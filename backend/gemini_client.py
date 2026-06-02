@@ -143,8 +143,8 @@ class GeminiClient:
         if nearest:
             top = nearest[0] if isinstance(nearest[0], dict) else {}
             distance_km = top.get('distance_km', 0)
-            # Only include crowd level if within 0.5km
-            if distance_km <= 0.5:
+            # Only include crowd level if within 1.0km
+            if distance_km <= 1.0:
                 crowd_level = top.get("crowd_level")
                 context_lines.append(
                     f"Nearest tourist spot is {top.get('name','Unknown')} in {top.get('city','Unknown')}, {distance_km} km away, current crowd level is {crowd_level}.")
@@ -194,8 +194,8 @@ class GeminiClient:
                     "It feels packed, so be ready for crowds or pick a quieter option."
                 ]
             }
-            # Only include crowd warning if within 0.5km
-            if distance_km <= 0.5:
+            # Only include crowd warning if within 1.0km
+            if distance_km <= 1.0:
                 crowd_note = random.choice(crowd_messages.get(cl, ["Crowd status is unavailable."])) if isinstance(cl, str) else "Crowd status is unavailable."
                 fallback = f"The nearest tourist spot is {top.get('name', 'an unknown place')} in {top.get('city', 'an unknown city')}, about {distance_km} km away. {crowd_note}"
             else:
