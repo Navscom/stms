@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import '../css/MapControlLeft.css';
+import TooltipPortal from './TooltipPortal';
 import DestinationList from './DestinationList';
 import NearestDestination from './NearestDestination';
 import ReportGrid from './ReportGrid';
@@ -135,7 +136,7 @@ const MapControlLeft = ({
           <div className="controllers-header">
             <div className="header-top">
               {!isBoxExpanded && (
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content={isBoxExpanded ? 'Collapse' : 'Expand'}>
                   <button 
                     type="button"
                     className="expand-btn"
@@ -143,21 +144,17 @@ const MapControlLeft = ({
                   >
                     {isBoxExpanded ? '−' : '+'}
                   </button>
-                  <div className="tooltip-text">
-                    {isBoxExpanded ? 'Collapse' : 'Expand'}
-                  </div>
-                </div>
+                </TooltipPortal>
               )}
             </div>
             {isBoxExpanded && (
               <>
                 <div className="header-title-row">
-                  <div className="tooltip-container">
+                  <TooltipPortal content={<><strong>Smart Tourism Management System</strong></>}>
                     <h1>STMS</h1>
-                    <div className="tooltip-text">Smart Tourism Management System</div>
-                  </div>
+                  </TooltipPortal>
                   <span className="status-pill status-live">Live</span>
-                  <div className="tooltip-container button-tooltip">
+                  <TooltipPortal content={isBoxExpanded ? 'Collapse' : 'Expand'}>
                     <button 
                       type="button"
                       className="expand-btn"
@@ -165,10 +162,7 @@ const MapControlLeft = ({
                     >
                       {isBoxExpanded ? '−' : '+'}
                     </button>
-                    <div className="tooltip-text">
-                      {isBoxExpanded ? 'Collapse' : 'Expand'}
-                    </div>
-                  </div>
+                  </TooltipPortal>
                 </div>
                 <p className="subtitle">AI-Based Geolocation Guidance</p>
                 <p className="subtitle">& Crowd Monitoring</p>
@@ -179,7 +173,7 @@ const MapControlLeft = ({
           {!isBoxExpanded ? (
             <>
               <div className="collapsed-menu">
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content="My Location">
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -187,10 +181,9 @@ const MapControlLeft = ({
                   >
                     <span className="btn-icon">📍</span>
                   </button>
-                  <div className="tooltip-text">My Location</div>
-                </div>
+                </TooltipPortal>
 
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content="Add Marker">
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -198,10 +191,9 @@ const MapControlLeft = ({
                   >
                     <span className="btn-icon">📌</span>
                   </button>
-                  <div className="tooltip-text">Add Marker</div>
-                </div>
+                </TooltipPortal>
 
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content="Safety Alerts">
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -209,10 +201,9 @@ const MapControlLeft = ({
                   >
                     <span className="btn-icon">⚠️</span>
                   </button>
-                  <div className="tooltip-text">Safety Alerts</div>
-                </div>
+                </TooltipPortal>
 
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content="Report Grid">
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -220,10 +211,9 @@ const MapControlLeft = ({
                   >
                     <span className="btn-icon">📊</span>
                   </button>
-                  <div className="tooltip-text">Report Grid</div>
-                </div>
+                </TooltipPortal>
 
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content="Nearest Attractions">
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -231,10 +221,9 @@ const MapControlLeft = ({
                   >
                     <span className="btn-icon">🧭</span>
                   </button>
-                  <div className="tooltip-text">Nearest Attractions</div>
-                </div>
+                </TooltipPortal>
 
-                <div className="tooltip-container button-tooltip">
+                <TooltipPortal content="Tourist Attractions">
                   <button
                     type="button"
                     className="collapsed-icon-btn"
@@ -242,8 +231,7 @@ const MapControlLeft = ({
                   >
                     <span className="btn-icon">🗺️</span>
                   </button>
-                  <div className="tooltip-text">Tourist Attractions</div>
-                </div>
+                </TooltipPortal>
               </div>
             </>
           ) : (

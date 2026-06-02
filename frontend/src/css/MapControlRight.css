@@ -1,5 +1,5 @@
 .map-controls-right {
-  position: absolute;
+  position: fixed;
   top: 12px;
   right: 12px;
   display: flex;
@@ -10,7 +10,7 @@
   padding: 4px;
   box-shadow: var(--shadow-sm);
   pointer-events: auto;
-  z-index: 9997;
+  z-index: 2147483647;
 }
 
 [data-theme='light'] .map-controls-right {
