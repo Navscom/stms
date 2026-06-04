@@ -456,29 +456,47 @@
   border-bottom-right-radius: 12px;
   width: 100%;
   box-sizing: border-box;
-  background: rgba(15, 23, 42, 0.95);
+  background: #ffffff;
   margin: 0;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .map-controls-left .routing-content-panel .panel-main-title {
-  color: #f8fafc;
+  color: #0f172a;
 }
 
 .map-controls-left .routing-content-panel .panel-subtitle {
-  color: #cbd5e1;
+  color: #475569;
 }
 
 .map-controls-left .routing-content-panel .form-label {
-  color: #e2e8f0;
+  color: #334155;
 }
 
 .map-controls-left .routing-content-panel .routing-hint {
-  color: #94a3b8;
+  color: #64748b;
 }
 
 [data-theme='dark'] .map-controls-left .routing-content-panel {
   background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .panel-main-title {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .panel-subtitle {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .form-label {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .routing-hint {
+  color: #94a3b8;
 }
 
 /* Center routing input boxes within their container */
@@ -486,55 +504,13 @@
   display: flex;
   align-items: center;
   margin: 0;
-}
-
-/* Dark theme styling for routing input fields */
-.map-controls-left .routing-content-panel .routing-input {
-  background-color: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 8px;
-  padding: 6px 8px;
-}
-
-.map-controls-left .routing-content-panel .routing-input input {
-  background-color: transparent;
-  border: none;
-  color: #f8fafc;
-  outline: none;
-}
-
-.map-controls-left .routing-content-panel .routing-input input::placeholder {
-  color: #64748b;
-}
-
-.map-controls-left .routing-content-panel .input-left-icon {
-  color: #94a3b8;
-}
-
-.map-controls-left .routing-content-panel .input-clear {
-  color: #94a3b8;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-/* Make the routing panel stack children left-aligned and constrain input width */
-.map-controls-left .routing-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-}
-
-.map-controls-left .routing-panel .routing-input {
   width: 100%;
   max-width: 420px;
   box-sizing: border-box;
   padding: 6px 8px;
   background: var(--bg-primary);
   border-radius: 10px;
-  border: 1px solid rgba(99,102,241,0.08);
+  border: 1px solid rgba(99, 102, 241, 0.08);
 }
 
 .map-controls-left .routing-panel .routing-input input {
@@ -543,6 +519,51 @@
   flex: 1;
   font-size: 0.95rem;
   background: transparent;
+  color: #0f172a;
+}
+
+.map-controls-left .routing-panel .routing-input input::placeholder {
+  color: #64748b;
+}
+
+.map-controls-left .routing-panel .input-left-icon {
+  color: #64748b;
+}
+
+.map-controls-left .routing-panel .input-clear {
+  color: #64748b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .routing-input {
+  background-color: rgba(15, 23, 42, 0.88);
+  border-color: rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .routing-input input {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .routing-input input::placeholder {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .input-left-icon,
+[data-theme='dark'] .map-controls-left .routing-panel .input-clear {
+  color: #94a3b8;
+}
+
+/* Make the routing panel stack children left-aligned and constrain input width */
+.map-controls-left .routing-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
 }
 
 

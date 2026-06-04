@@ -844,13 +844,12 @@ export default function MapView({
   // Provide an empty handlers object so the TileLayer `eventHandlers` prop
   // can be safely passed without causing a ReferenceError.
   const tileEventHandlers = {};
-
   return (
     <div ref={wrapperRef} className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
       {/* Removed full-screen loading overlay to avoid white flashes during tile loads.
           Let the browser/OSM handle tile loading; consider a small non-blocking
           indicator elsewhere if needed. */}
-      
+
       <MapControlRight
         user={user}
         onLogin={onLogin}

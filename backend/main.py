@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any, Dict, List, Optional
 import requests
+import secrets
+ 
 
 # Allow running as a top-level script from the backend directory.
 if __package__ is None:
@@ -40,7 +42,18 @@ from helpers import (
     now_iso,
     move_expired_pins,
 )
-
+# Email utilities removed (email functionality disabled in this deployment)
+from crowd_markers import (
+    create_auto_crowdy_area_markers as cm_create_auto_crowdy_area_markers,
+    fetch_destinations_map as cm_fetch_destinations_map,
+    existing_crowdy_marker_within as cm_existing_crowdy_marker_within,
+    find_crowdy_marker_within as cm_find_crowdy_marker_within,
+    extend_crowdy_marker_with_trend as cm_extend_crowdy_marker_with_trend,
+    generate_crowdy_marker_description as cm_generate_crowdy_marker_description,
+    generate_crowdy_marker_trend_description as cm_generate_crowdy_marker_trend_description,
+    fetch_recent_crowd_reports as cm_fetch_recent_crowd_reports,
+    predict_crowd_patterns as cm_predict_crowd_patterns,
+)
 #Load .env from the backend folder so keys in backend/.env are loaded when running from project root
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
@@ -74,69 +87,11 @@ def _is_wildlife_alert(pin: Dict[str, Any]) -> bool:
 
 
 def _fetch_recent_crowd_reports(hours: int = 1) -> List[Dict[str, Any]]:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    response = supabase.table("crowd_reports").select("*").gte("reported_at", cutoff.isoformat()).execute()
-    return safe_data(response)
+    return cm_fetch_recent_crowd_reports(supabase, hours)
 
 
 def _predict_crowd_patterns(destination_id: int, hours_ahead: int = 6) -> Dict[str, Any]:
-    """Predict crowd patterns for a destination based on historical reports."""
-    try:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-        response = supabase.table("crowd_reports").select("*").eq("destination_id", destination_id).gte("reported_at", cutoff.isoformat()).execute()
-        reports: List[Dict[str, Any]] = safe_data(response)
-        if not reports:
-            return {"prediction": "Insufficient data", "confidence": 0.0}
-
-        hourly_counts: Dict[int, Dict[str, int]] = {}
-        for report in reports:
-            if not isinstance(report, dict):
-                continue
-            reported_at = report.get("reported_at")
-            if not reported_at:
-                continue
-            try:
-                dt = parse_timestamp(reported_at)
-                if dt:
-                    hour = dt.hour
-                    if hour not in hourly_counts:
-                        hourly_counts[hour] = {"Low": 0, "Moderate": 0, "High": 0}
-                    level = str(report.get("crowd_level", "Low"))
-                    if level in hourly_counts[hour]:
-                        hourly_counts[hour][level] += 1
-            except Exception:
-                continue
-
-        if not hourly_counts:
-            return {"prediction": "Insufficient data", "confidence": 0.0}
-
-        now_hour = datetime.now(timezone.utc).hour
-        predictions = []
-        for i in range(1, min(hours_ahead + 1, 7)):
-            pred_hour = (now_hour + i) % 24
-            if pred_hour in hourly_counts:
-                counts = hourly_counts[pred_hour]
-                total = sum(counts.values())
-                high_ratio = counts["High"] / total if total > 0 else 0
-                moderate_ratio = counts["Moderate"] / total if total > 0 else 0
-                if high_ratio > 0.5:
-                    pred_level = "High"
-                elif moderate_ratio > 0.4:
-                    pred_level = "Moderate"
-                else:
-                    pred_level = "Low"
-                predictions.append({"hour": pred_hour, "predicted_level": pred_level, "confidence": min(0.95, 0.5 + (total / 50))})
-
-        if predictions:
-            return {
-                "destination_id": destination_id,
-                "predictions": predictions,
-                "confidence": min(0.95, len(reports) / 50),
-                "based_on_reports": len(reports),
-            }
-        return {"prediction": "Insufficient data", "confidence": 0.0}
-    except Exception:
-        return {"prediction": "Error analyzing patterns", "confidence": 0.0}
+    return cm_predict_crowd_patterns(supabase, destination_id, hours_ahead)
 
 
 def _moderate_comment_on_insert(comment_text: str) -> Dict[str, Any]:
@@ -180,10 +135,17 @@ def _translate_alert(text: str, language: str = "en") -> str:
     """Translate a safety alert to the user's preferred language."""
     if gemini_client is None or not text:
         return text
+
     try:
         return gemini_client.translate_to_language(text, language)
     except Exception:
         return text
+
+
+def _send_email(to_email: str, subject: str, body: str, html_body: Optional[str] = None) -> None:
+    # Emailing is disabled. Keep function as a safe no-op to avoid breaking callers.
+    logger.info(f"[Backend] Email disabled; skipping send to {to_email}")
+    return
 
 
 def _fetch_destinations_map() -> Dict[int, Dict[str, Any]]:
@@ -316,129 +278,7 @@ def _create_auto_crowdy_area_markers(
     window_hours: int = 1,
     duplicate_radius_m: int = 500,
 ) -> List[Dict[str, Any]]:
-    reports = _fetch_recent_crowd_reports(window_hours)
-    destinations = _fetch_destinations_map()
-    if not reports or not destinations:
-        return []
-
-    grouped: Dict[int, Dict[str, Any]] = {}
-    for report in reports:
-        if not isinstance(report, dict):
-            continue
-        destination_id = report.get("destination_id")
-        if destination_id is None:
-            continue
-        try:
-            destination_id = int(destination_id)
-        except Exception:
-            continue
-        if destination_id not in destinations:
-            continue
-        bucket = grouped.setdefault(destination_id, {"reports": [], "users": set()})
-        bucket["reports"].append(report)
-        user_id = report.get("user_id")
-        if user_id is not None:
-            try:
-                bucket["users"].add(int(user_id))
-            except Exception:
-                pass
-
-    created_markers: List[Dict[str, Any]] = []
-    for destination_id, bucket in grouped.items():
-        unique_users = bucket["users"]
-        report_count = len(bucket["reports"])
-
-        destination = destinations[destination_id]
-        crowd_levels = [str(r.get("crowd_level", "Low")) for r in bucket["reports"] if isinstance(r.get("crowd_level", "Low"), str)]
-
-        dest_crowd_level = str(destination.get("crowd_level", "Low"))
-        if dest_crowd_level not in {"Low", "Moderate", "High"}:
-            high_count = sum(1 for level in crowd_levels if level == "High")
-            moderate_count = sum(1 for level in crowd_levels if level == "Moderate")
-            if high_count >= moderate_count and high_count > 0:
-                dest_crowd_level = "High"
-            elif moderate_count > 0:
-                dest_crowd_level = "Moderate"
-            else:
-                dest_crowd_level = "Low"
-
-        level_thresholds = {
-            "Low": 10,
-            "Moderate": 20,
-            "High": 30,
-        }
-        required_users = level_thresholds.get(dest_crowd_level, 10)
-        if len(unique_users) < required_users:
-            continue
-
-        destination = destinations[destination_id]
-        lat = destination.get("lat")
-        lng = destination.get("lng")
-        if lat is None or lng is None:
-            continue
-        try:
-            lat = float(lat)
-            lng = float(lng)
-        except Exception:
-            continue
-
-        if _existing_crowdy_marker_within(lat, lng, duplicate_radius_m):
-            existing_marker = _find_crowdy_marker_within(lat, lng, duplicate_radius_m)
-            if existing_marker:
-                marker_id = existing_marker.get("id")
-                try:
-                    marker_id = int(marker_id) if marker_id is not None else None
-                except Exception:
-                    marker_id = None
-                if marker_id is not None:
-                    crowd_level = dest_crowd_level
-                    if _extend_crowdy_marker_with_trend(
-                        marker_id,
-                        destination,
-                        report_count,
-                        len(unique_users),
-                        crowd_level,
-                    ):
-                        created_markers.append({
-                            "destination_id": destination_id,
-                            "title": existing_marker.get("title", "Crowdy Area"),
-                            "lat": lat,
-                            "lng": lng,
-                            "user_count": len(unique_users),
-                            "report_count": report_count,
-                            "action": "extended_7days_trend",
-                        })
-            continue
-
-        crowd_level = dest_crowd_level
-        description = _generate_crowdy_marker_description(destination, report_count, len(unique_users), crowd_level)
-        title = f"Crowdy Area - {destination.get('name', 'Busy spot')}"
-        insert_data = {
-            "title": title,
-            "danger_type": "Crowdy Area",
-            "lat": lat,
-            "lng": lng,
-            "severity": "High",
-            "radius_meters": 300,
-            "duration_hours": 4,
-            "description": description,
-            "user_id": None,
-            "reported_by": "Crowd AI",
-            "removed_at": None,
-            "created_at": now_iso(),
-        }
-        response = supabase.table("danger_pins").insert(insert_data).execute()
-        if safe_data(response):
-            created_markers.append({
-                "destination_id": destination_id,
-                "title": title,
-                "lat": lat,
-                "lng": lng,
-                "user_count": len(unique_users),
-                "report_count": report_count,
-            })
-
-    return created_markers
+    return cm_create_auto_crowdy_area_markers(supabase, gemini_client, threshold, window_hours, duplicate_radius_m)
 
 # Optional Gemini client (uses GEMINI_API_KEY or GOOGLE_API_KEY env var)
 try:

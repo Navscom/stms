@@ -17,6 +17,18 @@
   height: 100%;
 }
 
+[data-theme='dark'] .leaflet-container,
+[data-theme='dark'] .map-container,
+[data-theme='dark'] #map {
+  background: rgba(6, 10, 18, 0.36);
+}
+
+.leaflet-container,
+.map-container,
+#map {
+  background: var(--bg-primary, #ffffff);
+}
+
 /* Hint to browser to use the GPU for map transforms and tile rendering */
 .leaflet-container,
 .map-container,

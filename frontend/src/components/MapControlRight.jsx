@@ -4,11 +4,17 @@ import '../css/MapControlRight.css';
 export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccount, onToggleTheme, onResetMap, theme }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
+  const [isAccountDeletionOpen, setIsAccountDeletionOpen] = useState(false);
+  const [isAccountDeletionInfoOpen, setIsAccountDeletionInfoOpen] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(null);
 
   const toggleProfileMenu = () => {
     setIsProfileOpen((prev) => {
-      if (prev) setConfirmDelete(false);
+      if (prev) {
+        setConfirmDelete(false);
+        setIsAccountDeletionInfoOpen(false);
+      }
       return !prev;
     });
   };
@@ -16,12 +22,18 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
   const handleLogoutClick = () => {
     setIsProfileOpen(false);
     setConfirmDelete(false);
+    setIsAccountSettingsOpen(false);
+    setIsAccountDeletionOpen(false);
+    setIsAccountDeletionInfoOpen(false);
     onLogout?.();
   };
 
   const handleDeleteAccountClick = () => {
     setIsProfileOpen(false);
     setConfirmDelete(false);
+    setIsAccountSettingsOpen(false);
+    setIsAccountDeletionOpen(false);
+    setIsAccountDeletionInfoOpen(false);
     onDeleteAccount?.();
   };
 
@@ -70,7 +82,6 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
                 </div>
                 <div className="profile-info">
                   <div className="profile-name">{user.name || 'Account'}</div>
-                  <div className="profile-email">{user.email || 'No email provided'}</div>
                   {user.role && (
                     <div className="profile-badge">
                       {user.role === 'admin'
@@ -82,7 +93,6 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
                   )}
                 </div>
               </div>
-              <div className="profile-subtitle">Secure access to your account and settings.</div>
             </div>
 
             <div className="profile-actions">
@@ -90,25 +100,91 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
                 Sign out
               </button>
             </div>
-
-            <div className="profile-delete-section">
-              <div className="profile-delete-copy">This action permanently removes your account data.</div>
-              <label className="confirm-delete-checkbox">
-                <input
-                  type="checkbox"
-                  checked={confirmDelete}
-                  onChange={(e) => setConfirmDelete(e.target.checked)}
-                />
-                Confirm delete account
-              </label>
+            <div>
               <button
                 type="button"
-                className="danger-btn"
-                disabled={!confirmDelete}
-                onClick={handleDeleteAccountClick}
+                className="settings-btn"
+                onClick={() => {
+                  setIsAccountSettingsOpen((s) => {
+                    const next = !s;
+                    if (!next) {
+                      setIsAccountDeletionOpen(false);
+                      setIsAccountDeletionInfoOpen(false);
+                    }
+                    return next;
+                  });
+                }}
+                aria-expanded={isAccountSettingsOpen}
               >
-                Delete account
+                <span>Account Settings</span>
+                <span className="caret">{isAccountSettingsOpen ? '▾' : '▸'}</span>
               </button>
+
+              {isAccountSettingsOpen && (
+                <div className="account-settings-dropdown">
+                  <div className="account-item">
+                    <button
+                      type="button"
+                      className="account-item-button info-toggle-btn"
+                      onClick={() => setIsAccountDeletionInfoOpen((s) => !s)}
+                      aria-expanded={isAccountDeletionInfoOpen}
+                    >
+                      <span>Info</span>
+                      <span className="caret">{isAccountDeletionInfoOpen ? '▾' : '▸'}</span>
+                    </button>
+                    {isAccountDeletionInfoOpen && (
+                      <div className="account-item-panel info-panel">
+                        <div className="panel-title">Account Info</div>
+                        <div className="panel-description">The email associated with your current account.</div>
+                        <div className="info-row">
+                          <span className="info-label">Email:</span>
+                          <span className="info-value">{user.email || 'No email provided'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="account-item">
+                    <button
+                      type="button"
+                      className="account-item-button"
+                      onClick={() => {
+                        setIsAccountDeletionOpen((s) => {
+                          const next = !s;
+                          return next;
+                        });
+                      }}
+                      aria-expanded={isAccountDeletionOpen}
+                    >
+                      <span>Account Deletion</span>
+                      <span className="caret">{isAccountDeletionOpen ? '▾' : '▸'}</span>
+                    </button>
+
+                    {isAccountDeletionOpen && (
+                      <div className="account-item-panel deletion-panel">
+                        <div className="panel-title">Account Deletion</div>
+                        <div className="panel-description">Deleting your account permanently removes your profile and all stored data.</div>
+                        <div className="profile-delete-copy">Please be sure you want to proceed before confirming.</div>
+                        <label className="confirm-delete-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={confirmDelete}
+                            onChange={(e) => setConfirmDelete(e.target.checked)}
+                          />
+                          Confirm delete account
+                        </label>
+                        <button
+                          type="button"
+                          className="danger-btn"
+                          disabled={!confirmDelete}
+                          onClick={handleDeleteAccountClick}
+                        >
+                          Delete account
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
