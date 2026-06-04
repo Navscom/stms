@@ -44,6 +44,11 @@ const MapControlLeft = ({
   const [isSafetyAlertOpen, setIsSafetyAlertOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [destinationSearch, setDestinationSearch] = useState('');
+  const [routeStartLocal, setRouteStartLocal] = useState(null);
+  const [routeTargetLocal, setRouteTargetLocal] = useState(null);
+  const [routingSelectingLocal, setRoutingSelectingLocal] = useState(null);
+  const [routingOpenLocal, setRoutingOpenLocal] = useState(false);
+  const [isRoutingOpen, setIsRoutingOpen] = useState(false);
 
   const filteredDestinations = useMemo(() => {
     const search = destinationSearch.trim().toLowerCase();
@@ -67,6 +72,31 @@ const MapControlLeft = ({
       setIsReportOpen(false);
     }
   }, [isBoxExpanded]);
+  useEffect(() => {
+    if (!isBoxExpanded) closeRoutingPanel();
+  }, [isBoxExpanded]);
+
+  // Listen for route updates from the map component
+  useEffect(() => {
+    const handler = (e) => {
+      const d = e?.detail || {};
+      setRouteStartLocal(d.routeStart || null);
+      setRouteTargetLocal(d.routeTarget || null);
+      setRoutingSelectingLocal(d.routingSelecting || null);
+      setRoutingOpenLocal(Boolean(d.routingOpen));
+    };
+    window.addEventListener('stms:route-update', handler);
+    return () => window.removeEventListener('stms:route-update', handler);
+  }, []);
+
+  const dispatchSelect = (mode, extra = {}) => {
+    try { window.dispatchEvent(new CustomEvent('stms:route-select', { detail: { mode, ...extra } })); } catch (e) { /* ignore */ }
+  };
+
+  const closeRoutingPanel = () => {
+    setIsRoutingOpen(false);
+    dispatchSelect('clear');
+  };
 
   // Handlers for collapsed primary icon buttons
   const handleCollapsedMyLocation = () => {
@@ -74,11 +104,29 @@ const MapControlLeft = ({
     if (onMyLocation) onMyLocation();
   };
 
+  const openRoutingPanel = () => {
+    setIsBoxExpanded(true);
+    setIsRoutingOpen(true);
+    dispatchSelect('clear');
+    dispatchSelect('start');
+    setIsAddingMarkerOpen(false);
+    setIsDestinationsOpen(false);
+    setIsNearestOpen(false);
+    setIsSafetyAlertOpen(false);
+    setIsReportOpen(false);
+    try { if (isPinMode && onAddMarker) onAddMarker(); } catch (e) { /* ignore */ }
+  };
+
+  const handleCollapsedRouting = () => {
+    openRoutingPanel();
+  };
+
   const handleCollapsedAddMarker = () => {
     setIsBoxExpanded(true);
     setIsAddingMarkerOpen(true);
     setIsDestinationsOpen(false);
     setIsNearestOpen(false);
+    closeRoutingPanel();
     if (onAddMarker) onAddMarker();
   };
 
@@ -88,6 +136,7 @@ const MapControlLeft = ({
     setIsAddingMarkerOpen(false);
     setIsNearestOpen(false);
     setIsSafetyAlertOpen(false);
+    closeRoutingPanel();
   };
 
   // Keep destination panel open after selection so the user can manually click Focus
@@ -107,6 +156,7 @@ const MapControlLeft = ({
     setIsDestinationsOpen(false);
     setIsSafetyAlertOpen(false);
     setIsReportOpen(false);
+    closeRoutingPanel();
   };
 
   const handleCollapsedSafetyAlert = () => {
@@ -116,6 +166,7 @@ const MapControlLeft = ({
     setIsDestinationsOpen(false);
     setIsNearestOpen(false);
     setIsReportOpen(false);
+    closeRoutingPanel();
   };
 
   const handleCollapsedReport = () => {
@@ -125,6 +176,7 @@ const MapControlLeft = ({
     setIsDestinationsOpen(false);
     setIsNearestOpen(false);
     setIsSafetyAlertOpen(false);
+    closeRoutingPanel();
   };
 
   return (
@@ -182,6 +234,16 @@ const MapControlLeft = ({
                     onClick={handleCollapsedMyLocation}
                   >
                     <span className="btn-icon">📍</span>
+                  </button>
+                </TooltipPortal>
+
+                <TooltipPortal content="Map Routing">
+                  <button
+                    type="button"
+                    className="collapsed-icon-btn"
+                    onClick={handleCollapsedRouting}
+                  >
+                    <span className="btn-icon">🗺️</span>
                   </button>
                 </TooltipPortal>
 
@@ -246,8 +308,71 @@ const MapControlLeft = ({
                 </button>
               </div>
 
-              {/* 2. ADD MARKER CONTROL + FULL ADVANCED SAFETY FORM */}
+              {/* 2. MAP ROUTING CONTROL */}
               <div className="control-card-wrapper">
+                <button
+                  type="button"
+                  className={`tool-btn ${isRoutingOpen ? 'active-toggle' : ''}`}
+                  onClick={() => {
+                    const willOpen = !isRoutingOpen;
+                    if (willOpen) {
+                      openRoutingPanel();
+                    } else {
+                      closeRoutingPanel();
+                    }
+                  }}
+                >
+                  <span className="btn-icon">🗺️</span>
+                  <span className="btn-text">{
+                    routingSelectingLocal
+                      ? `Map Routing: selecting ${routingSelectingLocal}`
+                      : routeStartLocal && routeTargetLocal
+                        ? `Map Routing: 2 pins`
+                        : routeStartLocal
+                          ? `Map Routing: start set`
+                          : 'Map Routing'
+                  }</span>
+                </button>
+
+                {isRoutingOpen && (
+                  <div className="routing-content-panel">
+                    <h3 className="panel-main-title">Map Routing</h3>
+                    <p className="panel-subtitle">Choose start and destination by clicking on the map, or use GPS.</p>
+                    <div className="routing-panel">
+                      <label className="form-label">Choose starting point</label>
+                      <div className="routing-input">
+                        <button type="button" className="input-left-icon" aria-hidden>📍</button>
+                        <input
+                          type="text"
+                          placeholder="Choose starting point"
+                          value={routeStartLocal ? `${routeStartLocal.lat.toFixed(4)}, ${routeStartLocal.lng.toFixed(4)}` : ''}
+                          readOnly
+                          onFocus={() => dispatchSelect('start')}
+                        />
+                        <button type="button" className="input-clear" onClick={() => dispatchSelect('clear')} aria-label="Clear start">✖</button>
+                      </div>
+
+                      <label className="form-label">Choose destination</label>
+                      <div className="routing-input">
+                        <button type="button" className="input-left-icon" aria-hidden>🔍</button>
+                        <input
+                          type="text"
+                          placeholder="Choose destination..."
+                          value={routeTargetLocal ? `${routeTargetLocal.lat.toFixed(4)}, ${routeTargetLocal.lng.toFixed(4)}` : ''}
+                          readOnly
+                          onFocus={() => dispatchSelect('end')}
+                        />
+                      </div>
+
+                      <div className="routing-hint">{routingSelectingLocal ? `Click on the map to set ${routingSelectingLocal}` : 'Click an input then click the map to place a pin.'}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. ADD MARKER CONTROL + FULL ADVANCED SAFETY FORM */}
+              <div className="control-card-wrapper">
+
                 <button 
                   type="button" 
                   className={`tool-btn ${(isAddingMarkerOpen || isPinMode) ? 'active-toggle' : ''}`}
@@ -255,6 +380,7 @@ const MapControlLeft = ({
                     setIsAddingMarkerOpen(!isAddingMarkerOpen);
                     setIsSafetyAlertOpen(false);
                     if (isDestinationsOpen) setIsDestinationsOpen(false);
+                    closeRoutingPanel();
                     if (onAddMarker) onAddMarker();
                   }}
                 >
@@ -381,6 +507,7 @@ const MapControlLeft = ({
                     setIsNearestOpen(false);
                     setIsDestinationsOpen(false);
                     setIsReportOpen(false);
+                    closeRoutingPanel();
                   }}
                 >
                   <span className="btn-icon">⚠️</span>
@@ -406,6 +533,7 @@ const MapControlLeft = ({
                     setIsNearestOpen(false);
                     setIsDestinationsOpen(false);
                     setIsSafetyAlertOpen(false);
+                    closeRoutingPanel();
                   }}
                 >
                   <span className="btn-icon">📊</span>
@@ -450,6 +578,7 @@ const MapControlLeft = ({
                     if (isDestinationsOpen) setIsDestinationsOpen(false);
                     setIsSafetyAlertOpen(false);
                     setIsReportOpen(false);
+                    closeRoutingPanel();
                   }}
                 >
                   <span className="btn-icon">🧭</span>
@@ -481,6 +610,7 @@ const MapControlLeft = ({
                     if (isAddingMarkerOpen) setIsAddingMarkerOpen(false);
                     if (isNearestOpen) setIsNearestOpen(false);
                     setIsSafetyAlertOpen(false);
+                    closeRoutingPanel();
                   }}
                 >
                   <span className="btn-icon">🗺️</span>
@@ -516,8 +646,7 @@ const MapControlLeft = ({
                     />
                   </div>
                 </div>
-              </div>
-            </>
+              </div>            </>
           )}
 
         </div>

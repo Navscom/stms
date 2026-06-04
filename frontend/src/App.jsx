@@ -13,7 +13,7 @@ import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommen
 import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
 function App() {
-  const [advice, setAdvice] = useState('');
+  const [advice, setAdvice] = useState('Turn on My Location to get your current position and receive the best safety and tourist advice.');
 
   // Wrapper for setAdvice that also notifies the AI guidance to show
   const setAdviceWithNotify = (val) => {
@@ -228,10 +228,12 @@ function App() {
 
   const handleMapClick = (lat, lng) => {
     if (pinMode) return startMarkerPlacement(lat, lng);
-    if (locationMode) {
-      setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
+    if (!locationMode) {
+      // Normal map clicks are disabled for location selection until
+      // the user enables My Location.
       return;
     }
+    setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
     const clickedLocation = { lat, lng };
     setLastClickLocation(clickedLocation);
     setUserLocation(clickedLocation);
@@ -599,6 +601,7 @@ function App() {
               onResetMap={() => setResetMapFlag((prev) => prev + 1)}
               resetMapFlag={resetMapFlag}
               onLocationClick={handleMapClick}
+              onMapBackgroundClick={clearSelectedDestination}
               onAddComment={addMarkerComment}
               onUpdateComment={updateMarkerComment}
               onDeleteComment={deleteMarkerComment}

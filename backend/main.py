@@ -8,6 +8,7 @@ from supabase import Client, create_client
 from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any, Dict, List, Optional
+import requests
 
 # Allow running as a top-level script from the backend directory.
 if __package__ is None:
@@ -40,8 +41,8 @@ from helpers import (
     move_expired_pins,
 )
 
-#Load .env
-load_dotenv()
+#Load .env from the backend folder so keys in backend/.env are loaded when running from project root
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Configure basic logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -622,6 +623,48 @@ def safety_check(lat: float, lng: float, language: str = "en"):
         "wildlife_alerts": wildlife_alerts[:8],
         "language": language
     }
+
+
+@app.get("/route")
+def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float, profile: str = "foot-walking"):
+    """Proxy endpoint to OpenRouteService directions API.
+
+    Returns the ORS geojson directions response so the frontend can render the route.
+    Requires `ORS_API_KEY` environment variable to be set.
+    """
+    ors_key = os.getenv("ORS_API_KEY")
+    if not ors_key:
+        logger.error("ORS_API_KEY not found in environment")
+        raise HTTPException(status_code=500, detail="ORS_API_KEY environment variable is not configured on the server. Ensure backend/.env contains ORS_API_KEY and restart the server.")
+
+    try:
+        url = f"https://api.openrouteservice.org/v2/directions/{profile}/geojson"
+        payload = {
+            "coordinates": [[float(start_lng), float(start_lat)], [float(end_lng), float(end_lat)]]
+        }
+        headers = {
+            "Authorization": ors_key,
+            "Content-Type": "application/json",
+        }
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=15)
+        except Exception as re:
+            logger.exception("HTTP request to OpenRouteService failed")
+            raise HTTPException(status_code=502, detail=f"Failed to connect to OpenRouteService: {str(re)}")
+
+        if resp.status_code != 200:
+            logger.error("OpenRouteService returned non-200", extra={"status": resp.status_code, "text": resp.text[:400]})
+            raise HTTPException(status_code=502, detail=f"OpenRouteService error: {resp.status_code}: {resp.text[:400]}")
+        try:
+            return resp.json()
+        except Exception:
+            logger.exception("Failed to decode OpenRouteService JSON response")
+            raise HTTPException(status_code=502, detail="OpenRouteService returned invalid JSON response")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to fetch route from OpenRouteService")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/ai-advice")
 def get_ai_advice(lat: float, lng: float, location_type: str = "general", language: str = "en"):

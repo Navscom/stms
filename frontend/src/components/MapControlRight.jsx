@@ -32,6 +32,7 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
 
   return (
     <div className="map-controls-right">
+      
       <div className="profile-menu">
         <button
           type="button"
@@ -124,6 +125,8 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
         {theme === 'dark' ? '🌙' : '☀️'}
         {hoveredButton === 'theme' && <div className="tooltip">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</div>}
       </button>
+
+      {/* Routing UI moved to left panel */}
 
       <button
         type="button"
