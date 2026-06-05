@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../css/MapControlRight.css';
 
-export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccount, onToggleTheme, onResetMap, theme }) {
+export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccount, onToggleTheme, onResetMap, theme, avoidDanger = true, onToggleAvoidDanger = () => {} }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
@@ -200,6 +200,19 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
       >
         {theme === 'dark' ? '🌙' : '☀️'}
         {hoveredButton === 'theme' && <div className="tooltip">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</div>}
+      </button>
+
+      <button
+        type="button"
+        className="pill-btn"
+        onClick={onToggleAvoidDanger}
+        aria-pressed={Boolean(avoidDanger)}
+        aria-label={avoidDanger ? 'Avoid danger enabled' : 'Avoid danger disabled'}
+        onMouseEnter={() => setHoveredButton('avoid')}
+        onMouseLeave={() => setHoveredButton(null)}
+      >
+        {avoidDanger ? '🛡️' : '⚠️'}
+        {hoveredButton === 'avoid' && <div className="tooltip">{avoidDanger ? 'Avoid danger: ON' : 'Avoid danger: OFF'}</div>}
       </button>
 
       {/* Routing UI moved to left panel */}

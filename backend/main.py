@@ -41,6 +41,7 @@ from helpers import (
     filter_active_pins,
     now_iso,
     move_expired_pins,
+    build_avoid_multipolygon_from_pins,
 )
 # Email utilities removed (email functionality disabled in this deployment)
 from crowd_markers import (
@@ -60,6 +61,12 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 # Configure basic logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
+MAX_ROUTE_AVOID_PINS = 10
+MAX_ROUTE_AVOID_DISTANCE_KM = 5.0
+MAX_ROUTE_AVOID_POLYGON_POINTS = 16
+MAX_ROUTE_REQUEST_TIMEOUT_SECONDS = 60
+MAX_ROUTE_SNAP_RADIUS_METERS = 2000
+
 
 def _require_env(name: str) -> str:
     value = os.getenv(name)
@@ -174,6 +181,156 @@ def _existing_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 
         if distance_km <= radius_meters / 1000.0:
             return True
     return False
+
+
+def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: float, end_lng: float, pins: List[Dict[str, Any]], route_buffer_km: float = 0.35) -> List[Dict[str, Any]]:
+    """Return only danger pins that are actually along or very near the planned route.
+
+    Avoid sending all pins to OpenRouteService, which can cause avoid_polygons to
+    over-constrain or break nearby routes. Keep only pins that are likely to be on
+    the user's path instead of those only near the start or finish point.
+    """
+    relevant = []
+    for pin in pins or []:
+        if not isinstance(pin, dict) or _pin_inactive(pin):
+            continue
+        try:
+            pin_lat = float(pin.get("lat", 0))
+            pin_lng = float(pin.get("lng", 0))
+            pin_radius_km = float(pin.get("radius_meters", 300)) / 1000.0
+        except (TypeError, ValueError):
+            continue
+
+        # Exclude pins that are essentially at the destination itself.
+        # The destination may have a crowdy area marker but it should not be
+        # treated as a route hazard for avoidance or route advice generation.
+        if haversine(end_lat, end_lng, pin_lat, pin_lng) <= max(pin_radius_km, 0.35):
+            continue
+
+        # Use the pin radius plus a small buffer to decide whether the pin is on/near the route.
+        effective_radius = max(pin_radius_km, route_buffer_km)
+        if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
+            continue
+
+        start_dist = haversine(start_lat, start_lng, pin_lat, pin_lng)
+        end_dist = haversine(end_lat, end_lng, pin_lat, pin_lng)
+        min_dist = min(start_dist, end_dist)
+        relevant.append((min_dist, pin))
+
+    relevant.sort(key=lambda item: item[0])
+    return [pin for _, pin in relevant]
+
+
+def _extract_route_summary(route_geojson: Dict[str, Any]) -> Dict[str, Any]:
+    summary = ""
+    distance_km = None
+    duration_min = None
+    if isinstance(route_geojson, dict):
+        features = route_geojson.get("features")
+        if isinstance(features, list) and features:
+            first = features[0]
+            if isinstance(first, dict):
+                props = first.get("properties") or {}
+                if isinstance(props, dict):
+                    summary_obj = props.get("summary")
+                    if isinstance(summary_obj, dict):
+                        distance_m = summary_obj.get("distance")
+                        duration_s = summary_obj.get("duration")
+                        try:
+                            distance_km = float(distance_m) / 1000.0 if distance_m is not None else None
+                        except (TypeError, ValueError):
+                            distance_km = None
+                        try:
+                            duration_min = float(duration_s) / 60.0 if duration_s is not None else None
+                        except (TypeError, ValueError):
+                            duration_min = None
+                        if distance_km is not None and duration_min is not None:
+                            summary = f"Approximately {distance_km:.2f} km and {duration_min:.0f} minutes."
+                    elif isinstance(summary_obj, str):
+                        summary = summary_obj
+                if not summary:
+                    distance_m = props.get("distance")
+                    duration_s = props.get("duration")
+                    try:
+                        distance_km = float(distance_m) / 1000.0 if distance_m is not None else None
+                    except (TypeError, ValueError):
+                        distance_km = None
+                    try:
+                        duration_min = float(duration_s) / 60.0 if duration_s is not None else None
+                    except (TypeError, ValueError):
+                        duration_min = None
+                    if distance_km is not None and duration_min is not None:
+                        summary = f"Approximately {distance_km:.2f} km and {duration_min:.0f} minutes."
+    return {
+        "summary": summary,
+        "distance_km": distance_km,
+        "duration_min": duration_min,
+    }
+
+
+def _ors_routable_point_error(response_body: Any, short_body: str) -> Optional[str]:
+    if isinstance(response_body, dict):
+        error_info = response_body.get('error') or {}
+        if isinstance(error_info, dict):
+            message = str(error_info.get('message') or error_info.get('description') or '')
+        else:
+            message = str(error_info or '')
+    else:
+        message = ''
+
+    if not message and isinstance(response_body, str):
+        message = response_body
+
+    if not message and 'Could not find routable point' in short_body:
+        message = short_body
+
+    if 'Could not find routable point' in message:
+        return "The selected location is too far from any accessible roads or walking paths. Please choose a location on or near a road, street, or path to calculate a route."
+    return None
+
+
+def _generate_route_advice(
+    route_geojson: Dict[str, Any],
+    start_lat: float,
+    start_lng: float,
+    end_lat: float,
+    end_lng: float,
+    danger_pins: List[Dict[str, Any]],
+    avoid_danger: bool = False,
+) -> str:
+    if gemini_client is not None:
+        try:
+            route_info = _extract_route_summary(route_geojson)
+            advice_result = gemini_client.generate_route_advice(
+                route_summary=route_info.get("summary", ""),
+                distance_km=route_info.get("distance_km") or 0.0,
+                duration_min=route_info.get("duration_min") or 0.0,
+                danger_nearby=danger_pins or [],
+                avoid_danger=avoid_danger,
+            )
+            if advice_result and isinstance(advice_result, dict):
+                advice_text = advice_result.get("advice")
+                if isinstance(advice_text, str) and advice_text.strip():
+                    return advice_text.strip()
+        except Exception:
+            pass
+
+    route_info = _extract_route_summary(route_geojson)
+    summary = route_info.get("summary")
+    if summary:
+        advice = f"Route calculated. {summary}"
+    else:
+        advice = "Route calculated successfully."
+    if avoid_danger:
+        advice += " This route was calculated to avoid known danger areas."
+    if danger_pins:
+        top = danger_pins[0]
+        title = str(top.get("title", "a nearby hazard")).strip()
+        if title:
+            advice += f" Be aware of {title} near the path and use caution."
+    else:
+        advice += " No active danger pins are close to this route."
+    return advice
 
 
 def _find_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> Optional[Dict[str, Any]]:
@@ -466,7 +623,7 @@ def safety_check(lat: float, lng: float, language: str = "en"):
 
 
 @app.get("/route")
-def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float, profile: str = "foot-walking"):
+def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float, profile: str = "foot-walking", avoid_danger: bool = False):
     """Proxy endpoint to OpenRouteService directions API.
 
     Returns the ORS geojson directions response so the frontend can render the route.
@@ -479,27 +636,159 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
 
     try:
         url = f"https://api.openrouteservice.org/v2/directions/{profile}/geojson"
-        payload = {
-            "coordinates": [[float(start_lng), float(start_lat)], [float(end_lng), float(end_lat)]]
+        payload: Dict[str, Any] = {
+            "coordinates": [[float(start_lng), float(start_lat)], [float(end_lng), float(end_lat)]],
+            "radiuses": [MAX_ROUTE_SNAP_RADIUS_METERS, MAX_ROUTE_SNAP_RADIUS_METERS]
         }
+        relevant_pins: List[Dict[str, Any]] = []
+        try:
+            pins_resp = supabase.table("danger_pins").select("*").execute()
+            pins = safe_data(pins_resp) or []
+            pins = filter_active_pins(pins)
+            relevant_pins = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins)
+            if avoid_danger:
+                logger.info(f"Route avoidance: {len(relevant_pins)} relevant danger pin(s) out of {len(pins)} active pin(s)")
+                if len(relevant_pins) > MAX_ROUTE_AVOID_PINS:
+                    logger.warning(
+                        f"Too many route-relevant danger pins ({len(relevant_pins)}) for avoidance; limiting to {MAX_ROUTE_AVOID_PINS}"
+                    )
+                    relevant_pins = relevant_pins[:MAX_ROUTE_AVOID_PINS]
+                # build multipolygon (returns None if no valid pins)
+                avoid_geo = build_avoid_multipolygon_from_pins(relevant_pins, points_per_circle=MAX_ROUTE_AVOID_POLYGON_POINTS)
+                if avoid_geo:
+                    # Wrap the geometry in a GeoJSON FeatureCollection. OpenRouteService
+                    # accepts GeoJSON geometries but wrapping as a FeatureCollection
+                    # improves compatibility across API versions.
+                    payload["options"] = {
+                        "avoid_polygons": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {"type": "Feature", "properties": {}, "geometry": avoid_geo}
+                            ]
+                        }
+                    }
+        except Exception:
+            logger.exception("Failed to fetch or filter danger pins for route advice")
         headers = {
             "Authorization": ors_key,
             "Content-Type": "application/json",
         }
+        route_error_message = "Route unavailable: the requested route could not be calculated. Please try a different location or try again later."
         try:
-            resp = requests.post(url, json=payload, headers=headers, timeout=15)
+            resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
         except Exception as re:
             logger.exception("HTTP request to OpenRouteService failed")
-            raise HTTPException(status_code=502, detail=f"Failed to connect to OpenRouteService: {str(re)}")
+            raise HTTPException(status_code=400, detail=route_error_message)
 
         if resp.status_code != 200:
-            logger.error("OpenRouteService returned non-200", extra={"status": resp.status_code, "text": resp.text[:400]})
-            raise HTTPException(status_code=502, detail=f"OpenRouteService error: {resp.status_code}: {resp.text[:400]}")
+            try:
+                response_body = resp.json()
+            except Exception:
+                response_body = resp.text or ""
+            short_body = str(response_body)[:400]
+            logger.error("OpenRouteService returned non-200", extra={"status": resp.status_code, "text": short_body})
+            routable_error_message = _ors_routable_point_error(response_body, short_body)
+            if routable_error_message:
+                raise HTTPException(status_code=400, detail=routable_error_message)
+
+            if resp.status_code == 404:
+                error_message = None
+                if isinstance(response_body, dict):
+                    error_info = response_body.get('error') or {}
+                    if isinstance(error_info, dict) and 'message' in error_info:
+                        error_message = str(error_info.get('message'))
+                if not error_message and 'Could not find routable point' in short_body:
+                    error_message = short_body
+                if error_message:
+                    logger.warning("ORS route failed due to unreachable start/end point; retrying with unlimited snap radius")
+                    payload["radiuses"] = [-1, -1]
+                    try:
+                        resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                    except Exception:
+                        logger.exception("HTTP retry request to OpenRouteService with unlimited snap radius failed")
+                        raise HTTPException(status_code=400, detail=route_error_message)
+
+                    if resp.status_code == 200:
+                        try:
+                            data = resp.json()
+                            data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                            return data
+                        except Exception:
+                            logger.exception("Failed to decode OpenRouteService JSON response on unlimited snap radius retry")
+                            raise HTTPException(status_code=400, detail=route_error_message)
+
+                    try:
+                        response_body = resp.json()
+                    except Exception:
+                        response_body = resp.text or ""
+                    short_body = str(response_body)[:400]
+                    logger.error("OpenRouteService unlimited snap radius retry returned non-200", extra={"status": resp.status_code, "text": short_body})
+                    routable_error_message = _ors_routable_point_error(response_body, short_body)
+                    if routable_error_message:
+                        raise HTTPException(status_code=400, detail=routable_error_message)
+                    if avoid_danger and payload.get("options", {}).get("avoid_polygons"):
+                        logger.warning("OpenRouteService avoid_danger route failed, retrying without avoid_polygons")
+                        payload.pop("options", None)
+                        try:
+                            resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                        except Exception:
+                            logger.exception("HTTP retry request to OpenRouteService without avoid_polygons failed")
+                            raise HTTPException(status_code=400, detail=f"{route_error_message} ORS error: {short_body}")
+                        if resp.status_code == 200:
+                            try:
+                                data = resp.json()
+                                data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                                return data
+                            except Exception:
+                                logger.exception("Failed to decode OpenRouteService JSON response on retry")
+                                raise HTTPException(status_code=400, detail=f"{route_error_message} ORS response invalid: {short_body}")
+                        try:
+                            response_body = resp.json()
+                        except Exception:
+                            response_body = resp.text or ""
+                        short_body = str(response_body)[:400]
+                        logger.error("OpenRouteService retry without avoid_polygons returned non-200", extra={"status": resp.status_code, "text": short_body})
+                        routable_error_message = _ors_routable_point_error(response_body, short_body)
+                        if routable_error_message:
+                            raise HTTPException(status_code=400, detail=routable_error_message)
+                    raise HTTPException(status_code=400, detail=f"{route_error_message} ORS status {resp.status_code}: {short_body}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="The selected location is too far from any accessible roads or walking paths. Please choose a location on or near a road, street, or path to calculate a route."
+                )
+            if avoid_danger and payload.get("options", {}).get("avoid_polygons"):
+                logger.warning("OpenRouteService avoid_danger route failed, retrying without avoid_polygons")
+                payload.pop("options", None)
+                try:
+                    resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                except Exception as re:
+                    logger.exception("HTTP retry request to OpenRouteService without avoid_polygons failed")
+                    raise HTTPException(status_code=400, detail=f"{route_error_message} ORS error: {short_body}")
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                        data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                        return data
+                    except Exception:
+                        logger.exception("Failed to decode OpenRouteService JSON response on retry")
+                        raise HTTPException(status_code=400, detail=f"{route_error_message} ORS response invalid: {short_body}")
+                try:
+                    response_body = resp.json()
+                except Exception:
+                    response_body = resp.text or ""
+                short_body = str(response_body)[:400]
+                logger.error("OpenRouteService retry without avoid_polygons returned non-200", extra={"status": resp.status_code, "text": short_body})
+                routable_error_message = _ors_routable_point_error(response_body, short_body)
+                if routable_error_message:
+                    raise HTTPException(status_code=400, detail=routable_error_message)
+            raise HTTPException(status_code=400, detail=f"{route_error_message} ORS status {resp.status_code}: {short_body}")
         try:
-            return resp.json()
+            data = resp.json()
+            data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+            return data
         except Exception:
             logger.exception("Failed to decode OpenRouteService JSON response")
-            raise HTTPException(status_code=502, detail="OpenRouteService returned invalid JSON response")
+            raise HTTPException(status_code=400, detail=route_error_message)
     except HTTPException:
         raise
     except Exception as e:

@@ -4,12 +4,13 @@ import { checkSafety, fetchAdvice } from '../utils/LoadData';
 
 export { checkSafety, fetchAdvice };
 
-export default function AIGuidance({ advice, nearest }) {
+export default function AIGuidance({ advice, routeAdvice, nearest }) {
   const [visible, setVisible] = useState(true);
   const timerRef = useRef(null);
   const prevAdviceRef = useRef(advice);
+  const prevRouteAdviceRef = useRef(routeAdvice);
 
-  const IDLE_MS = 10000; // 10 seconds
+  const IDLE_MS = 15000; // 15 seconds
 
   function clearIdleTimer() {
     if (timerRef.current) {
@@ -24,15 +25,8 @@ export default function AIGuidance({ advice, nearest }) {
   }
 
   function resetIdle() {
-    // Only apply idle behavior in portrait orientation
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: portrait)').matches) {
-      setVisible(true);
-      startIdleTimer();
-    } else {
-      // always visible in landscape / non-supported environments
-      setVisible(true);
-      clearIdleTimer();
-    }
+    setVisible(true);
+    startIdleTimer();
   }
 
   useEffect(() => {
@@ -80,14 +74,18 @@ export default function AIGuidance({ advice, nearest }) {
       prevAdviceRef.current = advice;
       resetIdle();
     }
+    if (routeAdvice && routeAdvice !== prevRouteAdviceRef.current) {
+      prevRouteAdviceRef.current = routeAdvice;
+      resetIdle();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [advice]);
+  }, [advice, routeAdvice]);
 
   return (
     <section className={`advice-section ${visible ? '' : 'hidden'}`} aria-hidden={!visible}>
       <div className="ai-card">
         <h2>AI Guidance</h2>
-        <p>{advice || 'Click the map or select a destination to get AI safety and tourist advice.'}</p>
+        <p>{routeAdvice || advice || 'Click the map or select a destination to get AI safety and tourist advice.'}</p>
       </div>
     </section>
   );

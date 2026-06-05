@@ -11,7 +11,6 @@ const MapControlLeft = ({
   onHazardSubmit,
   onAddMarker,
   onCenterTouristSpot,
-  onZoomToSpot,
   onSelectDestination,
   onClearSelection,
   onReportHover = () => {},
@@ -637,7 +636,6 @@ const MapControlLeft = ({
                       selectedLocation={selectedLocation}
                       onClearSelection={onClearSelection}
                       onCenterSpot={onCenterTouristSpot}
-                      onZoomToSpot={onZoomToSpot}
                       onFocusDestination={handleDestinationFocus}
                       autoFocusOnSelect={false}
                       isPanel={true}
