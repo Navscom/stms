@@ -171,6 +171,16 @@ def _fetch_destinations_map() -> Dict[int, Dict[str, Any]]:
     return result
 
 
+def _fetch_active_danger_pins() -> List[Dict[str, Any]]:
+    try:
+        response = supabase.table("danger_pins").select("*").is_("removed_at", None).execute()
+        pins = safe_data(response)
+    except Exception:
+        response = supabase.table("danger_pins").select("*").execute()
+        pins = safe_data(response)
+    return filter_active_pins(pins)
+
+
 def _existing_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> bool:
     response = supabase.table("danger_pins").select("*").eq("danger_type", "Crowdy Area").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
@@ -583,10 +593,7 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
 
 @app.get("/safety-check")
 def safety_check(lat: float, lng: float, language: str = "en"):
-    response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(response)
-    # filter out expired or removed pins
-    pins = filter_active_pins(pins)
+    pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
     nearby = []
     for pin in pins:
         if not isinstance(pin, dict):
@@ -642,9 +649,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
         }
         relevant_pins: List[Dict[str, Any]] = []
         try:
-            pins_resp = supabase.table("danger_pins").select("*").execute()
-            pins = safe_data(pins_resp) or []
-            pins = filter_active_pins(pins)
+            pins = _fetch_active_danger_pins()
             relevant_pins = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins)
             if avoid_danger:
                 logger.info(f"Route avoidance: {len(relevant_pins)} relevant danger pin(s) out of {len(pins)} active pin(s)")
@@ -799,9 +804,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
 def get_ai_advice(lat: float, lng: float, location_type: str = "general", language: str = "en"):
     dest_response = supabase.table("destinations").select("*").execute()
     destinations: List[Dict[str, Any]] = safe_data(dest_response)
-    pin_response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(pin_response)
-    pins = filter_active_pins(pins)
+    pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
 
     ranked = []
     for d in destinations:
@@ -985,14 +988,9 @@ def reports_summary():
                     crowd_summary[level] = crowd_summary.get(level, 0) + 1
 
         # Danger summary
-        try:
-            danger_response = supabase.table("danger_pins").select("*").execute()
-            danger_pins: List[Dict[str, Any]] = safe_data(danger_response)
-        except Exception:
-            danger_pins = []
-        
+        danger_pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
         danger_summary = {}
-        for p in filter_active_pins(danger_pins):
+        for p in danger_pins:
             if not isinstance(p, dict):
                 continue
             severity = p.get("severity", "Unknown")
@@ -1020,40 +1018,57 @@ def reports_summary():
 # DANGER PIN AND COMMENTS
 @app.get("/danger-pins")
 def get_danger_pins():
-    response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(response)
+    pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
     visible = []
-    # collect user ids referenced by pins and comments so we can fetch user display names in one go
+    pin_ids = []
     referenced_user_ids = set()
+
     for pin in pins:
         if _pin_inactive(pin):
             continue
         pin_id = pin.get("id")
+        if pin_id is not None:
+            try:
+                pin_ids.append(int(pin_id))
+            except Exception:
+                pass
+
         uid_val = pin.get("user_id")
         if uid_val is not None:
             try:
                 referenced_user_ids.add(int(uid_val))
             except Exception:
                 pass
-        if pin_id is not None:
-            comments_response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
-            comments = safe_data(comments_response) or []
-            comments = [
-                c for c in comments
-                if isinstance(c, dict) and c.get("moderation_reason") != "deleted_by_moderation"
-            ]
-            for c in comments:
-                if c and c.get("user_id") is not None:
-                    cuid_val = c.get("user_id")
-                    try:
-                        if cuid_val is not None:
-                            referenced_user_ids.add(int(cuid_val))
-                    except Exception:
-                        pass
-            pin["comments"] = comments
+
         visible.append(pin)
 
-    # fetch users once
+    comments_map: Dict[int, List[Dict[str, Any]]] = {}
+    if pin_ids:
+        try:
+            comments_response = supabase.table("marker_comments").select("*").in_("pin_id", pin_ids).order("created_at", desc=True).execute()
+            comments = safe_data(comments_response) or []
+            for c in comments:
+                if not isinstance(c, dict):
+                    continue
+                if c.get("moderation_reason") == "deleted_by_moderation":
+                    continue
+                pin_id = c.get("pin_id")
+                if pin_id is None:
+                    continue
+                try:
+                    pin_key = int(pin_id)
+                except Exception:
+                    continue
+                comments_map.setdefault(pin_key, []).append(c)
+                cuid_val = c.get("user_id")
+                if cuid_val is not None:
+                    try:
+                        referenced_user_ids.add(int(cuid_val))
+                    except Exception:
+                        pass
+        except Exception:
+            comments_map = {}
+
     users_map: Dict[int, Dict[str, Any]] = {}
     if referenced_user_ids:
         try:
@@ -1070,8 +1085,17 @@ def get_danger_pins():
         except Exception:
             users_map = {}
 
-    # attach display names
     for pin in visible:
+        pin_id = pin.get("id")
+        if pin_id is not None:
+            try:
+                pin_comments = comments_map.get(int(pin_id), [])
+            except Exception:
+                pin_comments = []
+        else:
+            pin_comments = []
+        pin["comments"] = pin_comments
+
         uid = pin.get("user_id")
         reporter = None
         uid_key = None
@@ -1083,9 +1107,8 @@ def get_danger_pins():
         if uid_key is not None and uid_key in users_map:
             reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("name")
         pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
-        # attach commented_by for each comment
-        comments = pin.get("comments") or []
-        for c in comments:
+
+        for c in pin_comments:
             cuid = c.get("user_id")
             commenter = None
             cuid_key = None
