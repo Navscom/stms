@@ -6,7 +6,7 @@ import MapControlRight from './MapControlRight';
 import CommentBox from './Comments';
 import L from 'leaflet';
 import { formatDuration, isPinInactive } from '../utils/pinHelpers';
-import { getDangerPinComments } from '../utils';
+import { getDangerPinComments, API } from '../utils';
 
 const phBounds = [[4.0, 116.0], [21.5, 127.0]];
 
@@ -755,20 +755,22 @@ export default function MapView({
 
     try {
       // Request routes while asking the backend to avoid known danger pin areas
-      const routeUrlPath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=${avoidDanger ? '1' : '0'}`;
+      const routePath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=${avoidDanger ? '1' : '0'}`;
+      const routeUrl = `${API}${routePath}`;
       let resp;
-      try { resp = await fetch(routeUrlPath); } catch (err) {
-        const fallback = `http://localhost:8000${routeUrlPath}`;
-        console.warn('Relative fetch failed, retrying to', fallback, err);
+      try { resp = await fetch(routeUrl); } catch (err) {
+        const fallback = `http://localhost:8000${routePath}`;
+        console.warn('API fetch failed, retrying to', fallback, err);
         resp = await fetch(fallback);
       }
       if (!resp.ok && avoidDanger) {
-        const fallbackUrl = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=0`;
+        const fallbackPath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=0`;
+        const fallbackUrl = `${API}${fallbackPath}`;
         console.warn('Safe route failed, retrying normal route', resp.status, resp.statusText);
         try {
           resp = await fetch(fallbackUrl);
         } catch (err) {
-          const fallback = `http://localhost:8000${fallbackUrl}`;
+          const fallback = `http://localhost:8000${fallbackPath}`;
           console.warn('Retry normal route failed, retrying to', fallback, err);
           resp = await fetch(fallback);
         }
