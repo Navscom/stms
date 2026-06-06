@@ -292,6 +292,7 @@ class GeminiClient:
         duration_min: float,
         danger_nearby: List[Dict[str, Any]],
         avoid_danger: bool = False,
+        endpoint_inside_danger: bool = False,
         model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Generate friendly route advice based on the calculated route and nearby hazards."""
@@ -309,6 +310,8 @@ class GeminiClient:
 
         if avoid_danger:
             context_lines.append("This route was calculated to avoid known danger pin areas.")
+        elif endpoint_inside_danger:
+            context_lines.append("The route begins or ends inside a reported danger area, so it is being calculated directly. Mention that the user should stay alert and follow safety guidance.")
 
         if danger_nearby:
             for danger in danger_nearby[:4]:
