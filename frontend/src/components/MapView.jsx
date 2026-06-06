@@ -749,7 +749,9 @@ export default function MapView({
   // Helper to fetch route between two points (lat/lng objects)
   const fetchRoute = async (start, end) => {
     setRouteGeoJson(null);
-    onSetRouteAdvice('');
+    // Inform the AI guidance that routing is in progress so the UI
+    // doesn't show stale advice while we wait for the backend.
+    onSetRouteAdvice('Calculating route...');
     setRouteLoading(true);
     console.debug('Route request started', { start, end, avoidDanger });
 
@@ -794,6 +796,16 @@ export default function MapView({
       try {
         if (mapRef.current && data && data.features && data.features.length) {
           const coords = data.features[0].geometry.coordinates.map((c) => [c[1], c[0]]);
+          // Align the visible route start/end markers with the snapped
+          // coordinates returned by the routing engine so the blue route
+          // doesn't appear visually offset from `location 1`/`location 2`.
+          if (coords.length) {
+            const snappedStart = { lat: coords[0][0], lng: coords[0][1] };
+            const snappedEnd = { lat: coords[coords.length - 1][0], lng: coords[coords.length - 1][1] };
+            setRouteStart(snappedStart);
+            setRouteTarget(snappedEnd);
+          }
+
           const bounds = L.latLngBounds(coords);
           if (typeof bounds.pad === 'function') mapRef.current.fitBounds(bounds.pad(0.12));
           else mapRef.current.fitBounds(bounds);
@@ -859,7 +871,7 @@ export default function MapView({
         return;
       }
       if (location2CooldownActive) {
-        onSetRouteAdvice('Please wait 5 seconds before placing your destination again.');
+        onSetRouteAdvice('Please wait 5 seconds before placing your destination again as we are calculating the route.');
         return;
       }
       setRouteHidePins(false);
@@ -875,7 +887,7 @@ export default function MapView({
     // and preserve the existing start location (location 1)
     if (routeStart) {
       if (location2CooldownActive) {
-        onSetRouteAdvice('Please wait 5 seconds before placing your destination again.');
+        onSetRouteAdvice('Please wait 5 seconds before placing your destination again, as we are calculating the route.');
         return;
       }
       setRouteHidePins(false);
