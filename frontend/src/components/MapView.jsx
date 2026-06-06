@@ -258,6 +258,15 @@ function MapAutoFocusHandler({ focusLocation, focusBounds, focusZoom = null, loa
         }
       }
 
+      // If the user has placed only the route start (location 1), focus to it
+      // without changing zoom so the map centers on the explicitly placed pin.
+      if (routeStart && !routeTarget) {
+        const lat = routeStart.lat ?? routeStart[0];
+        const lng = routeStart.lng ?? routeStart[1];
+        centerMapWithOffset(map, { lat, lng });
+        return;
+      }
+
       if (focusBounds && Array.isArray(focusBounds.coords) && focusBounds.coords.length > 0) {
         const coords = focusBounds.coords.map((c) => [Number(c[0]), Number(c[1])]);
         const bounds = L.latLngBounds(coords);
@@ -602,6 +611,7 @@ export default function MapView({
 
   const wrapperRef = useRef(null);
   const mapRef = useRef(null);
+  const routeAbortController = useRef(null);
   const [routeGeoJson, setRouteGeoJson] = useState(null);
   const [routeTarget, setRouteTarget] = useState(null);
   const [routeStart, setRouteStart] = useState(null);
@@ -629,6 +639,18 @@ export default function MapView({
   useEffect(() => {
     return () => {
       if (location2CooldownTimer.current) window.clearTimeout(location2CooldownTimer.current);
+    };
+  }, []);
+
+  // Abort any in-flight route request when the component unmounts
+  useEffect(() => {
+    return () => {
+      try {
+        if (routeAbortController.current) {
+          routeAbortController.current.abort();
+          routeAbortController.current = null;
+        }
+      } catch (e) { /* ignore */ }
     };
   }, []);
 
@@ -755,28 +777,40 @@ export default function MapView({
     setRouteLoading(true);
     console.debug('Route request started', { start, end, avoidDanger });
 
-    try {
-      // Request routes while asking the backend to avoid known danger pin areas
-      const routePath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=${avoidDanger ? '1' : '0'}`;
-      const routeUrl = `${API}${routePath}`;
-      let resp;
-      try { resp = await fetch(routeUrl); } catch (err) {
-        const fallback = `http://localhost:8000${routePath}`;
-        console.warn('API fetch failed, retrying to', fallback, err);
-        resp = await fetch(fallback);
-      }
-      if (!resp.ok && avoidDanger) {
-        const fallbackPath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=0`;
-        const fallbackUrl = `${API}${fallbackPath}`;
-        console.warn('Safe route failed, retrying normal route', resp.status, resp.statusText);
+      try {
+        // Abort any previous route request to avoid overlapping slow calls
         try {
-          resp = await fetch(fallbackUrl);
-        } catch (err) {
-          const fallback = `http://localhost:8000${fallbackPath}`;
-          console.warn('Retry normal route failed, retrying to', fallback, err);
-          resp = await fetch(fallback);
+          if (routeAbortController.current) {
+            routeAbortController.current.abort();
+            routeAbortController.current = null;
+          }
+        } catch (e) { /* ignore */ }
+        routeAbortController.current = new AbortController();
+        const signal = routeAbortController.current.signal;
+
+        // Request routes while asking the backend to avoid known danger pin areas
+        const routePath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=${avoidDanger ? '1' : '0'}`;
+        const routeUrl = `${API}${routePath}`;
+        let resp;
+        try { resp = await fetch(routeUrl, { signal }); } catch (err) {
+          if (err && err.name === 'AbortError') throw err;
+          const fallback = `http://localhost:8000${routePath}`;
+          console.warn('API fetch failed, retrying to', fallback, err);
+          resp = await fetch(fallback, { signal });
         }
-      }
+        if (!resp.ok && avoidDanger) {
+          const fallbackPath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=0`;
+          const fallbackUrl = `${API}${fallbackPath}`;
+          console.warn('Safe route failed, retrying normal route', resp.status, resp.statusText);
+          try {
+            resp = await fetch(fallbackUrl, { signal });
+          } catch (err) {
+            if (err && err.name === 'AbortError') throw err;
+            const fallback = `http://localhost:8000${fallbackPath}`;
+            console.warn('Retry normal route failed, retrying to', fallback, err);
+            resp = await fetch(fallback, { signal });
+          }
+        }
       if (!resp.ok) {
         let errorMessage = `Routing failed (${resp.status})`;
         try {
@@ -807,15 +841,27 @@ export default function MapView({
           }
 
           const bounds = L.latLngBounds(coords);
-          if (typeof bounds.pad === 'function') mapRef.current.fitBounds(bounds.pad(0.12));
-          else mapRef.current.fitBounds(bounds);
+          try {
+            const center = bounds.getCenter();
+            centerMapWithOffset(mapRef.current, { lat: center.lat, lng: center.lng });
+          } catch (e) {
+            try {
+              if (typeof bounds.pad === 'function') mapRef.current.fitBounds(bounds.pad(0.12));
+              else mapRef.current.fitBounds(bounds);
+            } catch (_) { /* ignore */ }
+          }
         }
       } catch (e) { /* ignore fit errors */ }
     } catch (e) {
+      if (e && e.name === 'AbortError') {
+        console.debug('Route fetch aborted');
+        return;
+      }
       console.error('Route fetch failed', e);
       const message = e?.message || 'Failed to fetch route.';
       onSetRouteAdvice(message);
     } finally {
+      try { if (routeAbortController.current) { routeAbortController.current = null; } } catch {}
       setRouteLoading(false);
       console.debug('Route request complete', { start, end, routeLoading: false });
     }

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
 from datetime import datetime, timedelta, timezone
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import requests
 import secrets
  
@@ -537,6 +537,7 @@ def _generate_route_advice(
     end_lng: float,
     danger_pins: List[Dict[str, Any]],
     avoid_danger: bool = False,
+    endpoint_inside_danger: Union[bool, str] = False,
 ) -> str:
     if gemini_client is not None:
         try:
@@ -547,6 +548,7 @@ def _generate_route_advice(
                 duration_min=route_info.get("duration_min") or 0.0,
                 danger_nearby=danger_pins or [],
                 avoid_danger=avoid_danger,
+                endpoint_inside_danger=endpoint_inside_danger,
             )
             if advice_result and isinstance(advice_result, dict):
                 advice_text = advice_result.get("advice")
@@ -563,6 +565,11 @@ def _generate_route_advice(
         advice = "Route calculated successfully."
     if avoid_danger:
         advice += " This route was calculated to avoid known danger areas."
+    elif endpoint_inside_danger:
+        if endpoint_inside_danger == 'both':
+            advice += " The route endpoints are inside reported danger areas; the route is provided for reference — follow safety guidance for both nearby hazards."
+        else:
+            advice += " The route is being calculated while one of your endpoints is inside a reported danger area; stay alert and follow safety guidance for nearby hazards."
     if danger_pins:
         top = danger_pins[0]
         title = str(top.get("title", "a nearby hazard")).strip()
@@ -892,24 +899,56 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
         try:
             pins = _fetch_active_danger_pins()
             relevant_pins = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins)
-            if avoid_danger:
-                logger.info(f"Route avoidance: {len(relevant_pins)} relevant danger pin(s) out of {len(pins)} active pin(s)")
-                if len(relevant_pins) > MAX_ROUTE_AVOID_PINS:
+            endpoint_inside_danger = False
+            if avoid_danger and relevant_pins:
+                def _point_in_danger(pin, lat, lng):
+                    try:
+                        pin_lat = float(pin.get("lat", 0))
+                        pin_lng = float(pin.get("lng", 0))
+                        pin_radius_km = float(pin.get("radius_meters", 300)) / 1000.0
+                    except (TypeError, ValueError):
+                        return False
+                    return haversine(lat, lng, pin_lat, pin_lng) <= pin_radius_km
+
+                start_pins = [pin for pin in relevant_pins if _point_in_danger(pin, float(start_lat), float(start_lng))]
+                end_pins = [pin for pin in relevant_pins if _point_in_danger(pin, float(end_lat), float(end_lng))]
+
+                # If both endpoints are inside danger pins, disable overall avoidance
+                if start_pins and end_pins:
+                    logger.info("Both route endpoints are inside relevant danger pin areas; disabling avoidance")
+                    avoid_danger = False
+                    endpoint_inside_danger = 'both'
+                    relevant_for_avoid = []
+                else:
+                    # If one endpoint is inside a pin, exclude those pins from avoidance
+                    # but still avoid other relevant pins along the route.
+                    if start_pins or end_pins:
+                        endpoint_inside_danger = 'start' if start_pins else 'end'
+                        excluded_ids = set(p.get('id') for p in (start_pins + end_pins) if isinstance(p, dict) and p.get('id') is not None)
+                        relevant_for_avoid = [p for p in relevant_pins if p.get('id') not in excluded_ids]
+                        logger.info(f"Endpoint inside danger; excluding {len(excluded_ids)} endpoint pin(s) from avoidance and avoiding the other relevant pins ({len(relevant_for_avoid)})")
+                    else:
+                        endpoint_inside_danger = False
+                        relevant_for_avoid = relevant_pins
+
+            if avoid_danger and relevant_for_avoid:
+                logger.info(f"Route avoidance: {len(relevant_for_avoid)} relevant danger pin(s) out of {len(pins)} active pin(s) (endpoint pins excluded if any)")
+                if len(relevant_for_avoid) > MAX_ROUTE_AVOID_PINS:
                     logger.warning(
-                        f"Too many route-relevant danger pins ({len(relevant_pins)}) for avoidance; limiting to {MAX_ROUTE_AVOID_PINS}"
+                        f"Too many route-relevant danger pins ({len(relevant_for_avoid)}) for avoidance; limiting to {MAX_ROUTE_AVOID_PINS}"
                     )
-                    relevant_pins = relevant_pins[:MAX_ROUTE_AVOID_PINS]
+                    relevant_for_avoid = relevant_for_avoid[:MAX_ROUTE_AVOID_PINS]
                 # build multipolygon (returns None if no valid pins)
-                avoid_geo = build_avoid_multipolygon_from_pins(relevant_pins, points_per_circle=MAX_ROUTE_AVOID_POLYGON_POINTS)
+                avoid_geo = build_avoid_multipolygon_from_pins(relevant_for_avoid, points_per_circle=MAX_ROUTE_AVOID_POLYGON_POINTS)
                 if avoid_geo:
                     # Try direct geometry format per OpenRouteService API
                     payload["options"] = {
                         "avoid_polygons": avoid_geo
                     }
-                    logger.info(f"[DEBUG] Built avoid geometry with {len(avoid_geo.get('coordinates', []))} polygons for {len(relevant_pins)} pins")
+                    logger.info(f"[DEBUG] Built avoid geometry with {len(avoid_geo.get('coordinates', []))} polygons for {len(relevant_for_avoid)} pins")
                     for i, poly in enumerate(avoid_geo.get('coordinates', [])):
-                        if i < len(relevant_pins):
-                            orig_radius = relevant_pins[i].get("radius_meters", 300)
+                        if i < len(relevant_for_avoid):
+                            orig_radius = relevant_for_avoid[i].get("radius_meters", 300)
                             logger.info(f"[DEBUG]   Pin {i}: orig_radius={orig_radius}m, polygon_points={len(poly[0]) if poly else 0}")
         except Exception:
             logger.exception("Failed to fetch or filter danger pins for route advice")
@@ -933,7 +972,16 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                     route_goes_through_danger = _check_route_through_danger(data, relevant_pins)
                     if route_goes_through_danger:
                         logger.warning(f"[DEBUG] WARNING: Route still goes through danger zones despite avoidance request")
-                data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                data["route_advice"] = _generate_route_advice(
+                    data,
+                    start_lat,
+                    start_lng,
+                    end_lat,
+                    end_lng,
+                    relevant_pins,
+                    avoid_danger,
+                    endpoint_inside_danger=endpoint_inside_danger,
+                )
                 return data
             except Exception:
                 logger.exception("Failed to decode OpenRouteService JSON response")
@@ -970,7 +1018,16 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                     if resp.status_code == 200:
                         try:
                             data = resp.json()
-                            data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                            data["route_advice"] = _generate_route_advice(
+                                data,
+                                start_lat,
+                                start_lng,
+                                end_lat,
+                                end_lng,
+                                relevant_pins,
+                                avoid_danger,
+                                endpoint_inside_danger=endpoint_inside_danger,
+                            )
                             return data
                         except Exception:
                             logger.exception("Failed to decode OpenRouteService JSON response on unlimited snap radius retry")
@@ -996,7 +1053,16 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                         if resp.status_code == 200:
                             try:
                                 data = resp.json()
-                                data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                                data["route_advice"] = _generate_route_advice(
+                                    data,
+                                    start_lat,
+                                    start_lng,
+                                    end_lat,
+                                    end_lng,
+                                    relevant_pins,
+                                    avoid_danger,
+                                    endpoint_inside_danger=endpoint_inside_danger,
+                                )
                                 return data
                             except Exception:
                                 logger.exception("Failed to decode OpenRouteService JSON response on retry")
@@ -1026,7 +1092,16 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                 if resp.status_code == 200:
                     try:
                         data = resp.json()
-                        data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                        data["route_advice"] = _generate_route_advice(
+                            data,
+                            start_lat,
+                            start_lng,
+                            end_lat,
+                            end_lng,
+                            relevant_pins,
+                            avoid_danger,
+                            endpoint_inside_danger=endpoint_inside_danger,
+                        )
                         return data
                     except Exception:
                         logger.exception("Failed to decode OpenRouteService JSON response on retry")
@@ -1043,7 +1118,16 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
             raise HTTPException(status_code=400, detail=f"{route_error_message} ORS status {resp.status_code}: {short_body}")
         try:
             data = resp.json()
-            data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+            data["route_advice"] = _generate_route_advice(
+                data,
+                start_lat,
+                start_lng,
+                end_lat,
+                end_lng,
+                relevant_pins,
+                avoid_danger,
+                endpoint_inside_danger=endpoint_inside_danger,
+            )
             return data
         except Exception:
             logger.exception("Failed to decode OpenRouteService JSON response")
