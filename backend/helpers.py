@@ -35,10 +35,11 @@ def _circle_polygon_coords(lat_deg: float, lon_deg: float, radius_m: float, poin
     return coords
 
 
-def build_avoid_multipolygon_from_pins(pins: List[Dict[str, Any]], points_per_circle: int = 24):
+def build_avoid_multipolygon_from_pins(pins: List[Dict[str, Any]], points_per_circle: int = 24, min_avoid_radius_m: int = 150):
     """Build a GeoJSON MultiPolygon suitable for ORS `avoid_polygons` from danger pins.
 
     Each pin is approximated as a small polygon (circle approximation).
+    Uses at least min_avoid_radius_m for route avoidance to ensure meaningful detours.
     Returns None if no valid pins are provided.
     """
     polygons = []
@@ -51,7 +52,9 @@ def build_avoid_multipolygon_from_pins(pins: List[Dict[str, Any]], points_per_ci
             lat = float(p.get("lat") or 0)
             lng = float(p.get("lng") or 0)
             radius = float(p.get("radius_meters") or 300)
-            ring = _circle_polygon_coords(lat, lng, radius, points_per_circle)
+            # For route avoidance, use a larger buffer to ensure ORS actually detours
+            effective_radius = max(radius, min_avoid_radius_m)
+            ring = _circle_polygon_coords(lat, lng, effective_radius, points_per_circle)
             if ring and len(ring) >= 4:
                 polygons.append([ring])
         except Exception:

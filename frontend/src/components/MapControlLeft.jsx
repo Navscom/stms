@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import '../css/MapControlLeft.css';
 import TooltipPortal from './TooltipPortal';
 import DestinationList from './DestinationList';
@@ -49,6 +49,19 @@ const MapControlLeft = ({
   const [routingOpenLocal, setRoutingOpenLocal] = useState(false);
   const [isRoutingOpen, setIsRoutingOpen] = useState(false);
 
+  // Store panel states before collapsing to restore them when expanding
+  const panelStatesRef = useRef({
+    isAddingMarkerOpen: false,
+    isDestinationsOpen: false,
+    isNearestOpen: false,
+    isSafetyAlertOpen: false,
+    isReportOpen: false,
+    isRoutingOpen: false,
+    routeStartLocal: null,
+    routeTargetLocal: null,
+    routingSelectingLocal: null,
+  });
+
   const filteredDestinations = useMemo(() => {
     const search = destinationSearch.trim().toLowerCase();
     if (!search) return touristSpots;
@@ -65,14 +78,41 @@ const MapControlLeft = ({
 
   useEffect(() => {
     if (!isBoxExpanded) {
+      // Save current panel states AND route data before collapsing
+      panelStatesRef.current = {
+        isAddingMarkerOpen,
+        isDestinationsOpen,
+        isNearestOpen,
+        isSafetyAlertOpen,
+        isReportOpen,
+        isRoutingOpen,
+        routeStartLocal,
+        routeTargetLocal,
+        routingSelectingLocal,
+      };
+      // Close all panels when collapsing
       setIsNearestOpen(false);
       setIsDestinationsOpen(false);
       setIsSafetyAlertOpen(false);
       setIsReportOpen(false);
+    } else {
+      // Restore panel states AND route data when expanding
+      setIsNearestOpen(panelStatesRef.current.isNearestOpen);
+      setIsDestinationsOpen(panelStatesRef.current.isDestinationsOpen);
+      setIsSafetyAlertOpen(panelStatesRef.current.isSafetyAlertOpen);
+      setIsReportOpen(panelStatesRef.current.isReportOpen);
+      setIsRoutingOpen(panelStatesRef.current.isRoutingOpen);
+      setRouteStartLocal(panelStatesRef.current.routeStartLocal);
+      setRouteTargetLocal(panelStatesRef.current.routeTargetLocal);
+      setRoutingSelectingLocal(panelStatesRef.current.routingSelectingLocal);
     }
   }, [isBoxExpanded]);
   useEffect(() => {
-    if (!isBoxExpanded) closeRoutingPanel();
+    if (!isBoxExpanded) {
+      // Save routing state before collapsing, but don't clear the route data
+      panelStatesRef.current.isRoutingOpen = isRoutingOpen;
+      setIsRoutingOpen(false);
+    }
   }, [isBoxExpanded]);
 
   // Listen for route updates from the map component
@@ -145,7 +185,6 @@ const MapControlLeft = ({
 
   const handleDestinationFocus = () => {
     setIsBoxExpanded(false);
-    setIsDestinationsOpen(false);
   };
 
   const handleCollapsedNearest = () => {

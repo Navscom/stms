@@ -184,12 +184,12 @@ def _fetch_active_danger_pins() -> List[Dict[str, Any]]:
 def _fetch_active_danger_pin_metadata() -> List[Dict[str, Any]]:
     try:
         response = supabase.table("danger_pins").select(
-            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,reported_by,created_at,updated_at"
+            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
         ).is_("removed_at", None).execute()
         pins = safe_data(response)
     except Exception:
         response = supabase.table("danger_pins").select(
-            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,reported_by,created_at,updated_at"
+            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
         ).execute()
         pins = safe_data(response)
     return [pin for pin in (pins or []) if isinstance(pin, dict) and not _pin_inactive(pin)]
@@ -359,14 +359,14 @@ def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: flo
         except (TypeError, ValueError):
             continue
 
-        # Exclude pins that are essentially at the destination itself.
-        # The destination may have a crowdy area marker but it should not be
-        # treated as a route hazard for avoidance or route advice generation.
-        if haversine(end_lat, end_lng, pin_lat, pin_lng) <= max(pin_radius_km, 0.35):
-            continue
-
+        # Include ALL pins that pass the route intersection check.
+        # Don't exclude destination pins - if there's danger at the destination,
+        # users need to know! The danger check function will calculate exact distances.
+        # Keep the endpoint exclusion ONLY for pins that are far from the actual route.
+        
         # Use the pin radius plus a small buffer to decide whether the pin is on/near the route.
         effective_radius = max(pin_radius_km, route_buffer_km)
+
         if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
             continue
 
@@ -377,6 +377,88 @@ def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: flo
 
     relevant.sort(key=lambda item: item[0])
     return [pin for _, pin in relevant]
+
+
+def _check_route_through_danger(route_geojson: Dict[str, Any], danger_pins: List[Dict[str, Any]], check_radius_m: int = 200) -> bool:
+    """Check if a route passes through any danger pin zones.
+    
+    Returns True if the route goes through danger zones despite avoidance request.
+    Uses enlarged check radius (default 200m) for better detection.
+    """
+    if not route_geojson or not isinstance(route_geojson, dict):
+        logger.info("[DANGER CHECK] No route geojson")
+        return False
+    
+    features = route_geojson.get("features", [])
+    if not features or not isinstance(features, list):
+        logger.info("[DANGER CHECK] No features in route")
+        return False
+    
+    route_coords = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        geometry = feature.get("geometry")
+        if not geometry or not isinstance(geometry, dict):
+            continue
+        
+        geom_type = geometry.get("type", "")
+        coords = geometry.get("coordinates", [])
+        
+        # LineString coordinates are [[lng, lat], [lng, lat], ...]
+        if geom_type == "LineString" and isinstance(coords, list):
+            route_coords.extend(coords)
+        # MultiLineString coordinates are [[[lng, lat], ...], [[lng, lat], ...], ...]
+        elif geom_type == "MultiLineString" and isinstance(coords, list):
+            for line in coords:
+                if isinstance(line, list):
+                    route_coords.extend(line)
+    
+    logger.info(f"[DANGER CHECK] Extracted {len(route_coords)} route coordinates from {len(features)} features, checking against {len(danger_pins)} danger pins")
+    
+    if not route_coords:
+        logger.info("[DANGER CHECK] No coordinates in route")
+        return False
+    
+    check_radius_km = check_radius_m / 1000.0
+    found_danger = False
+    
+    for pin in danger_pins:
+        if not isinstance(pin, dict):
+            continue
+        try:
+            pin_lat = float(pin.get("lat", 0))
+            pin_lng = float(pin.get("lng", 0))
+            pin_title = pin.get("title", "Unknown")
+            pin_id = pin.get("id", "?")
+        except (TypeError, ValueError):
+            continue
+        
+        # Find minimum distance from route to this pin
+        min_dist_km = float("inf")
+        closest_coord = None
+        
+        for coord in route_coords:
+            if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+                try:
+                    coord_lng = float(coord[0])
+                    coord_lat = float(coord[1])
+                    dist_km = haversine(coord_lat, coord_lng, pin_lat, pin_lng)
+                    if dist_km < min_dist_km:
+                        min_dist_km = dist_km
+                        closest_coord = (coord_lat, coord_lng)
+                except (TypeError, ValueError):
+                    continue
+        
+        logger.info(f"[DANGER CHECK] Pin #{pin_id} '{pin_title}' (lat={pin_lat}, lng={pin_lng}): min distance = {min_dist_km:.4f}km ({min_dist_km*1000:.1f}m)")
+        
+        if min_dist_km <= check_radius_km:
+            logger.warning(f"[DANGER CHECK] ⚠️  Route passes within {min_dist_km*1000:.1f}m of '{pin_title}' (ID: {pin_id})")
+            found_danger = True
+    
+    if not found_danger:
+        logger.info("[DANGER CHECK] ✓ Route does not pass through danger zones")
+    return found_danger
 
 
 def _extract_route_summary(route_geojson: Dict[str, Any]) -> Dict[str, Any]:
@@ -612,10 +694,21 @@ except Exception as e:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_cors_response_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("Access-Control-Allow-Origin", "*")
+    response.headers.setdefault("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+    response.headers.setdefault("Access-Control-Allow-Headers", "Authorization,Content-Type,Accept")
+    response.headers.setdefault("Access-Control-Expose-Headers", "Content-Length,Content-Type")
+    return response
+
 # ENDPOINTS
 #handler for rechecking expired pins every minute
 @app.on_event("startup")
@@ -809,17 +902,15 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                 # build multipolygon (returns None if no valid pins)
                 avoid_geo = build_avoid_multipolygon_from_pins(relevant_pins, points_per_circle=MAX_ROUTE_AVOID_POLYGON_POINTS)
                 if avoid_geo:
-                    # Wrap the geometry in a GeoJSON FeatureCollection. OpenRouteService
-                    # accepts GeoJSON geometries but wrapping as a FeatureCollection
-                    # improves compatibility across API versions.
+                    # Try direct geometry format per OpenRouteService API
                     payload["options"] = {
-                        "avoid_polygons": {
-                            "type": "FeatureCollection",
-                            "features": [
-                                {"type": "Feature", "properties": {}, "geometry": avoid_geo}
-                            ]
-                        }
+                        "avoid_polygons": avoid_geo
                     }
+                    logger.info(f"[DEBUG] Built avoid geometry with {len(avoid_geo.get('coordinates', []))} polygons for {len(relevant_pins)} pins")
+                    for i, poly in enumerate(avoid_geo.get('coordinates', [])):
+                        if i < len(relevant_pins):
+                            orig_radius = relevant_pins[i].get("radius_meters", 300)
+                            logger.info(f"[DEBUG]   Pin {i}: orig_radius={orig_radius}m, polygon_points={len(poly[0]) if poly else 0}")
         except Exception:
             logger.exception("Failed to fetch or filter danger pins for route advice")
         headers = {
@@ -833,6 +924,21 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
             logger.exception("HTTP request to OpenRouteService failed")
             raise HTTPException(status_code=400, detail=route_error_message)
 
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                if avoid_danger and payload.get("options", {}).get("avoid_polygons"):
+                    logger.info(f"[DEBUG] Route with avoid_polygons succeeded")
+                    # Check if route actually avoids danger zones
+                    route_goes_through_danger = _check_route_through_danger(data, relevant_pins)
+                    if route_goes_through_danger:
+                        logger.warning(f"[DEBUG] WARNING: Route still goes through danger zones despite avoidance request")
+                data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                return data
+            except Exception:
+                logger.exception("Failed to decode OpenRouteService JSON response")
+                raise HTTPException(status_code=400, detail=route_error_message)
+        
         if resp.status_code != 200:
             try:
                 response_body = resp.json()

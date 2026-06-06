@@ -173,17 +173,17 @@ const loadStoredMapState = () => {
   }
 };
 
-function MapClickHandler({ onLocationClick, onMapBackgroundClick }) {
+function MapClickHandler({ onLocationClick }) {
   useMapEvents({
     click(e) {
       try { window.dispatchEvent(new Event('ai:user-click')); } catch (e) { /* ignore */ }
-      // Check if click was on a marker (has a layer)
+      // Only pass map background clicks into the map handler. The handler
+      // decides when selection should be cleared versus when route placement
+      // should proceed.
       if (e.layer) {
-        // Click was on a marker, don't call onMapBackgroundClick
         return;
       }
       onLocationClick(e.latlng.lat, e.latlng.lng);
-      if (onMapBackgroundClick) onMapBackgroundClick();
     },
   });
   return null;
@@ -610,10 +610,33 @@ export default function MapView({
   const [routingSelecting, setRoutingSelecting] = useState(null); // 'start' | 'end' | null
   const [avoidDanger, setAvoidDanger] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [location2CooldownActive, setLocation2CooldownActive] = useState(false);
+  const location2CooldownTimer = useRef(null);
   const hasUserLocation = userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number';
   const routeStartUsesUserLocation = routeStart && userLocation &&
     Math.abs(routeStart.lat - userLocation.lat) < 1e-6 &&
     Math.abs(routeStart.lng - userLocation.lng) < 1e-6;
+
+  const startLocation2Cooldown = () => {
+    setLocation2CooldownActive(true);
+    if (location2CooldownTimer.current) window.clearTimeout(location2CooldownTimer.current);
+    location2CooldownTimer.current = window.setTimeout(() => {
+      setLocation2CooldownActive(false);
+      location2CooldownTimer.current = null;
+    }, 5000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (location2CooldownTimer.current) window.clearTimeout(location2CooldownTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (routeTarget) {
+      startLocation2Cooldown();
+    }
+  }, [routeTarget]);
 
   // Listen for external routing selection commands dispatched by the left control
   useEffect(() => {
@@ -833,6 +856,10 @@ export default function MapView({
         onSetRouteAdvice('I need your location to provide route guidance. Enable My Location and select a destination.');
         return;
       }
+      if (location2CooldownActive) {
+        onSetRouteAdvice('Please wait 5 seconds before placing your destination again.');
+        return;
+      }
       setRouteHidePins(false);
       setRouteTarget({ lat, lng });
       // perform routing
@@ -845,6 +872,10 @@ export default function MapView({
     // If a route is already in progress, update only the destination (location 2)
     // and preserve the existing start location (location 1)
     if (routeStart) {
+      if (location2CooldownActive) {
+        onSetRouteAdvice('Please wait 5 seconds before placing your destination again.');
+        return;
+      }
       setRouteHidePins(false);
       setRouteTarget({ lat, lng });
       await fetchRoute(routeStart, { lat, lng });
@@ -853,6 +884,10 @@ export default function MapView({
 
     if (userLocation) {
       const start = userLocation;
+      if (location2CooldownActive) {
+        onSetRouteAdvice('Please wait 5 seconds before placing location 2 again.');
+        return;
+      }
       setRouteHidePins(false);
       setRouteStart(start);
       setRouteTarget({ lat, lng });
@@ -920,7 +955,7 @@ export default function MapView({
           keepBuffer={2}
           detectRetina={false}
         />
-        <MapClickHandler onLocationClick={handleMapClick} onMapBackgroundClick={onMapBackgroundClick} />
+        <MapClickHandler onLocationClick={handleMapClick} />
         <MapStatePersistence />
         <MapResetHandler
           defaultCenter={DEFAULT_MAP_CENTER}
@@ -1062,12 +1097,6 @@ export default function MapView({
             />
           );
         })}
-
-        {userLocation && (
-          <Marker position={[userLocation.lat, userLocation.lng]} icon={PERSON_ICON}>
-            <Popup>Your selected location</Popup>
-          </Marker>
-        )}
 
         {pendingMarkerLocation && (
           <Marker
