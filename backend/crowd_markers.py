@@ -1,10 +1,30 @@
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta, timezone
+import time
 import logging
+from typing import Any, Callable, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
 
 from helpers import safe_data, parse_timestamp, haversine, now_iso, _pin_inactive
 
 logger = logging.getLogger(__name__)
+
+
+def _execute_supabase_query_with_retries(query_func: Callable[[], Any], retries: int = 3, initial_delay: float = 1.0) -> Any:
+    delay = initial_delay
+    for attempt in range(1, retries + 1):
+        try:
+            return query_func()
+        except Exception as exc:
+            if attempt == retries:
+                logger.exception("[Backend] Supabase query failed after retries")
+                raise
+            logger.warning(
+                "[Backend] Supabase query failed, retrying %s/%s: %s",
+                attempt,
+                retries,
+                str(exc),
+            )
+            time.sleep(delay)
+            delay *= 2
 
 
 def fetch_recent_crowd_reports(supabase, hours: int = 1) -> List[Dict[str, Any]]:
@@ -73,7 +93,14 @@ def predict_crowd_patterns(supabase, destination_id: int, hours_ahead: int = 6) 
 
 
 def fetch_destinations_map(supabase) -> Dict[int, Dict[str, Any]]:
-    response = supabase.table("destinations").select("*").execute()
+    try:
+        response = _execute_supabase_query_with_retries(
+            lambda: supabase.table("destinations").select("*").execute()
+        )
+    except Exception:
+        logger.exception("[Backend] Failed to fetch destinations map from Supabase; skipping crowd marker creation")
+        return {}
+
     destinations: List[Dict[str, Any]] = safe_data(response)
     result: Dict[int, Dict[str, Any]] = {}
     for destination in destinations:
