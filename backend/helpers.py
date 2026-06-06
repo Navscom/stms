@@ -6,6 +6,64 @@ from typing import Any, Dict, List
 from supabase import Client
 
 
+def _circle_polygon_coords(lat_deg: float, lon_deg: float, radius_m: float, points: int = 24):
+    """Return a list of [lng, lat] pairs approximating a circle around a point.
+
+    Uses haversine-style great-circle offsets to compute points on the circle.
+    The returned ring is closed (first point == last point).
+    """
+    try:
+        radius_m = float(radius_m or 0)
+    except Exception:
+        radius_m = 0.0
+
+    R = 6371000.0
+    lat1 = math.radians(float(lat_deg or 0.0))
+    lon1 = math.radians(float(lon_deg or 0.0))
+    coords = []
+    for i in range(points):
+        bearing = 2 * math.pi * float(i) / float(points)
+        d = radius_m
+        lat2 = math.asin(math.sin(lat1) * math.cos(d / R) + math.cos(lat1) * math.sin(d / R) * math.cos(bearing))
+        lon2 = lon1 + math.atan2(
+            math.sin(bearing) * math.sin(d / R) * math.cos(lat1),
+            math.cos(d / R) - math.sin(lat1) * math.sin(lat2)
+        )
+        coords.append([math.degrees(lon2), math.degrees(lat2)])
+    if coords:
+        coords.append(coords[0])
+    return coords
+
+
+def build_avoid_multipolygon_from_pins(pins: List[Dict[str, Any]], points_per_circle: int = 24, min_avoid_radius_m: int = 150):
+    """Build a GeoJSON MultiPolygon suitable for ORS `avoid_polygons` from danger pins.
+
+    Each pin is approximated as a small polygon (circle approximation).
+    Uses at least min_avoid_radius_m for route avoidance to ensure meaningful detours.
+    Returns None if no valid pins are provided.
+    """
+    polygons = []
+    for p in pins or []:
+        try:
+            if not isinstance(p, dict):
+                continue
+            if _pin_inactive(p):
+                continue
+            lat = float(p.get("lat") or 0)
+            lng = float(p.get("lng") or 0)
+            radius = float(p.get("radius_meters") or 300)
+            # For route avoidance, use a larger buffer to ensure ORS actually detours
+            effective_radius = max(radius, min_avoid_radius_m)
+            ring = _circle_polygon_coords(lat, lng, effective_radius, points_per_circle)
+            if ring and len(ring) >= 4:
+                polygons.append([ring])
+        except Exception:
+            continue
+    if not polygons:
+        return None
+    return {"type": "MultiPolygon", "coordinates": polygons}
+
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 

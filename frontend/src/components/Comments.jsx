@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import '../css/Comments.css';
 
-export default function CommentBox({ pin, user, onAddComment, onUpdateComment, onDeleteComment, onLogin }) {
+export default function CommentBox({ pin, comments, commentsLoading, commentError, user, onAddComment, onUpdateComment, onDeleteComment, onLogin }) {
   const [comment, setComment] = useState('');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState(null);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     if (!user) {
       if (typeof onLogin === 'function') {
@@ -25,7 +25,7 @@ export default function CommentBox({ pin, user, onAddComment, onUpdateComment, o
       return;
     }
 
-    onAddComment(pin.id, comment.trim());
+    await onAddComment(pin.id, comment.trim());
     setComment('');
   };
 
@@ -88,7 +88,11 @@ export default function CommentBox({ pin, user, onAddComment, onUpdateComment, o
     <div className="popup-comments">
       <strong>Comments</strong>
       <div className="comment-list">
-        {pin.comments?.length ? pin.comments.map((c) => (
+        {commentsLoading ? (
+          <small>Loading comments…</small>
+        ) : commentError ? (
+          <small>{commentError}</small>
+        ) : comments?.length ? comments.map((c) => (
           <div key={c.id} className="comment-item">
             {editingCommentId === c.id ? (
               <div className="comment-editing">

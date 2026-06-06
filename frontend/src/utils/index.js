@@ -39,6 +39,14 @@ export function getDangerPins() {
   return fetchJson('/danger-pins');
 }
 
+export function getDangerPinMetadata() {
+  return fetchJson('/danger-pins/metadata');
+}
+
+export function getDangerPinComments(pinId) {
+  return fetchJson(`/danger-pins/${pinId}/comments`);
+}
+
 export function getReportSummary() {
   return fetchJson('/reports/summary');
 }

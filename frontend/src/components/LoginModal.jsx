@@ -3,8 +3,11 @@ import { validateAuthForm } from '../utils/validation';
 import '../css/Login.css';
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promptMessage }) {
+  const initialLoginForm = { email: '', password: '' };
+  const initialRegisterForm = { name: '', displayName: '', email: '', password: '', confirmPassword: '', role: 'tourist' };
   const [isRegister, setIsRegister] = useState(false);
-  const [form, setForm] = useState({ name: '', displayName: '', email: '', password: '', confirmPassword: '', role: 'tourist' });
+  const [loginForm, setLoginForm] = useState(initialLoginForm);
+  const [registerForm, setRegisterForm] = useState(initialRegisterForm);
   const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState('');
   const mouseDownInsideModal = useRef(false);
@@ -12,13 +15,13 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promp
   useEffect(() => {
     if (!isOpen) return;
     setMessage('');
-    const initialForm = { name: '', displayName: '', email: '', password: '', confirmPassword: '', role: 'tourist' };
     const saved = window.localStorage.getItem('stms_remembered_login');
     if (saved) {
       try {
         const { email, password } = JSON.parse(saved);
         if (email && password) {
-          setForm((prev) => ({ ...prev, email, password }));
+          setLoginForm((prev) => ({ ...prev, email, password }));
+          setRegisterForm(initialRegisterForm);
           setRememberMe(true);
           return;
         }
@@ -26,13 +29,22 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promp
         window.localStorage.removeItem('stms_remembered_login');
       }
     }
-    setForm(initialForm);
+    setLoginForm(initialLoginForm);
+    setRegisterForm(initialRegisterForm);
     setRememberMe(false);
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const update = (key, value) => setForm({ ...form, [key]: value });
+  const form = isRegister ? registerForm : loginForm;
+
+  const update = (key, value) => {
+    if (isRegister) {
+      setRegisterForm((prev) => ({ ...prev, [key]: value }));
+    } else {
+      setLoginForm((prev) => ({ ...prev, [key]: value }));
+    }
+  };
 
   const saveRememberedLogin = (email, password) => {
     if (rememberMe) {
@@ -91,7 +103,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promp
         throw new Error(detail);
       }
       setMessage(data?.message || 'Success');
-      if (!isRegister) saveRememberedLogin(form.email, form.password);
+      if (!isRegister) saveRememberedLogin(loginForm.email, loginForm.password);
       onLoginSuccess(data?.user);
     } catch (err) {
       clearTimeout(timeoutId);
@@ -104,6 +116,17 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promp
         setMessage(msg);
       }
     }
+  };
+
+  const handleModeToggle = () => {
+    setIsRegister((prev) => {
+      const nextMode = !prev;
+      if (nextMode) {
+        setRegisterForm(initialRegisterForm);
+      }
+      return nextMode;
+    });
+    setMessage('');
   };
 
   return (
@@ -141,7 +164,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, api, promp
         <p className="helper-text">The Login Page is case sensitive.</p>
         {message && <p className="message">{message}</p>}
         <p>{isRegister ? 'Have an account?' : 'No account?'}
-          <span className="toggle-link" onClick={() => { setIsRegister(!isRegister); setMessage(''); }}>
+          <span className="toggle-link" onClick={handleModeToggle}>
             {isRegister ? ' Login now' : ' Register now'}
           </span>
         </p>

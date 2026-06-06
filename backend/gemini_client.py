@@ -285,6 +285,106 @@ class GeminiClient:
             logger.warning(f"[Gemini Advice] Using fallback")
         return {"advice": fallback, "ai_used": False, "ai_raw": ai_raw}
 
+    def generate_route_advice(
+        self,
+        route_summary: str,
+        distance_km: float,
+        duration_min: float,
+        danger_nearby: List[Dict[str, Any]],
+        avoid_danger: bool = False,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generate friendly route advice based on the calculated route and nearby hazards."""
+        if model is None:
+            model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash")
+
+        context_lines: List[str] = []
+        if route_summary:
+            context_lines.append(f"Route summary: {route_summary}.")
+        else:
+            if distance_km is not None and distance_km >= 0:
+                context_lines.append(f"Route distance is approximately {distance_km:.2f} km.")
+            if duration_min is not None and duration_min >= 0:
+                context_lines.append(f"Estimated travel time is about {duration_min:.0f} minutes.")
+
+        if avoid_danger:
+            context_lines.append("This route was calculated to avoid known danger pin areas.")
+
+        if danger_nearby:
+            for danger in danger_nearby[:4]:
+                if not isinstance(danger, dict):
+                    continue
+                title = danger.get("title", "a reported hazard")
+                danger_type = danger.get("danger_type", "danger")
+                distance = danger.get("distance_km", 0)
+                description = danger.get("description", "")
+                note = f"{title} ({danger_type}) is about {distance:.2f} km away."
+                if description:
+                    note += f" Note: {description}."
+                context_lines.append(note)
+        else:
+            context_lines.append("There are no active danger pins near this route.")
+
+        fallback = ""
+        if route_summary:
+            fallback = f"Route calculated. {route_summary}."
+        elif distance_km is not None and duration_min is not None:
+            fallback = f"Route calculated. It will take about {duration_min:.0f} minutes over {distance_km:.2f} km."
+        elif distance_km is not None:
+            fallback = f"Route calculated. It is approximately {distance_km:.2f} km long."
+        elif duration_min is not None:
+            fallback = f"Route calculated. It should take about {duration_min:.0f} minutes."
+        else:
+            fallback = "Route calculated successfully."
+
+        if danger_nearby:
+            top_danger = danger_nearby[0]
+            if isinstance(top_danger, dict):
+                title = top_danger.get("title", "a reported hazard")
+                if title:
+                    fallback += f" Be aware of {title} nearby and consider staying alert along the path."
+                else:
+                    fallback += " Be aware of nearby hazards and use caution."
+        elif avoid_danger:
+            fallback += " This route was chosen to avoid known danger areas."
+        else:
+            fallback += " No known danger spots are close to the calculated path."
+
+        ai_raw = None
+        try:
+            prompt = (
+                "You are a friendly travel assistant. A walking route has been calculated for a visitor. "
+                "Using the context below, write one or two natural, conversational sentences. "
+                "Mention route length or time if available, and call out any nearby hazards. "
+                "If the route avoids known danger areas, mention that as a positive safety cue. "
+                "Do not mention that you are an AI or refer to data fields."
+                "\n\nContext:\n"
+                + "\n".join(context_lines)
+                + "\n\nRespond naturally and keep it concise."
+            )
+            ai_raw = self.generate_text(prompt=prompt, model=model, temperature=0.4, max_output_tokens=120)
+            generated_text = None
+            if isinstance(ai_raw, dict):
+                if "candidates" in ai_raw and isinstance(ai_raw["candidates"], list) and ai_raw["candidates"]:
+                    candidate = ai_raw["candidates"][0]
+                    if isinstance(candidate, dict) and isinstance(candidate.get("content"), dict):
+                        parts = candidate["content"].get("parts", [])
+                        if parts and isinstance(parts[0], dict):
+                            generated_text = parts[0].get("text")
+                    if not generated_text:
+                        generated_text = candidate.get("output") or candidate.get("text")
+                if not generated_text:
+                    generated_text = ai_raw.get("output") or ai_raw.get("text")
+            if generated_text:
+                generated_text = generated_text.strip()
+                if not generated_text.endswith(".") and not generated_text.endswith("!") and not generated_text.endswith("?"):
+                    generated_text += "."
+                return {"advice": generated_text, "ai_used": True, "ai_raw": ai_raw}
+        except Exception:
+            pass
+
+        return {"advice": fallback, "ai_used": False, "ai_raw": ai_raw}
+
     def translate_to_language(
         self,
         text: str,

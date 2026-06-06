@@ -8,6 +8,9 @@ from supabase import Client, create_client
 from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Any, Dict, List, Optional
+import requests
+import secrets
+ 
 
 # Allow running as a top-level script from the backend directory.
 if __package__ is None:
@@ -38,14 +41,32 @@ from helpers import (
     filter_active_pins,
     now_iso,
     move_expired_pins,
+    build_avoid_multipolygon_from_pins,
 )
-
-#Load .env
-load_dotenv()
+# Email utilities removed (email functionality disabled in this deployment)
+from crowd_markers import (
+    create_auto_crowdy_area_markers as cm_create_auto_crowdy_area_markers,
+    fetch_destinations_map as cm_fetch_destinations_map,
+    existing_crowdy_marker_within as cm_existing_crowdy_marker_within,
+    find_crowdy_marker_within as cm_find_crowdy_marker_within,
+    extend_crowdy_marker_with_trend as cm_extend_crowdy_marker_with_trend,
+    generate_crowdy_marker_description as cm_generate_crowdy_marker_description,
+    generate_crowdy_marker_trend_description as cm_generate_crowdy_marker_trend_description,
+    fetch_recent_crowd_reports as cm_fetch_recent_crowd_reports,
+    predict_crowd_patterns as cm_predict_crowd_patterns,
+)
+#Load .env from the backend folder so keys in backend/.env are loaded when running from project root
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Configure basic logging
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
+MAX_ROUTE_AVOID_PINS = 10
+MAX_ROUTE_AVOID_DISTANCE_KM = 5.0
+MAX_ROUTE_AVOID_POLYGON_POINTS = 16
+MAX_ROUTE_REQUEST_TIMEOUT_SECONDS = 60
+MAX_ROUTE_SNAP_RADIUS_METERS = 2000
+
 
 def _require_env(name: str) -> str:
     value = os.getenv(name)
@@ -73,69 +94,11 @@ def _is_wildlife_alert(pin: Dict[str, Any]) -> bool:
 
 
 def _fetch_recent_crowd_reports(hours: int = 1) -> List[Dict[str, Any]]:
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    response = supabase.table("crowd_reports").select("*").gte("reported_at", cutoff.isoformat()).execute()
-    return safe_data(response)
+    return cm_fetch_recent_crowd_reports(supabase, hours)
 
 
 def _predict_crowd_patterns(destination_id: int, hours_ahead: int = 6) -> Dict[str, Any]:
-    """Predict crowd patterns for a destination based on historical reports."""
-    try:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-        response = supabase.table("crowd_reports").select("*").eq("destination_id", destination_id).gte("reported_at", cutoff.isoformat()).execute()
-        reports: List[Dict[str, Any]] = safe_data(response)
-        if not reports:
-            return {"prediction": "Insufficient data", "confidence": 0.0}
-
-        hourly_counts: Dict[int, Dict[str, int]] = {}
-        for report in reports:
-            if not isinstance(report, dict):
-                continue
-            reported_at = report.get("reported_at")
-            if not reported_at:
-                continue
-            try:
-                dt = parse_timestamp(reported_at)
-                if dt:
-                    hour = dt.hour
-                    if hour not in hourly_counts:
-                        hourly_counts[hour] = {"Low": 0, "Moderate": 0, "High": 0}
-                    level = str(report.get("crowd_level", "Low"))
-                    if level in hourly_counts[hour]:
-                        hourly_counts[hour][level] += 1
-            except Exception:
-                continue
-
-        if not hourly_counts:
-            return {"prediction": "Insufficient data", "confidence": 0.0}
-
-        now_hour = datetime.now(timezone.utc).hour
-        predictions = []
-        for i in range(1, min(hours_ahead + 1, 7)):
-            pred_hour = (now_hour + i) % 24
-            if pred_hour in hourly_counts:
-                counts = hourly_counts[pred_hour]
-                total = sum(counts.values())
-                high_ratio = counts["High"] / total if total > 0 else 0
-                moderate_ratio = counts["Moderate"] / total if total > 0 else 0
-                if high_ratio > 0.5:
-                    pred_level = "High"
-                elif moderate_ratio > 0.4:
-                    pred_level = "Moderate"
-                else:
-                    pred_level = "Low"
-                predictions.append({"hour": pred_hour, "predicted_level": pred_level, "confidence": min(0.95, 0.5 + (total / 50))})
-
-        if predictions:
-            return {
-                "destination_id": destination_id,
-                "predictions": predictions,
-                "confidence": min(0.95, len(reports) / 50),
-                "based_on_reports": len(reports),
-            }
-        return {"prediction": "Insufficient data", "confidence": 0.0}
-    except Exception:
-        return {"prediction": "Error analyzing patterns", "confidence": 0.0}
+    return cm_predict_crowd_patterns(supabase, destination_id, hours_ahead)
 
 
 def _moderate_comment_on_insert(comment_text: str) -> Dict[str, Any]:
@@ -179,10 +142,17 @@ def _translate_alert(text: str, language: str = "en") -> str:
     """Translate a safety alert to the user's preferred language."""
     if gemini_client is None or not text:
         return text
+
     try:
         return gemini_client.translate_to_language(text, language)
     except Exception:
         return text
+
+
+def _send_email(to_email: str, subject: str, body: str, html_body: Optional[str] = None) -> None:
+    # Emailing is disabled. Keep function as a safe no-op to avoid breaking callers.
+    logger.info(f"[Backend] Email disabled; skipping send to {to_email}")
+    return
 
 
 def _fetch_destinations_map() -> Dict[int, Dict[str, Any]]:
@@ -201,6 +171,164 @@ def _fetch_destinations_map() -> Dict[int, Dict[str, Any]]:
     return result
 
 
+def _fetch_active_danger_pins() -> List[Dict[str, Any]]:
+    try:
+        response = supabase.table("danger_pins").select("*").is_("removed_at", None).execute()
+        pins = safe_data(response)
+    except Exception:
+        response = supabase.table("danger_pins").select("*").execute()
+        pins = safe_data(response)
+    return filter_active_pins(pins)
+
+
+def _fetch_active_danger_pin_metadata() -> List[Dict[str, Any]]:
+    try:
+        response = supabase.table("danger_pins").select(
+            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
+        ).is_("removed_at", None).execute()
+        pins = safe_data(response)
+    except Exception:
+        response = supabase.table("danger_pins").select(
+            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
+        ).execute()
+        pins = safe_data(response)
+    return [pin for pin in (pins or []) if isinstance(pin, dict) and not _pin_inactive(pin)]
+
+
+REPORT_SUMMARY_CACHE_KEY = "global_report_summary"
+REPORT_SUMMARY_CACHE_TTL_SECONDS = 300
+
+
+def _fetch_cached_report_summary() -> Optional[Dict[str, Any]]:
+    try:
+        response = supabase.table("report_summary_cache").select("*").eq("summary_key", REPORT_SUMMARY_CACHE_KEY).limit(1).execute()
+        cached = safe_data(response)
+        if isinstance(cached, list) and cached:
+            first = cached[0]
+            if isinstance(first, dict):
+                return first
+    except Exception:
+        return None
+    return None
+
+
+def _upsert_report_summary_cache(summary: Dict[str, Any]) -> bool:
+    record = {
+        "summary_key": REPORT_SUMMARY_CACHE_KEY,
+        "total_destinations": summary.get("total_destinations", 0),
+        "total_users": summary.get("total_users", 0),
+        "crowd_summary": summary.get("crowd_summary", {}),
+        "danger_summary": summary.get("danger_summary", {}),
+        "removed_comments": summary.get("removed_comments", 0),
+        "ai_report": summary.get("ai_report", ""),
+        "cached_at": now_iso(),
+    }
+    try:
+        existing = supabase.table("report_summary_cache").select("id").eq("summary_key", REPORT_SUMMARY_CACHE_KEY).limit(1).execute()
+        if safe_data(existing):
+            supabase.table("report_summary_cache").update(record).eq("summary_key", REPORT_SUMMARY_CACHE_KEY).execute()
+        else:
+            supabase.table("report_summary_cache").insert(record).execute()
+        return True
+    except Exception:
+        return False
+
+
+def _build_report_summary() -> Dict[str, Any]:
+    dest_response = supabase.table("destinations").select("crowd_level").execute()
+    destinations: List[Dict[str, Any]] = safe_data(dest_response)
+    total_destinations = len(destinations)
+
+    user_response = supabase.table("users").select("id").execute()
+    users: List[Dict[str, Any]] = safe_data(user_response)
+    total_users = len(users)
+
+    crowd_summary: Dict[str, int] = {}
+    for d in destinations:
+        if isinstance(d, dict):
+            level = d.get("crowd_level", "Unknown")
+            if isinstance(level, str):
+                crowd_summary[level] = crowd_summary.get(level, 0) + 1
+
+    danger_pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
+    danger_summary: Dict[str, int] = {}
+    for p in danger_pins:
+        if not isinstance(p, dict):
+            continue
+        severity = p.get("severity", "Unknown")
+        if isinstance(severity, str):
+            danger_summary[severity] = danger_summary.get(severity, 0) + 1
+
+    removed_comments = 0
+    try:
+        removed_response = supabase.table("marker_comments").select("id").eq("moderation_reason", "deleted_by_moderation").execute()
+        removed_comments = len(safe_data(removed_response))
+    except Exception:
+        removed_comments = 0
+
+    return {
+        "total_destinations": total_destinations,
+        "total_users": total_users,
+        "crowd_summary": crowd_summary,
+        "danger_summary": danger_summary,
+        "removed_comments": removed_comments,
+        "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes.",
+    }
+
+
+def _fetch_marker_comments(pin_id: int) -> List[Dict[str, Any]]:
+    comments: List[Dict[str, Any]] = []
+    try:
+        response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
+        comments = safe_data(response) or []
+    except Exception:
+        return []
+
+    filtered_comments: List[Dict[str, Any]] = []
+    referenced_user_ids = set()
+    for c in comments:
+        if not isinstance(c, dict):
+            continue
+        if c.get("moderation_reason") == "deleted_by_moderation":
+            continue
+        user_id = c.get("user_id")
+        if user_id is not None:
+            try:
+                referenced_user_ids.add(int(user_id))
+            except Exception:
+                pass
+        filtered_comments.append(c)
+
+    users_map: Dict[int, Dict[str, Any]] = {}
+    if referenced_user_ids:
+        try:
+            users_resp = supabase.table("users").select("id,name,display_name").in_("id", list(referenced_user_ids)).execute()
+            users_list = safe_data(users_resp) or []
+            for u in users_list:
+                if isinstance(u, dict) and u.get("id") is not None:
+                    try:
+                        users_map[int(u["id"])] = u
+                    except Exception:
+                        pass
+        except Exception:
+            users_map = {}
+
+    for c in filtered_comments:
+        commenter = None
+        user_id = c.get("user_id")
+        if user_id is not None:
+            try:
+                user_key = int(user_id)
+            except Exception:
+                user_key = None
+            else:
+                if user_key in users_map:
+                    commenter = users_map[user_key].get("display_name") or users_map[user_key].get("name")
+        c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
+
+    return filtered_comments
+
+
 def _existing_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> bool:
     response = supabase.table("danger_pins").select("*").eq("danger_type", "Crowdy Area").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
@@ -211,6 +339,238 @@ def _existing_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 
         if distance_km <= radius_meters / 1000.0:
             return True
     return False
+
+
+def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: float, end_lng: float, pins: List[Dict[str, Any]], route_buffer_km: float = 0.35) -> List[Dict[str, Any]]:
+    """Return only danger pins that are actually along or very near the planned route.
+
+    Avoid sending all pins to OpenRouteService, which can cause avoid_polygons to
+    over-constrain or break nearby routes. Keep only pins that are likely to be on
+    the user's path instead of those only near the start or finish point.
+    """
+    relevant = []
+    for pin in pins or []:
+        if not isinstance(pin, dict) or _pin_inactive(pin):
+            continue
+        try:
+            pin_lat = float(pin.get("lat", 0))
+            pin_lng = float(pin.get("lng", 0))
+            pin_radius_km = float(pin.get("radius_meters", 300)) / 1000.0
+        except (TypeError, ValueError):
+            continue
+
+        # Include ALL pins that pass the route intersection check.
+        # Don't exclude destination pins - if there's danger at the destination,
+        # users need to know! The danger check function will calculate exact distances.
+        # Keep the endpoint exclusion ONLY for pins that are far from the actual route.
+        
+        # Use the pin radius plus a small buffer to decide whether the pin is on/near the route.
+        effective_radius = max(pin_radius_km, route_buffer_km)
+
+        if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
+            continue
+
+        start_dist = haversine(start_lat, start_lng, pin_lat, pin_lng)
+        end_dist = haversine(end_lat, end_lng, pin_lat, pin_lng)
+        min_dist = min(start_dist, end_dist)
+        relevant.append((min_dist, pin))
+
+    relevant.sort(key=lambda item: item[0])
+    return [pin for _, pin in relevant]
+
+
+def _check_route_through_danger(route_geojson: Dict[str, Any], danger_pins: List[Dict[str, Any]], check_radius_m: int = 200) -> bool:
+    """Check if a route passes through any danger pin zones.
+    
+    Returns True if the route goes through danger zones despite avoidance request.
+    Uses enlarged check radius (default 200m) for better detection.
+    """
+    if not route_geojson or not isinstance(route_geojson, dict):
+        logger.info("[DANGER CHECK] No route geojson")
+        return False
+    
+    features = route_geojson.get("features", [])
+    if not features or not isinstance(features, list):
+        logger.info("[DANGER CHECK] No features in route")
+        return False
+    
+    route_coords = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        geometry = feature.get("geometry")
+        if not geometry or not isinstance(geometry, dict):
+            continue
+        
+        geom_type = geometry.get("type", "")
+        coords = geometry.get("coordinates", [])
+        
+        # LineString coordinates are [[lng, lat], [lng, lat], ...]
+        if geom_type == "LineString" and isinstance(coords, list):
+            route_coords.extend(coords)
+        # MultiLineString coordinates are [[[lng, lat], ...], [[lng, lat], ...], ...]
+        elif geom_type == "MultiLineString" and isinstance(coords, list):
+            for line in coords:
+                if isinstance(line, list):
+                    route_coords.extend(line)
+    
+    logger.info(f"[DANGER CHECK] Extracted {len(route_coords)} route coordinates from {len(features)} features, checking against {len(danger_pins)} danger pins")
+    
+    if not route_coords:
+        logger.info("[DANGER CHECK] No coordinates in route")
+        return False
+    
+    check_radius_km = check_radius_m / 1000.0
+    found_danger = False
+    
+    for pin in danger_pins:
+        if not isinstance(pin, dict):
+            continue
+        try:
+            pin_lat = float(pin.get("lat", 0))
+            pin_lng = float(pin.get("lng", 0))
+            pin_title = pin.get("title", "Unknown")
+            pin_id = pin.get("id", "?")
+        except (TypeError, ValueError):
+            continue
+        
+        # Find minimum distance from route to this pin
+        min_dist_km = float("inf")
+        closest_coord = None
+        
+        for coord in route_coords:
+            if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+                try:
+                    coord_lng = float(coord[0])
+                    coord_lat = float(coord[1])
+                    dist_km = haversine(coord_lat, coord_lng, pin_lat, pin_lng)
+                    if dist_km < min_dist_km:
+                        min_dist_km = dist_km
+                        closest_coord = (coord_lat, coord_lng)
+                except (TypeError, ValueError):
+                    continue
+        
+        logger.info(f"[DANGER CHECK] Pin #{pin_id} '{pin_title}' (lat={pin_lat}, lng={pin_lng}): min distance = {min_dist_km:.4f}km ({min_dist_km*1000:.1f}m)")
+        
+        if min_dist_km <= check_radius_km:
+            logger.warning(f"[DANGER CHECK] ⚠️  Route passes within {min_dist_km*1000:.1f}m of '{pin_title}' (ID: {pin_id})")
+            found_danger = True
+    
+    if not found_danger:
+        logger.info("[DANGER CHECK] ✓ Route does not pass through danger zones")
+    return found_danger
+
+
+def _extract_route_summary(route_geojson: Dict[str, Any]) -> Dict[str, Any]:
+    summary = ""
+    distance_km = None
+    duration_min = None
+    if isinstance(route_geojson, dict):
+        features = route_geojson.get("features")
+        if isinstance(features, list) and features:
+            first = features[0]
+            if isinstance(first, dict):
+                props = first.get("properties") or {}
+                if isinstance(props, dict):
+                    summary_obj = props.get("summary")
+                    if isinstance(summary_obj, dict):
+                        distance_m = summary_obj.get("distance")
+                        duration_s = summary_obj.get("duration")
+                        try:
+                            distance_km = float(distance_m) / 1000.0 if distance_m is not None else None
+                        except (TypeError, ValueError):
+                            distance_km = None
+                        try:
+                            duration_min = float(duration_s) / 60.0 if duration_s is not None else None
+                        except (TypeError, ValueError):
+                            duration_min = None
+                        if distance_km is not None and duration_min is not None:
+                            summary = f"Approximately {distance_km:.2f} km and {duration_min:.0f} minutes."
+                    elif isinstance(summary_obj, str):
+                        summary = summary_obj
+                if not summary:
+                    distance_m = props.get("distance")
+                    duration_s = props.get("duration")
+                    try:
+                        distance_km = float(distance_m) / 1000.0 if distance_m is not None else None
+                    except (TypeError, ValueError):
+                        distance_km = None
+                    try:
+                        duration_min = float(duration_s) / 60.0 if duration_s is not None else None
+                    except (TypeError, ValueError):
+                        duration_min = None
+                    if distance_km is not None and duration_min is not None:
+                        summary = f"Approximately {distance_km:.2f} km and {duration_min:.0f} minutes."
+    return {
+        "summary": summary,
+        "distance_km": distance_km,
+        "duration_min": duration_min,
+    }
+
+
+def _ors_routable_point_error(response_body: Any, short_body: str) -> Optional[str]:
+    if isinstance(response_body, dict):
+        error_info = response_body.get('error') or {}
+        if isinstance(error_info, dict):
+            message = str(error_info.get('message') or error_info.get('description') or '')
+        else:
+            message = str(error_info or '')
+    else:
+        message = ''
+
+    if not message and isinstance(response_body, str):
+        message = response_body
+
+    if not message and 'Could not find routable point' in short_body:
+        message = short_body
+
+    if 'Could not find routable point' in message:
+        return "The selected location is too far from any accessible roads or walking paths. Please choose a location on or near a road, street, or path to calculate a route."
+    return None
+
+
+def _generate_route_advice(
+    route_geojson: Dict[str, Any],
+    start_lat: float,
+    start_lng: float,
+    end_lat: float,
+    end_lng: float,
+    danger_pins: List[Dict[str, Any]],
+    avoid_danger: bool = False,
+) -> str:
+    if gemini_client is not None:
+        try:
+            route_info = _extract_route_summary(route_geojson)
+            advice_result = gemini_client.generate_route_advice(
+                route_summary=route_info.get("summary", ""),
+                distance_km=route_info.get("distance_km") or 0.0,
+                duration_min=route_info.get("duration_min") or 0.0,
+                danger_nearby=danger_pins or [],
+                avoid_danger=avoid_danger,
+            )
+            if advice_result and isinstance(advice_result, dict):
+                advice_text = advice_result.get("advice")
+                if isinstance(advice_text, str) and advice_text.strip():
+                    return advice_text.strip()
+        except Exception:
+            pass
+
+    route_info = _extract_route_summary(route_geojson)
+    summary = route_info.get("summary")
+    if summary:
+        advice = f"Route calculated. {summary}"
+    else:
+        advice = "Route calculated successfully."
+    if avoid_danger:
+        advice += " This route was calculated to avoid known danger areas."
+    if danger_pins:
+        top = danger_pins[0]
+        title = str(top.get("title", "a nearby hazard")).strip()
+        if title:
+            advice += f" Be aware of {title} near the path and use caution."
+    else:
+        advice += " No active danger pins are close to this route."
+    return advice
 
 
 def _find_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> Optional[Dict[str, Any]]:
@@ -315,129 +675,7 @@ def _create_auto_crowdy_area_markers(
     window_hours: int = 1,
     duplicate_radius_m: int = 500,
 ) -> List[Dict[str, Any]]:
-    reports = _fetch_recent_crowd_reports(window_hours)
-    destinations = _fetch_destinations_map()
-    if not reports or not destinations:
-        return []
-
-    grouped: Dict[int, Dict[str, Any]] = {}
-    for report in reports:
-        if not isinstance(report, dict):
-            continue
-        destination_id = report.get("destination_id")
-        if destination_id is None:
-            continue
-        try:
-            destination_id = int(destination_id)
-        except Exception:
-            continue
-        if destination_id not in destinations:
-            continue
-        bucket = grouped.setdefault(destination_id, {"reports": [], "users": set()})
-        bucket["reports"].append(report)
-        user_id = report.get("user_id")
-        if user_id is not None:
-            try:
-                bucket["users"].add(int(user_id))
-            except Exception:
-                pass
-
-    created_markers: List[Dict[str, Any]] = []
-    for destination_id, bucket in grouped.items():
-        unique_users = bucket["users"]
-        report_count = len(bucket["reports"])
-
-        destination = destinations[destination_id]
-        crowd_levels = [str(r.get("crowd_level", "Low")) for r in bucket["reports"] if isinstance(r.get("crowd_level", "Low"), str)]
-
-        dest_crowd_level = str(destination.get("crowd_level", "Low"))
-        if dest_crowd_level not in {"Low", "Moderate", "High"}:
-            high_count = sum(1 for level in crowd_levels if level == "High")
-            moderate_count = sum(1 for level in crowd_levels if level == "Moderate")
-            if high_count >= moderate_count and high_count > 0:
-                dest_crowd_level = "High"
-            elif moderate_count > 0:
-                dest_crowd_level = "Moderate"
-            else:
-                dest_crowd_level = "Low"
-
-        level_thresholds = {
-            "Low": 10,
-            "Moderate": 20,
-            "High": 30,
-        }
-        required_users = level_thresholds.get(dest_crowd_level, 10)
-        if len(unique_users) < required_users:
-            continue
-
-        destination = destinations[destination_id]
-        lat = destination.get("lat")
-        lng = destination.get("lng")
-        if lat is None or lng is None:
-            continue
-        try:
-            lat = float(lat)
-            lng = float(lng)
-        except Exception:
-            continue
-
-        if _existing_crowdy_marker_within(lat, lng, duplicate_radius_m):
-            existing_marker = _find_crowdy_marker_within(lat, lng, duplicate_radius_m)
-            if existing_marker:
-                marker_id = existing_marker.get("id")
-                try:
-                    marker_id = int(marker_id) if marker_id is not None else None
-                except Exception:
-                    marker_id = None
-                if marker_id is not None:
-                    crowd_level = dest_crowd_level
-                    if _extend_crowdy_marker_with_trend(
-                        marker_id,
-                        destination,
-                        report_count,
-                        len(unique_users),
-                        crowd_level,
-                    ):
-                        created_markers.append({
-                            "destination_id": destination_id,
-                            "title": existing_marker.get("title", "Crowdy Area"),
-                            "lat": lat,
-                            "lng": lng,
-                            "user_count": len(unique_users),
-                            "report_count": report_count,
-                            "action": "extended_7days_trend",
-                        })
-            continue
-
-        crowd_level = dest_crowd_level
-        description = _generate_crowdy_marker_description(destination, report_count, len(unique_users), crowd_level)
-        title = f"Crowdy Area - {destination.get('name', 'Busy spot')}"
-        insert_data = {
-            "title": title,
-            "danger_type": "Crowdy Area",
-            "lat": lat,
-            "lng": lng,
-            "severity": "High",
-            "radius_meters": 300,
-            "duration_hours": 4,
-            "description": description,
-            "user_id": None,
-            "reported_by": "Crowd AI",
-            "removed_at": None,
-            "created_at": now_iso(),
-        }
-        response = supabase.table("danger_pins").insert(insert_data).execute()
-        if safe_data(response):
-            created_markers.append({
-                "destination_id": destination_id,
-                "title": title,
-                "lat": lat,
-                "lng": lng,
-                "user_count": len(unique_users),
-                "report_count": report_count,
-            })
-
-    return created_markers
+    return cm_create_auto_crowdy_area_markers(supabase, gemini_client, threshold, window_hours, duplicate_radius_m)
 
 # Optional Gemini client (uses GEMINI_API_KEY or GOOGLE_API_KEY env var)
 try:
@@ -456,10 +694,21 @@ except Exception as e:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_cors_response_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("Access-Control-Allow-Origin", "*")
+    response.headers.setdefault("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+    response.headers.setdefault("Access-Control-Allow-Headers", "Authorization,Content-Type,Accept")
+    response.headers.setdefault("Access-Control-Expose-Headers", "Content-Length,Content-Type")
+    return response
+
 # ENDPOINTS
 #handler for rechecking expired pins every minute
 @app.on_event("startup")
@@ -585,10 +834,7 @@ def update_crowd(destination_id: int, data: CrowdUpdateRequest):
 
 @app.get("/safety-check")
 def safety_check(lat: float, lng: float, language: str = "en"):
-    response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(response)
-    # filter out expired or removed pins
-    pins = filter_active_pins(pins)
+    pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
     nearby = []
     for pin in pins:
         if not isinstance(pin, dict):
@@ -623,13 +869,196 @@ def safety_check(lat: float, lng: float, language: str = "en"):
         "language": language
     }
 
+
+@app.get("/route")
+def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float, profile: str = "foot-walking", avoid_danger: bool = False):
+    """Proxy endpoint to OpenRouteService directions API.
+
+    Returns the ORS geojson directions response so the frontend can render the route.
+    Requires `ORS_API_KEY` environment variable to be set.
+    """
+    ors_key = os.getenv("ORS_API_KEY")
+    if not ors_key:
+        logger.error("ORS_API_KEY not found in environment")
+        raise HTTPException(status_code=500, detail="ORS_API_KEY environment variable is not configured on the server. Ensure backend/.env contains ORS_API_KEY and restart the server.")
+
+    try:
+        url = f"https://api.openrouteservice.org/v2/directions/{profile}/geojson"
+        payload: Dict[str, Any] = {
+            "coordinates": [[float(start_lng), float(start_lat)], [float(end_lng), float(end_lat)]],
+            "radiuses": [MAX_ROUTE_SNAP_RADIUS_METERS, MAX_ROUTE_SNAP_RADIUS_METERS]
+        }
+        relevant_pins: List[Dict[str, Any]] = []
+        try:
+            pins = _fetch_active_danger_pins()
+            relevant_pins = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins)
+            if avoid_danger:
+                logger.info(f"Route avoidance: {len(relevant_pins)} relevant danger pin(s) out of {len(pins)} active pin(s)")
+                if len(relevant_pins) > MAX_ROUTE_AVOID_PINS:
+                    logger.warning(
+                        f"Too many route-relevant danger pins ({len(relevant_pins)}) for avoidance; limiting to {MAX_ROUTE_AVOID_PINS}"
+                    )
+                    relevant_pins = relevant_pins[:MAX_ROUTE_AVOID_PINS]
+                # build multipolygon (returns None if no valid pins)
+                avoid_geo = build_avoid_multipolygon_from_pins(relevant_pins, points_per_circle=MAX_ROUTE_AVOID_POLYGON_POINTS)
+                if avoid_geo:
+                    # Try direct geometry format per OpenRouteService API
+                    payload["options"] = {
+                        "avoid_polygons": avoid_geo
+                    }
+                    logger.info(f"[DEBUG] Built avoid geometry with {len(avoid_geo.get('coordinates', []))} polygons for {len(relevant_pins)} pins")
+                    for i, poly in enumerate(avoid_geo.get('coordinates', [])):
+                        if i < len(relevant_pins):
+                            orig_radius = relevant_pins[i].get("radius_meters", 300)
+                            logger.info(f"[DEBUG]   Pin {i}: orig_radius={orig_radius}m, polygon_points={len(poly[0]) if poly else 0}")
+        except Exception:
+            logger.exception("Failed to fetch or filter danger pins for route advice")
+        headers = {
+            "Authorization": ors_key,
+            "Content-Type": "application/json",
+        }
+        route_error_message = "Route unavailable: the requested route could not be calculated. Please try a different location or try again later."
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+        except Exception as re:
+            logger.exception("HTTP request to OpenRouteService failed")
+            raise HTTPException(status_code=400, detail=route_error_message)
+
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                if avoid_danger and payload.get("options", {}).get("avoid_polygons"):
+                    logger.info(f"[DEBUG] Route with avoid_polygons succeeded")
+                    # Check if route actually avoids danger zones
+                    route_goes_through_danger = _check_route_through_danger(data, relevant_pins)
+                    if route_goes_through_danger:
+                        logger.warning(f"[DEBUG] WARNING: Route still goes through danger zones despite avoidance request")
+                data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                return data
+            except Exception:
+                logger.exception("Failed to decode OpenRouteService JSON response")
+                raise HTTPException(status_code=400, detail=route_error_message)
+        
+        if resp.status_code != 200:
+            try:
+                response_body = resp.json()
+            except Exception:
+                response_body = resp.text or ""
+            short_body = str(response_body)[:400]
+            logger.error("OpenRouteService returned non-200", extra={"status": resp.status_code, "text": short_body})
+            routable_error_message = _ors_routable_point_error(response_body, short_body)
+            if routable_error_message:
+                raise HTTPException(status_code=400, detail=routable_error_message)
+
+            if resp.status_code == 404:
+                error_message = None
+                if isinstance(response_body, dict):
+                    error_info = response_body.get('error') or {}
+                    if isinstance(error_info, dict) and 'message' in error_info:
+                        error_message = str(error_info.get('message'))
+                if not error_message and 'Could not find routable point' in short_body:
+                    error_message = short_body
+                if error_message:
+                    logger.warning("ORS route failed due to unreachable start/end point; retrying with unlimited snap radius")
+                    payload["radiuses"] = [-1, -1]
+                    try:
+                        resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                    except Exception:
+                        logger.exception("HTTP retry request to OpenRouteService with unlimited snap radius failed")
+                        raise HTTPException(status_code=400, detail=route_error_message)
+
+                    if resp.status_code == 200:
+                        try:
+                            data = resp.json()
+                            data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                            return data
+                        except Exception:
+                            logger.exception("Failed to decode OpenRouteService JSON response on unlimited snap radius retry")
+                            raise HTTPException(status_code=400, detail=route_error_message)
+
+                    try:
+                        response_body = resp.json()
+                    except Exception:
+                        response_body = resp.text or ""
+                    short_body = str(response_body)[:400]
+                    logger.error("OpenRouteService unlimited snap radius retry returned non-200", extra={"status": resp.status_code, "text": short_body})
+                    routable_error_message = _ors_routable_point_error(response_body, short_body)
+                    if routable_error_message:
+                        raise HTTPException(status_code=400, detail=routable_error_message)
+                    if avoid_danger and payload.get("options", {}).get("avoid_polygons"):
+                        logger.warning("OpenRouteService avoid_danger route failed, retrying without avoid_polygons")
+                        payload.pop("options", None)
+                        try:
+                            resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                        except Exception:
+                            logger.exception("HTTP retry request to OpenRouteService without avoid_polygons failed")
+                            raise HTTPException(status_code=400, detail=f"{route_error_message} ORS error: {short_body}")
+                        if resp.status_code == 200:
+                            try:
+                                data = resp.json()
+                                data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                                return data
+                            except Exception:
+                                logger.exception("Failed to decode OpenRouteService JSON response on retry")
+                                raise HTTPException(status_code=400, detail=f"{route_error_message} ORS response invalid: {short_body}")
+                        try:
+                            response_body = resp.json()
+                        except Exception:
+                            response_body = resp.text or ""
+                        short_body = str(response_body)[:400]
+                        logger.error("OpenRouteService retry without avoid_polygons returned non-200", extra={"status": resp.status_code, "text": short_body})
+                        routable_error_message = _ors_routable_point_error(response_body, short_body)
+                        if routable_error_message:
+                            raise HTTPException(status_code=400, detail=routable_error_message)
+                    raise HTTPException(status_code=400, detail=f"{route_error_message} ORS status {resp.status_code}: {short_body}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="The selected location is too far from any accessible roads or walking paths. Please choose a location on or near a road, street, or path to calculate a route."
+                )
+            if avoid_danger and payload.get("options", {}).get("avoid_polygons"):
+                logger.warning("OpenRouteService avoid_danger route failed, retrying without avoid_polygons")
+                payload.pop("options", None)
+                try:
+                    resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                except Exception as re:
+                    logger.exception("HTTP retry request to OpenRouteService without avoid_polygons failed")
+                    raise HTTPException(status_code=400, detail=f"{route_error_message} ORS error: {short_body}")
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                        data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+                        return data
+                    except Exception:
+                        logger.exception("Failed to decode OpenRouteService JSON response on retry")
+                        raise HTTPException(status_code=400, detail=f"{route_error_message} ORS response invalid: {short_body}")
+                try:
+                    response_body = resp.json()
+                except Exception:
+                    response_body = resp.text or ""
+                short_body = str(response_body)[:400]
+                logger.error("OpenRouteService retry without avoid_polygons returned non-200", extra={"status": resp.status_code, "text": short_body})
+                routable_error_message = _ors_routable_point_error(response_body, short_body)
+                if routable_error_message:
+                    raise HTTPException(status_code=400, detail=routable_error_message)
+            raise HTTPException(status_code=400, detail=f"{route_error_message} ORS status {resp.status_code}: {short_body}")
+        try:
+            data = resp.json()
+            data["route_advice"] = _generate_route_advice(data, start_lat, start_lng, end_lat, end_lng, relevant_pins, avoid_danger)
+            return data
+        except Exception:
+            logger.exception("Failed to decode OpenRouteService JSON response")
+            raise HTTPException(status_code=400, detail=route_error_message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to fetch route from OpenRouteService")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/ai-advice")
 def get_ai_advice(lat: float, lng: float, location_type: str = "general", language: str = "en"):
     dest_response = supabase.table("destinations").select("*").execute()
     destinations: List[Dict[str, Any]] = safe_data(dest_response)
-    pin_response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(pin_response)
-    pins = filter_active_pins(pins)
+    pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
 
     ranked = []
     for d in destinations:
@@ -794,94 +1223,92 @@ def translate_alert_endpoint(payload: Dict[str, Any] = Body(...)):
 @app.get("/reports/summary")
 def reports_summary():
     try:
-        # Count destinations
-        dest_response = supabase.table("destinations").select("crowd_level").execute()
-        destinations: List[Dict[str, Any]] = safe_data(dest_response)
-        total_destinations = len(destinations)
+        cached = _fetch_cached_report_summary()
+        if cached is not None:
+            cached_at = cached.get("cached_at")
+            if isinstance(cached_at, str):
+                try:
+                    cached_dt = parse_timestamp(cached_at)
+                    if cached_dt is not None:
+                        age_seconds = (datetime.now(timezone.utc) - cached_dt).total_seconds()
+                        if age_seconds <= REPORT_SUMMARY_CACHE_TTL_SECONDS:
+                            return {
+                                "total_destinations": cached.get("total_destinations", 0),
+                                "total_users": cached.get("total_users", 0),
+                                "crowd_summary": cached.get("crowd_summary", {}),
+                                "danger_summary": cached.get("danger_summary", {}),
+                                "removed_comments": cached.get("removed_comments", 0),
+                                "ai_report": cached.get("ai_report", "System recommends less crowded destinations, warns users near danger, and suggests safer routes."),
+                            }
+                except Exception:
+                    pass
 
-        # Count users
-        user_response = supabase.table("users").select("id").execute()
-        users: List[Dict[str, Any]] = safe_data(user_response)
-        total_users = len(users)
-
-        # Crowd summary
-        crowd_summary = {}
-        for d in destinations:
-            if isinstance(d, dict):
-                level = d.get("crowd_level", "Unknown")
-                if isinstance(level, str):
-                    crowd_summary[level] = crowd_summary.get(level, 0) + 1
-
-        # Danger summary
-        try:
-            danger_response = supabase.table("danger_pins").select("*").execute()
-            danger_pins: List[Dict[str, Any]] = safe_data(danger_response)
-        except Exception:
-            danger_pins = []
-        
-        danger_summary = {}
-        for p in filter_active_pins(danger_pins):
-            if not isinstance(p, dict):
-                continue
-            severity = p.get("severity", "Unknown")
-            if isinstance(severity, str):
-                danger_summary[severity] = danger_summary.get(severity, 0) + 1
-
-        removed_comments = 0
-        try:
-            removed_response = supabase.table("marker_comments").select("id").eq("moderation_reason", "deleted_by_moderation").execute()
-            removed_comments = len(safe_data(removed_response))
-        except Exception:
-            removed_comments = 0
-
-        return {
-            "total_destinations": total_destinations,
-            "total_users": total_users,
-            "crowd_summary": crowd_summary,
-            "danger_summary": danger_summary,
-            "removed_comments": removed_comments,
-            "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes."
-        }
+        summary = _build_report_summary()
+        _upsert_report_summary_cache(summary)
+        return summary
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
 
 # DANGER PIN AND COMMENTS
+@app.get("/danger-pins/metadata")
+def get_danger_pin_metadata():
+    """Fast endpoint for map pin metadata without loading comments."""
+    return _fetch_active_danger_pin_metadata()
+
+
 @app.get("/danger-pins")
 def get_danger_pins():
-    response = supabase.table("danger_pins").select("*").execute()
-    pins: List[Dict[str, Any]] = safe_data(response)
+    pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
     visible = []
-    # collect user ids referenced by pins and comments so we can fetch user display names in one go
+    pin_ids = []
     referenced_user_ids = set()
+
     for pin in pins:
         if _pin_inactive(pin):
             continue
         pin_id = pin.get("id")
+        if pin_id is not None:
+            try:
+                pin_ids.append(int(pin_id))
+            except Exception:
+                pass
+
         uid_val = pin.get("user_id")
         if uid_val is not None:
             try:
                 referenced_user_ids.add(int(uid_val))
             except Exception:
                 pass
-        if pin_id is not None:
-            comments_response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
-            comments = safe_data(comments_response) or []
-            comments = [
-                c for c in comments
-                if isinstance(c, dict) and c.get("moderation_reason") != "deleted_by_moderation"
-            ]
-            for c in comments:
-                if c and c.get("user_id") is not None:
-                    cuid_val = c.get("user_id")
-                    try:
-                        if cuid_val is not None:
-                            referenced_user_ids.add(int(cuid_val))
-                    except Exception:
-                        pass
-            pin["comments"] = comments
+
         visible.append(pin)
 
-    # fetch users once
+    comments_map: Dict[int, List[Dict[str, Any]]] = {}
+    if pin_ids:
+        try:
+            comments_response = supabase.table("marker_comments").select("*").in_("pin_id", pin_ids).order("created_at", desc=True).execute()
+            comments = safe_data(comments_response) or []
+            for c in comments:
+                if not isinstance(c, dict):
+                    continue
+                if c.get("moderation_reason") == "deleted_by_moderation":
+                    continue
+                pin_id = c.get("pin_id")
+                if pin_id is None:
+                    continue
+                try:
+                    pin_key = int(pin_id)
+                except Exception:
+                    continue
+                comments_map.setdefault(pin_key, []).append(c)
+                cuid_val = c.get("user_id")
+                if cuid_val is not None:
+                    try:
+                        referenced_user_ids.add(int(cuid_val))
+                    except Exception:
+                        pass
+        except Exception:
+            comments_map = {}
+
     users_map: Dict[int, Dict[str, Any]] = {}
     if referenced_user_ids:
         try:
@@ -898,8 +1325,17 @@ def get_danger_pins():
         except Exception:
             users_map = {}
 
-    # attach display names
     for pin in visible:
+        pin_id = pin.get("id")
+        if pin_id is not None:
+            try:
+                pin_comments = comments_map.get(int(pin_id), [])
+            except Exception:
+                pin_comments = []
+        else:
+            pin_comments = []
+        pin["comments"] = pin_comments
+
         uid = pin.get("user_id")
         reporter = None
         uid_key = None
@@ -911,9 +1347,8 @@ def get_danger_pins():
         if uid_key is not None and uid_key in users_map:
             reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("name")
         pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
-        # attach commented_by for each comment
-        comments = pin.get("comments") or []
-        for c in comments:
+
+        for c in pin_comments:
             cuid = c.get("user_id")
             commenter = None
             cuid_key = None
@@ -983,6 +1418,13 @@ async def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
         "moderation_flagged": False,
         "moderation_reason": "pending"
     }
+
+
+@app.get("/danger-pins/{pin_id}/comments")
+def get_marker_comments(pin_id: int):
+    """Load comments on demand for a specific danger pin."""
+    return _fetch_marker_comments(pin_id)
+
 
 @app.put("/danger-pins/{pin_id}/comments/{comment_id}")
 def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentRequest):

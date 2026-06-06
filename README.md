@@ -54,6 +54,24 @@ Optionally, you can set a model name:
 set GEMINI_MODEL=gemini-3.1-flash
 ```
 
+## System Data Flow
+
+The system is organized into three main layers:
+
+- **Frontend React app**: the user interacts with the map, marker reporting, login, comments, and AI guidance.
+- **FastAPI backend**: receives HTTP requests, enforces validation, applies safety/crowd logic, and queries Supabase.
+- **External services**: Supabase stores persistent data; OpenRouteService provides route directions; Gemini/GenAI powers optional AI advice, moderation, and translation.
+
+Key data flow paths:
+
+- User actions in the frontend call backend endpoints such as `/safety-check`, `/route`, `/ai-advice`, `/danger-pins`, and marker comment APIs.
+- The backend reads and writes to Supabase tables like `users`, `destinations`, `danger_pins`, `crowd_reports`, and `marker_comments`.
+- Routes with `avoid_danger=true` use active danger pins to build `avoid_polygons`, then proxy the request to OpenRouteService.
+- AI flows use optional Gemini/GenAI access to generate advice, moderate comments, translate alerts, and create crowd warning descriptions.
+- Background tasks automatically expire old danger pins and generate Crowdy Area markers from recent crowd reports.
+
+![System Data Flow](SYSTEM_FLOWCHART.png)
+
 ## Backend Setup
 
 1. Open a terminal and go to the backend folder:

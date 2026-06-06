@@ -13,7 +13,8 @@ import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommen
 import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
 function App() {
-  const [advice, setAdvice] = useState('');
+  const [advice, setAdvice] = useState('Turn on My Location to get your current position and receive the best safety and tourist advice.');
+  const [routeAdvice, setRouteAdvice] = useState('');
 
   // Wrapper for setAdvice that also notifies the AI guidance to show
   const setAdviceWithNotify = (val) => {
@@ -27,6 +28,18 @@ function App() {
       setAdvice(val);
     }
   };
+
+  const setRouteAdviceWithNotify = (val) => {
+    try {
+      setRouteAdvice(val);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ai:notify'));
+      }
+    } catch (e) {
+      setRouteAdvice(val);
+    }
+  };
+
   const [nearest, setNearest] = useState([]);
   const [destinations, setDestinations] = useState([]);
   const [dangerPins, setDangerPins] = useState([]);
@@ -79,8 +92,9 @@ function App() {
   const [selectedDestinationId, setSelectedDestinationId] = useState(null);
   const [reportHighlight, setReportHighlight] = useState(null);
   const [hoverReportHighlight, setHoverReportHighlight] = useState(null);
-  const [focusZoom, setFocusZoom] = useState(undefined);
   const [focusLoading, setFocusLoading] = useState(false);
+  const [focusBounds, setFocusBounds] = useState(null);
+  const [focusZoom, setFocusZoom] = useState(null);
   const [resetMapFlag, setResetMapFlag] = useState(0);
   const [user, setUser] = useUserSession();
   const [report, setReport] = useState(null);
@@ -171,10 +185,11 @@ function App() {
         comment,
         user_id: user?.id ?? null,
       });
-      await loadDangerPins(setDangerPins);
       setAdviceWithNotify('Comment added to marker.');
+      return true;
     } catch (err) {
       alert(err.message);
+      throw err;
     }
   };
 
@@ -184,10 +199,11 @@ function App() {
         requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
-      await loadDangerPins(setDangerPins);
       setAdviceWithNotify('Comment updated successfully.');
+      return true;
     } catch (err) {
       alert(err.message);
+      throw err;
     }
   };
 
@@ -197,10 +213,11 @@ function App() {
         requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
-      await loadDangerPins(setDangerPins);
       setAdviceWithNotify('Comment deleted.');
+      return true;
     } catch (err) {
       alert(err.message);
+      throw err;
     }
   };
 
@@ -228,18 +245,17 @@ function App() {
 
   const handleMapClick = (lat, lng) => {
     if (pinMode) return startMarkerPlacement(lat, lng);
-    if (locationMode) {
-      setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
+    if (!locationMode) {
+      // Normal map clicks are disabled for location selection until
+      // the user enables My Location.
       return;
     }
+    setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
     const clickedLocation = { lat, lng };
     setLastClickLocation(clickedLocation);
-    setUserLocation(clickedLocation);
-    setSelectedLocation(clickedLocation);
-    // Zoom in slightly when the user explicitly selects a location on the map
-    // so behavior matches the My Location flow and gives a closer view.
-    setFocusZoom(15);
     setSelectedDestinationId(null);
+    // Do not overwrite the GPS user location marker. Keep userLocation tied to
+    // geolocation, and let the routing layer place the second pin instead.
     return fetchAdvice(lat, lng);
   };
 
@@ -285,11 +301,11 @@ function App() {
         setLocationMode(true);
         try { window.localStorage.setItem('stms_location_mode', 'true'); } catch {}
         setSelectedDestinationId(null);
+        setFocusBounds(null);
+        setFocusZoom(15);
         const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(currentLocation);
         setSelectedLocation(currentLocation);
-        // Zoom in when using My Location to provide a closer view of the surroundings
-        setFocusZoom(15);
         await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
@@ -314,10 +330,11 @@ function App() {
         setLocationMode(true);
         try { window.localStorage.setItem('stms_location_mode', 'true'); } catch {}
         setSelectedDestinationId(null);
+        setFocusBounds(null);
+        setFocusZoom(15);
         const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(currentLocation);
         setSelectedLocation(currentLocation);
-        setFocusZoom(15);
         await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
@@ -337,12 +354,16 @@ function App() {
     if (selectedDestinationId === destination.id) {
       setSelectedDestinationId(null);
       setSelectedLocation(null);
+      setFocusBounds(null);
+      setFocusZoom(locationMode ? 15 : null);
       setAdviceWithNotify('Showing all tourist destinations. Click any destination to focus on it.');
       return;
     }
 
     // Show loading overlay on the map while we fetch details
     setFocusLoading(true);
+    setFocusBounds(null);
+    setFocusZoom(null);
     setSelectedDestinationId(destination.id);
     setLastClickLocation({ lat: destination.lat, lng: destination.lng });
     setAdviceWithNotify(`Loading details for ${destination.name}...`);
@@ -356,7 +377,7 @@ function App() {
     );
     await fetchDestinationDescription(destination, setAdviceWithNotify);
 
-    // After loading finished, set the selected location (if not preserved) and stop loading overlay
+    // After loading finished set the selected location (if not preserved) and stop loading overlay
     if (!preserveLocation) {
       setSelectedLocation({ lat: destination.lat, lng: destination.lng });
     }
@@ -371,54 +392,21 @@ function App() {
     await handleDestinationSelection(destination);
   };
 
-  const zoomToDestination = async (destination) => {
-    if (!destination) return;
-    // When zooming to a destination from the UI, we should focus the
-    // destination itself (do not preserve the previous user-selected
-    // location) to avoid the map snapping back to the user's marker.
-    await handleDestinationSelection(destination, false);
-  };
-
   const clearSelectedDestination = () => {
     console.debug('clearSelectedDestination called', { userLocation, selectedDestinationId });
     setSelectedDestinationId(null);
-    // Restore selection to the user's current location (if available) and zoom in.
+    setFocusBounds(null);
+    setFocusZoom(locationMode ? 15 : null);
     if (userLocation) {
       setSelectedLocation(userLocation);
-      setFocusZoom(15);
     } else {
       setSelectedLocation(null);
-      setFocusZoom(undefined);
     }
     setAdviceWithNotify('Showing all tourist destinations. Click any destination to focus on it.');
   };
 
   const handleReportHover = (type) => setHoverReportHighlight(type);
   const handleReportHoverEnd = () => setHoverReportHighlight(null);
-  const computeCenterAndZoom = (coords) => {
-    if (!coords || !coords.length) {
-      return { center: null, zoom: undefined };
-    }
-    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    coords.forEach(([lat, lng]) => {
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-    });
-    const center = [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
-    const latDiff = maxLat - minLat;
-    const lngDiff = maxLng - minLng;
-    const maxDiff = Math.max(latDiff, lngDiff);
-    let zoom;
-    if (maxDiff < 0.01) zoom = 15;
-    else if (maxDiff < 0.05) zoom = 13;
-    else if (maxDiff < 0.2) zoom = 11;
-    else if (maxDiff < 1) zoom = 9;
-    else zoom = 6;
-    return { center, zoom };
-  };
-
   const handleReportSelect = (type) => {
     // Clear hover highlight immediately so active highlight updates predictably
     setHoverReportHighlight(null);
@@ -427,18 +415,19 @@ function App() {
     if (reportHighlight === type) {
       setReportHighlight(null);
       setSelectedLocation(null);
-      setFocusZoom(undefined);
+      setFocusBounds(null);
+      setFocusZoom(locationMode ? 15 : null);
       return;
     }
 
     // Otherwise set the new highlight and compute focus
     setReportHighlight(type);
+    setFocusZoom(null);
 
     // Determine which coordinates to focus based on the report type
     let coords = [];
     if (!type) {
       setSelectedLocation(null);
-      setFocusZoom(undefined);
       return;
     }
 
@@ -461,26 +450,24 @@ function App() {
       }
     }
 
-    const { center, zoom } = computeCenterAndZoom(coords);
-    if (center) {
-      setSelectedLocation({ lat: center[0], lng: center[1] });
-      // If there are multiple coordinates, zoom out slightly to ensure all highlighted markers are visible.
-      if ((coords || []).length > 1) {
-        const targetZoom = Math.max(6, (typeof zoom === 'number' ? zoom : 8) - 1);
-        setFocusZoom(targetZoom);
-      } else {
-        // Single item: focus closer for detail
-        setFocusZoom(15);
-      }
-    } else {
-      // fallback: don't change zoom, just clear selection
+    if (coords.length > 1) {
       setSelectedLocation(null);
+      setFocusBounds({ coords });
+    } else if (coords.length === 1) {
+      setFocusBounds(null);
+      const [lat, lng] = coords[0];
+      setSelectedLocation({ lat, lng });
+    } else {
+      setSelectedLocation(null);
+      setFocusBounds(null);
     }
   };
   const activeReportHighlight = hoverReportHighlight || reportHighlight;
 
   const resetMapView = () => {
     setResetMapFlag((prev) => prev + 1);
+    setFocusBounds(null);
+    setFocusZoom(null);
   };
 
   const handleLoginSuccess = (loggedInUser) => {
@@ -542,13 +529,12 @@ function App() {
 
         <div className="map-panel">
           <div className="map-card">
-            <AIGuidance advice={advice} nearest={nearest} />
+            <AIGuidance advice={advice} routeAdvice={routeAdvice} nearest={nearest} />
             <div className="floating-side-nav-wrapper">
               <MapControlLeft
                 onMyLocation={toggleLocationMode}
                 onHazardSubmit={submitMarker}
                 onCenterTouristSpot={toggleDestinationFocus}
-                onZoomToSpot={zoomToDestination}
                 onSelectDestination={handleSelectDestination}
                 onClearSelection={clearSelectedDestination}
                 onReportHover={handleReportHover}
@@ -599,12 +585,17 @@ function App() {
               onResetMap={() => setResetMapFlag((prev) => prev + 1)}
               resetMapFlag={resetMapFlag}
               onLocationClick={handleMapClick}
+              onMapBackgroundClick={clearSelectedDestination}
+              onSetAdvice={setAdviceWithNotify}
+              onSetRouteAdvice={setRouteAdviceWithNotify}
+              isPinMode={pinMode}
               onAddComment={addMarkerComment}
               onUpdateComment={updateMarkerComment}
               onDeleteComment={deleteMarkerComment}
               onDeletePin={deletePin}
+              focusBounds={focusBounds}
+              focusZoom={focusZoom}
               focusLocation={selectedLocation || lastClickLocation}
-              focusZoom={focusZoom ?? (selectedDestinationId ? 15 : undefined)}
               userLocation={userLocation}
             />
           </div>

@@ -25,7 +25,6 @@ export default function DestinationList({
   onSelectDestination, 
   onClearSelection, 
   onCenterSpot,
-  onZoomToSpot,
   onFocusDestination,
   autoFocusOnSelect = true,
   selectedLocation = null,
@@ -139,9 +138,7 @@ export default function DestinationList({
     if (!destination) return;
     // Clear any existing highlights before focusing
     if (onClearSelection) onClearSelection();
-    if (onZoomToSpot) {
-      onZoomToSpot(destination);
-    } else if (onCenterSpot) {
+    if (onCenterSpot) {
       onCenterSpot(destination);
     }
     if (onFocusDestination) onFocusDestination(destination);

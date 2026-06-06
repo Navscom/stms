@@ -45,45 +45,111 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
 [data-theme='dark'] .app-shell {
   background: linear-gradient(180deg, #0a0e17 0%, #131d2e 100%);
 }
-.top-action-button {
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+.destination-pin-icon { background: transparent !important; border: none !important; }
+.destination-pin {
+  position: relative;
+  width: 52px;
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #facc15, #f97316);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
-  padding: 14px 20px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.16);
+  font-size: 20px;
+  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.22);
+  overflow: visible;
 }
-.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 34px; align-items: start; }
-.map-panel { display: flex; flex-direction: column; gap: 22px; }
-.map-panel-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 22px 30px; border-radius: 24px; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); }
-.map-panel-actions { display: flex; gap: 16px; flex-wrap: wrap; }
-.map-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 34px; min-height: auto; overflow: hidden; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12); position: relative; z-index: 1; }
-
-/* Make the map container a controlled, responsive height so it displays nicely
-   on shorter viewports and when the sidebar is present. The wrapper defines
-   the visual height while the inner map can fill 100%. */
-.map-container-wrapper {
-  height: 420px;
-  max-height: 78vh;
-  width: 100%;
+.destination-pin span { position: relative; z-index: 2; }
+.destination-pin::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 14px solid #f97316;
+}
+.destination-pin--highlighted {
+  box-shadow: 0 0 0 6px rgba(124,58,237,0.14), 0 16px 32px rgba(124,58,237,0.08);
+  border-color: rgba(124,58,237,0.95);
+  transform: scale(1.06);
+}
+/* Pin for the routing "location 2" marker to avoid reusing destination pins */
+.location2-pin-icon { background: transparent !important; border: none !important; }
+.location2-pin {
+  position: relative;
+  width: 52px;
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 12px 28px rgba(37,99,235,0.18);
+  overflow: visible;
+}
+.location2-pin span { position: relative; z-index: 2; }
+.location2-pin::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 14px solid #2563eb;
+}
+.location2-pin--highlighted {
+  box-shadow: 0 0 0 6px rgba(59,130,246,0.14), 0 16px 32px rgba(59,130,246,0.08);
+  border-color: rgba(59,130,246,0.95);
+  transform: scale(1.06);
 }
 
-/* Small screens / narrow widths use a more compact map height */
-@media (max-width: 900px) {
-  .map-container-wrapper {
-    height: 200px;
-    max-height: 45vh;
-  }
+/* Matching design for the routing "location 1" pin (same look as location2) */
+.location1-pin-icon { background: transparent !important; border: none !important; }
+.location1-pin {
+  position: relative;
+  width: 52px;
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 12px 28px rgba(37,99,235,0.18);
+  overflow: visible;
 }
-
-/* When in compact landscape where the app shell is fuller-screen, allow the
-   map to expand to fill available space (rules below for large landscape)
-   will still take precedence. */
-.destination-panel-wrapper { padding: 32px; border-radius: 34px; box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12); display: flex; flex-direction: column; gap: 22px; }
-.destination-hidden-card { padding: 28px; border-radius: 24px; background: #f8fafc; color: var(--text-primary); }
-[data-theme='dark'] .destination-hidden-card { background: rgba(30, 42, 60, 0.92); color: var(--text-primary); }
+.location1-pin span { position: relative; z-index: 2; }
+.location1-pin::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 14px solid #2563eb;
+}
+.location1-pin--highlighted {
+  box-shadow: 0 0 0 6px rgba(59,130,246,0.14), 0 16px 32px rgba(59,130,246,0.08);
+  border-color: rgba(59,130,246,0.95);
+  transform: scale(1.06);
+}
 .destination-safety-note { padding: 22px 24px; border-radius: 20px; font-weight: 600; font-size: 1.02rem; }
 .destination-safety-note.success { background: #ecfdf5; color: #166534; }
 [data-theme='dark'] .destination-safety-note.success { background: rgba(22, 101, 110, 0.18); color: #d2f8ff; border-color: rgba(56, 189, 248, 0.22); }
@@ -362,19 +428,21 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
 }
 .danger-pin {
   position: relative;
-  width: 52px;
-  height: 52px;
-  border-radius: 999px;
+  width: 48px;
+  height: 62px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   text-shadow: 0 0 4px rgba(0,0,0,0.35);
   border: 2px solid rgba(255,255,255,0.9);
-  box-shadow: 0 0 0 4px rgba(255,255,255,0.15), 0 12px 20px rgba(0,0,0,0.22);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+  overflow: visible;
 }
+.danger-pin span { z-index: 2; }
 .danger-pin::after {
   content: '';
   position: absolute;
@@ -388,13 +456,12 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   border-top: 12px solid currentColor;
 }
 .danger-pin--nearby {
-  transform: scale(1.05);
-  box-shadow: 0 0 0 6px rgba(255,255,255,0.25), 0 14px 24px rgba(0,0,0,0.24);
+  transform: scale(1.06);
+  box-shadow: 0 0 0 6px rgba(255,255,255,0.18), 0 16px 28px rgba(0,0,0,0.26);
 }
 
 .danger-pin--highlighted {
-  /* colored halo to indicate highlight */
-  box-shadow: 0 0 0 4px rgba(124,58,237,0.95), 0 12px 28px rgba(124,58,237,0.18);
+  box-shadow: 0 0 0 6px rgba(124,58,237,0.14), 0 18px 36px rgba(124,58,237,0.08);
   border-color: rgba(124,58,237,0.95);
   transform: scale(1.08);
 }
@@ -403,22 +470,35 @@ body { background: var(--bg-primary); color: var(--text-primary); margin: 0; pad
   border: none !important;
 }
 .person-pin {
-  width: 64px;
-  height: 64px;
   position: relative;
-  border-radius: 50%;
+  width: 48px;
+  height: 60px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #22c55e;
   border: 3px solid white;
-  box-shadow: 0 14px 24px rgba(34, 197, 94, 0.35);
+  box-shadow: 0 10px 22px rgba(34, 197, 94, 0.28);
   color: white;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
+.person-pin span { z-index: 2; }
+.person-pin-tail {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 16px solid #22c55e;
+}
+.person-pin-tail::after { content: none; }
 .person-pin span {
   position: relative;
   z-index: 1;

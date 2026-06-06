@@ -13,6 +13,17 @@
   color: var(--accent);
 }
 
+.ai-card-notice {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(254, 226, 226, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #991b1b;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .ai-card p {
   margin: 0;
   line-height: 1.7;
@@ -71,13 +82,13 @@
     z-index: 500;
     pointer-events: auto;
   }
+}
 
-  /* Hide when idle: reduce opacity and disable interactions */
-  .advice-section.hidden {
-    opacity: 0;
-    transform: translateY(-8px);
-    pointer-events: none;
-  }
+/* Hide when idle: reduce opacity and disable interactions */
+.advice-section.hidden {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
 }
 
 /* Landscape only: move AI Guidance card to left edge */

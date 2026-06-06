@@ -1,4 +1,4 @@
-import { getDestinations, getDangerPins, getReportSummary, getSafetyCheck, getAiAdvice, postAiGenerate } from './index';
+import { getDestinations, getDangerPinMetadata, getReportSummary, getSafetyCheck, getAiAdvice, postAiGenerate } from './index';
 import { filterActivePins } from './pinHelpers';
 
 export async function loadDestinations(setDestinations, { fallbackDestinations } = {}) {
@@ -17,11 +17,11 @@ export async function loadDestinations(setDestinations, { fallbackDestinations }
 
 export async function loadDangerPins(setDangerPins, { fallbackPins } = {}) {
   try {
-    const data = await getDangerPins();
+    const data = await getDangerPinMetadata();
     setDangerPins(data || []);
     return data || [];
   } catch (error) {
-    console.error('Failed to load danger pins:', error);
+    console.error('Failed to load danger pin metadata:', error);
     if (fallbackPins !== undefined) {
       setDangerPins(fallbackPins);
     }

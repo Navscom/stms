@@ -17,6 +17,18 @@
   height: 100%;
 }
 
+[data-theme='dark'] .leaflet-container,
+[data-theme='dark'] .map-container,
+[data-theme='dark'] #map {
+  background: rgba(6, 10, 18, 0.36);
+}
+
+.leaflet-container,
+.map-container,
+#map {
+  background: var(--bg-primary, #ffffff);
+}
+
 /* Hint to browser to use the GPU for map transforms and tile rendering */
 .leaflet-container,
 .map-container,
@@ -43,6 +55,39 @@
   opacity: 1;
   visibility: visible;
   pointer-events: none;
+}
+
+.route-alert-banner {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(220, 38, 38, 0.95);
+  color: #ffffff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.route-alert-banner button.route-alert-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.25rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.route-alert-banner button.route-alert-close:hover {
+  color: #ffffff;
 }
 
 .map-loading-overlay.map-loaded {
