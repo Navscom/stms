@@ -185,10 +185,11 @@ function App() {
         comment,
         user_id: user?.id ?? null,
       });
-      await loadDangerPins(setDangerPins);
       setAdviceWithNotify('Comment added to marker.');
+      return true;
     } catch (err) {
       alert(err.message);
+      throw err;
     }
   };
 
@@ -198,10 +199,11 @@ function App() {
         requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
-      await loadDangerPins(setDangerPins);
       setAdviceWithNotify('Comment updated successfully.');
+      return true;
     } catch (err) {
       alert(err.message);
+      throw err;
     }
   };
 
@@ -211,10 +213,11 @@ function App() {
         requesting_user_id: user?.id,
         requesting_role: user?.role,
       });
-      await loadDangerPins(setDangerPins);
       setAdviceWithNotify('Comment deleted.');
+      return true;
     } catch (err) {
       alert(err.message);
+      throw err;
     }
   };
 
@@ -374,7 +377,7 @@ function App() {
     );
     await fetchDestinationDescription(destination, setAdviceWithNotify);
 
-    // After loading finished, set the selected location (if not preserved) and stop loading overlay
+    // After loading finished set the selected location (if not preserved) and stop loading overlay
     if (!preserveLocation) {
       setSelectedLocation({ lat: destination.lat, lng: destination.lng });
     }

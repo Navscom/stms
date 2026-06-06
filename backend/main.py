@@ -181,6 +181,154 @@ def _fetch_active_danger_pins() -> List[Dict[str, Any]]:
     return filter_active_pins(pins)
 
 
+def _fetch_active_danger_pin_metadata() -> List[Dict[str, Any]]:
+    try:
+        response = supabase.table("danger_pins").select(
+            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,reported_by,created_at,updated_at"
+        ).is_("removed_at", None).execute()
+        pins = safe_data(response)
+    except Exception:
+        response = supabase.table("danger_pins").select(
+            "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,reported_by,created_at,updated_at"
+        ).execute()
+        pins = safe_data(response)
+    return [pin for pin in (pins or []) if isinstance(pin, dict) and not _pin_inactive(pin)]
+
+
+REPORT_SUMMARY_CACHE_KEY = "global_report_summary"
+REPORT_SUMMARY_CACHE_TTL_SECONDS = 300
+
+
+def _fetch_cached_report_summary() -> Optional[Dict[str, Any]]:
+    try:
+        response = supabase.table("report_summary_cache").select("*").eq("summary_key", REPORT_SUMMARY_CACHE_KEY).limit(1).execute()
+        cached = safe_data(response)
+        if isinstance(cached, list) and cached:
+            first = cached[0]
+            if isinstance(first, dict):
+                return first
+    except Exception:
+        return None
+    return None
+
+
+def _upsert_report_summary_cache(summary: Dict[str, Any]) -> bool:
+    record = {
+        "summary_key": REPORT_SUMMARY_CACHE_KEY,
+        "total_destinations": summary.get("total_destinations", 0),
+        "total_users": summary.get("total_users", 0),
+        "crowd_summary": summary.get("crowd_summary", {}),
+        "danger_summary": summary.get("danger_summary", {}),
+        "removed_comments": summary.get("removed_comments", 0),
+        "ai_report": summary.get("ai_report", ""),
+        "cached_at": now_iso(),
+    }
+    try:
+        existing = supabase.table("report_summary_cache").select("id").eq("summary_key", REPORT_SUMMARY_CACHE_KEY).limit(1).execute()
+        if safe_data(existing):
+            supabase.table("report_summary_cache").update(record).eq("summary_key", REPORT_SUMMARY_CACHE_KEY).execute()
+        else:
+            supabase.table("report_summary_cache").insert(record).execute()
+        return True
+    except Exception:
+        return False
+
+
+def _build_report_summary() -> Dict[str, Any]:
+    dest_response = supabase.table("destinations").select("crowd_level").execute()
+    destinations: List[Dict[str, Any]] = safe_data(dest_response)
+    total_destinations = len(destinations)
+
+    user_response = supabase.table("users").select("id").execute()
+    users: List[Dict[str, Any]] = safe_data(user_response)
+    total_users = len(users)
+
+    crowd_summary: Dict[str, int] = {}
+    for d in destinations:
+        if isinstance(d, dict):
+            level = d.get("crowd_level", "Unknown")
+            if isinstance(level, str):
+                crowd_summary[level] = crowd_summary.get(level, 0) + 1
+
+    danger_pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
+    danger_summary: Dict[str, int] = {}
+    for p in danger_pins:
+        if not isinstance(p, dict):
+            continue
+        severity = p.get("severity", "Unknown")
+        if isinstance(severity, str):
+            danger_summary[severity] = danger_summary.get(severity, 0) + 1
+
+    removed_comments = 0
+    try:
+        removed_response = supabase.table("marker_comments").select("id").eq("moderation_reason", "deleted_by_moderation").execute()
+        removed_comments = len(safe_data(removed_response))
+    except Exception:
+        removed_comments = 0
+
+    return {
+        "total_destinations": total_destinations,
+        "total_users": total_users,
+        "crowd_summary": crowd_summary,
+        "danger_summary": danger_summary,
+        "removed_comments": removed_comments,
+        "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes.",
+    }
+
+
+def _fetch_marker_comments(pin_id: int) -> List[Dict[str, Any]]:
+    comments: List[Dict[str, Any]] = []
+    try:
+        response = supabase.table("marker_comments").select("*").eq("pin_id", pin_id).order("created_at", desc=True).execute()
+        comments = safe_data(response) or []
+    except Exception:
+        return []
+
+    filtered_comments: List[Dict[str, Any]] = []
+    referenced_user_ids = set()
+    for c in comments:
+        if not isinstance(c, dict):
+            continue
+        if c.get("moderation_reason") == "deleted_by_moderation":
+            continue
+        user_id = c.get("user_id")
+        if user_id is not None:
+            try:
+                referenced_user_ids.add(int(user_id))
+            except Exception:
+                pass
+        filtered_comments.append(c)
+
+    users_map: Dict[int, Dict[str, Any]] = {}
+    if referenced_user_ids:
+        try:
+            users_resp = supabase.table("users").select("id,name,display_name").in_("id", list(referenced_user_ids)).execute()
+            users_list = safe_data(users_resp) or []
+            for u in users_list:
+                if isinstance(u, dict) and u.get("id") is not None:
+                    try:
+                        users_map[int(u["id"])] = u
+                    except Exception:
+                        pass
+        except Exception:
+            users_map = {}
+
+    for c in filtered_comments:
+        commenter = None
+        user_id = c.get("user_id")
+        if user_id is not None:
+            try:
+                user_key = int(user_id)
+            except Exception:
+                user_key = None
+            else:
+                if user_key in users_map:
+                    commenter = users_map[user_key].get("display_name") or users_map[user_key].get("name")
+        c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
+
+    return filtered_comments
+
+
 def _existing_crowdy_marker_within(lat: float, lng: float, radius_meters: int = 500) -> bool:
     response = supabase.table("danger_pins").select("*").eq("danger_type", "Crowdy Area").execute()
     pins: List[Dict[str, Any]] = safe_data(response)
@@ -969,53 +1117,39 @@ def translate_alert_endpoint(payload: Dict[str, Any] = Body(...)):
 @app.get("/reports/summary")
 def reports_summary():
     try:
-        # Count destinations
-        dest_response = supabase.table("destinations").select("crowd_level").execute()
-        destinations: List[Dict[str, Any]] = safe_data(dest_response)
-        total_destinations = len(destinations)
+        cached = _fetch_cached_report_summary()
+        if cached is not None:
+            cached_at = cached.get("cached_at")
+            if isinstance(cached_at, str):
+                try:
+                    cached_dt = parse_timestamp(cached_at)
+                    if cached_dt is not None:
+                        age_seconds = (datetime.now(timezone.utc) - cached_dt).total_seconds()
+                        if age_seconds <= REPORT_SUMMARY_CACHE_TTL_SECONDS:
+                            return {
+                                "total_destinations": cached.get("total_destinations", 0),
+                                "total_users": cached.get("total_users", 0),
+                                "crowd_summary": cached.get("crowd_summary", {}),
+                                "danger_summary": cached.get("danger_summary", {}),
+                                "removed_comments": cached.get("removed_comments", 0),
+                                "ai_report": cached.get("ai_report", "System recommends less crowded destinations, warns users near danger, and suggests safer routes."),
+                            }
+                except Exception:
+                    pass
 
-        # Count users
-        user_response = supabase.table("users").select("id").execute()
-        users: List[Dict[str, Any]] = safe_data(user_response)
-        total_users = len(users)
-
-        # Crowd summary
-        crowd_summary = {}
-        for d in destinations:
-            if isinstance(d, dict):
-                level = d.get("crowd_level", "Unknown")
-                if isinstance(level, str):
-                    crowd_summary[level] = crowd_summary.get(level, 0) + 1
-
-        # Danger summary
-        danger_pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
-        danger_summary = {}
-        for p in danger_pins:
-            if not isinstance(p, dict):
-                continue
-            severity = p.get("severity", "Unknown")
-            if isinstance(severity, str):
-                danger_summary[severity] = danger_summary.get(severity, 0) + 1
-
-        removed_comments = 0
-        try:
-            removed_response = supabase.table("marker_comments").select("id").eq("moderation_reason", "deleted_by_moderation").execute()
-            removed_comments = len(safe_data(removed_response))
-        except Exception:
-            removed_comments = 0
-
-        return {
-            "total_destinations": total_destinations,
-            "total_users": total_users,
-            "crowd_summary": crowd_summary,
-            "danger_summary": danger_summary,
-            "removed_comments": removed_comments,
-            "ai_report": "System recommends less crowded destinations, warns users near danger, and suggests safer routes."
-        }
+        summary = _build_report_summary()
+        _upsert_report_summary_cache(summary)
+        return summary
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
 
 # DANGER PIN AND COMMENTS
+@app.get("/danger-pins/metadata")
+def get_danger_pin_metadata():
+    """Fast endpoint for map pin metadata without loading comments."""
+    return _fetch_active_danger_pin_metadata()
+
+
 @app.get("/danger-pins")
 def get_danger_pins():
     pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
@@ -1178,6 +1312,13 @@ async def add_marker_comment(pin_id: int, data: MarkerCommentRequest):
         "moderation_flagged": False,
         "moderation_reason": "pending"
     }
+
+
+@app.get("/danger-pins/{pin_id}/comments")
+def get_marker_comments(pin_id: int):
+    """Load comments on demand for a specific danger pin."""
+    return _fetch_marker_comments(pin_id)
+
 
 @app.put("/danger-pins/{pin_id}/comments/{comment_id}")
 def update_marker_comment(pin_id: int, comment_id: int, data: MarkerCommentRequest):

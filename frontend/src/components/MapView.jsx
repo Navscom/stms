@@ -6,6 +6,7 @@ import MapControlRight from './MapControlRight';
 import CommentBox from './Comments';
 import L from 'leaflet';
 import { formatDuration, isPinInactive } from '../utils/pinHelpers';
+import { getDangerPinComments } from '../utils';
 
 const phBounds = [[4.0, 116.0], [21.5, 127.0]];
 
@@ -392,6 +393,47 @@ function SafeTileLayer({ url, tileLayerRef, options = {}, eventHandlers = {} }) 
 
 function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin, onLogin }) {
   const map = useMap();
+  const [comments, setComments] = useState(pin.comments || []);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState('');
+  const [commentsLoaded, setCommentsLoaded] = useState(Array.isArray(pin.comments));
+
+  useEffect(() => {
+    setComments(pin.comments || []);
+    setCommentsLoaded(Array.isArray(pin.comments));
+    setCommentsError('');
+  }, [pin.id]);
+
+  const loadComments = async () => {
+    if (commentsLoading) return;
+    setCommentsLoading(true);
+    setCommentsError('');
+    try {
+      const data = await getDangerPinComments(pin.id);
+      setComments(Array.isArray(data) ? data : []);
+      setCommentsLoaded(true);
+    } catch (error) {
+      setCommentsError('Unable to load comments.');
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleAddComment = async (pinId, comment) => {
+    await onAddComment(pinId, comment);
+    await loadComments();
+  };
+
+  const handleUpdateComment = async (pinId, commentId, comment) => {
+    await onUpdateComment(pinId, commentId, comment);
+    await loadComments();
+  };
+
+  const handleDeleteComment = async (pinId, commentId) => {
+    await onDeleteComment(pinId, commentId);
+    await loadComments();
+  };
+
   const center = normalizeLatLng(pin.lat, pin.lng);
   const radiusMeters = normalizeRadius(pin.radius_meters);
 
@@ -420,7 +462,14 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
           },
         }}
       >
-        <Popup maxWidth={320}>
+        <Popup
+          maxWidth={320}
+          eventHandlers={{
+            popupopen: () => {
+              loadComments();
+            },
+          }}
+        >
           <div onClick={(e) => e.stopPropagation()}>
             <strong>{pin.danger_type}: {pin.title}</strong><br />
             Severity: <b>{pin.severity}</b><br />
@@ -431,10 +480,13 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
             <p>{pin.description}</p>
             <CommentBox
               pin={pin}
+              comments={comments}
+              commentsLoading={commentsLoading}
+              commentError={commentsError}
               user={user}
-              onAddComment={onAddComment}
-              onUpdateComment={onUpdateComment}
-              onDeleteComment={onDeleteComment}
+              onAddComment={handleAddComment}
+              onUpdateComment={handleUpdateComment}
+              onDeleteComment={handleDeleteComment}
               onLogin={onLogin}
             />
             <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
