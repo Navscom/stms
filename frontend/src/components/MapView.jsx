@@ -73,13 +73,22 @@ const LOCATION1_ICON = new L.DivIcon({
   popupAnchor: [0, -52],
 });
 
-const getDestinationIcon = (highlighted = false) => new L.DivIcon({
-  html: `<div class="destination-pin${highlighted ? ' destination-pin--highlighted' : ''}"><span>🏛️</span></div>`,
-  className: 'destination-pin-icon',
-  iconSize: [52, 64],
-  iconAnchor: [26, 64],
-  popupAnchor: [0, -52],
-});
+const destinationIconCache = new Map();
+const dangerIconCache = new Map();
+
+const getDestinationIcon = (highlighted = false) => {
+  const key = highlighted ? 'highlighted' : 'normal';
+  if (destinationIconCache.has(key)) return destinationIconCache.get(key);
+  const icon = new L.DivIcon({
+    html: `<div class="destination-pin${highlighted ? ' destination-pin--highlighted' : ''}"><span>🏛️</span></div>`,
+    className: 'destination-pin-icon',
+    iconSize: [52, 64],
+    iconAnchor: [26, 64],
+    popupAnchor: [0, -52],
+  });
+  destinationIconCache.set(key, icon);
+  return icon;
+};
 
 const dangerMarkerMeta = {
   'Danger Area': { color: '#dc2626', emoji: '❗', extraClass: 'danger-area' },
@@ -99,8 +108,13 @@ const createDangerIcon = ({ color, emoji, extraClass, isNearby = false, highligh
 });
 
 const getDangerIcon = (pin, isNearby, highlighted = false) => {
-  const meta = dangerMarkerMeta[pin.danger_type] || dangerMarkerMeta['Danger Area'];
-  return createDangerIcon({ ...meta, isNearby, highlighted });
+  const dangerType = pin?.danger_type || 'Danger Area';
+  const meta = dangerMarkerMeta[dangerType] || dangerMarkerMeta['Danger Area'];
+  const cacheKey = `${dangerType}|${isNearby ? '1' : '0'}|${highlighted ? '1' : '0'}`;
+  if (dangerIconCache.has(cacheKey)) return dangerIconCache.get(cacheKey);
+  const icon = createDangerIcon({ ...meta, isNearby, highlighted });
+  dangerIconCache.set(cacheKey, icon);
+  return icon;
 };
 
 const formatTimestamp = (timestamp) => {
@@ -578,9 +592,9 @@ export default function MapView({
 
   
 
-  const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
+  const nearbyIds = useMemo(() => new Set((nearbyDangers || []).map((d) => d.id)), [nearbyDangers]);
 
-  const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
+  const visibleDangerPins = useMemo(() => (dangerPins || []).filter((p) => !isPinInactive(p)), [dangerPins]);
 
   const destinationRiskColors = {
     Low: '#16a34a',
@@ -602,7 +616,7 @@ export default function MapView({
   const destinationMarkerRefs = useRef({});
   const tileLayerRef = useRef(null);
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
-  const totalMarkers = (destinations?.length || 0) + ((dangerPins || []).length || 0);
+  const totalMarkers = useMemo(() => (destinations?.length || 0) + ((dangerPins || []).length || 0), [destinations, dangerPins]);
   // When many markers are present, use canvas-based CircleMarker to reduce DOM nodes
   const useCanvasMarkers = totalMarkers > 150;
   const mapWrapperStyle = {

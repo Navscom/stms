@@ -878,7 +878,7 @@ def safety_check(lat: float, lng: float, language: str = "en"):
 
 
 @app.get("/route")
-def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float, profile: str = "foot-walking", avoid_danger: bool = False):
+async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float, profile: str = "foot-walking", avoid_danger: bool = False):
     """Proxy endpoint to OpenRouteService directions API.
 
     Returns the ORS geojson directions response so the frontend can render the route.
@@ -958,7 +958,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
         }
         route_error_message = "Route unavailable: the requested route could not be calculated. Please try a different location or try again later."
         try:
-            resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+            resp = await asyncio.to_thread(requests.post, url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
         except Exception as re:
             logger.exception("HTTP request to OpenRouteService failed")
             raise HTTPException(status_code=400, detail=route_error_message)
@@ -1010,7 +1010,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                     logger.warning("ORS route failed due to unreachable start/end point; retrying with unlimited snap radius")
                     payload["radiuses"] = [-1, -1]
                     try:
-                        resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                        resp = await asyncio.to_thread(requests.post, url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
                     except Exception:
                         logger.exception("HTTP retry request to OpenRouteService with unlimited snap radius failed")
                         raise HTTPException(status_code=400, detail=route_error_message)
@@ -1046,7 +1046,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                         logger.warning("OpenRouteService avoid_danger route failed, retrying without avoid_polygons")
                         payload.pop("options", None)
                         try:
-                            resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                            resp = await asyncio.to_thread(requests.post, url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
                         except Exception:
                             logger.exception("HTTP retry request to OpenRouteService without avoid_polygons failed")
                             raise HTTPException(status_code=400, detail=f"{route_error_message} ORS error: {short_body}")
@@ -1085,7 +1085,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
                 logger.warning("OpenRouteService avoid_danger route failed, retrying without avoid_polygons")
                 payload.pop("options", None)
                 try:
-                    resp = requests.post(url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
+                    resp = await asyncio.to_thread(requests.post, url, json=payload, headers=headers, timeout=MAX_ROUTE_REQUEST_TIMEOUT_SECONDS)
                 except Exception as re:
                     logger.exception("HTTP retry request to OpenRouteService without avoid_polygons failed")
                     raise HTTPException(status_code=400, detail=f"{route_error_message} ORS error: {short_body}")
@@ -1140,7 +1140,7 @@ def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng: float
 
 @app.get("/ai-advice")
 def get_ai_advice(lat: float, lng: float, location_type: str = "general", language: str = "en"):
-    dest_response = supabase.table("destinations").select("*").execute()
+    dest_response = supabase.table("destinations").select("id,name,city,lat,lng,crowd_level").execute()
     destinations: List[Dict[str, Any]] = safe_data(dest_response)
     pins: List[Dict[str, Any]] = _fetch_active_danger_pins()
 
