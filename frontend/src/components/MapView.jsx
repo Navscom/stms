@@ -218,12 +218,42 @@ function MapResetHandler({ defaultCenter, defaultZoom, resetFlag }) {
 
 function MapAutoFocusHandler({ focusLocation, focusBounds, focusZoom = null, loading = false, isPinMode = false, routeStart, routeTarget, routeGeoJson }) {
   const map = useMap();
+  const savedMapStateRef = useRef(null);
+  const hadRouteRef = useRef(false);
 
   useEffect(() => {
     if (!map || loading || isPinMode) return;
     try {
-      // If a route is active, keep the route visible and zoom to its endpoints/path.
-      if (routeStart && routeTarget) {
+      const hasRoute = routeStart && routeTarget;
+      const hadRoute = hadRouteRef.current;
+
+      // If routing just became inactive (route was cleared), restore the saved map state
+      // to preserve zoom/center where the user was before clearing the route.
+      if (hadRoute && !hasRoute && savedMapStateRef.current) {
+        const { center, zoom } = savedMapStateRef.current;
+        try {
+          map.setView(center, zoom, { animate: false });
+        } catch (e) {
+          // ignore restore errors
+        }
+        savedMapStateRef.current = null;
+        hadRouteRef.current = false;
+        return;
+      }
+
+      // If a route is active, save the current map state and then fit the route
+      if (hasRoute) {
+        // Save current map state for later restoration
+        try {
+          savedMapStateRef.current = {
+            center: map.getCenter(),
+            zoom: map.getZoom(),
+          };
+        } catch (e) {
+          // ignore save errors
+        }
+        hadRouteRef.current = true;
+
         let coords = null;
         if (routeGeoJson && Array.isArray(routeGeoJson.features) && routeGeoJson.features.length > 0) {
           coords = routeGeoJson.features[0].geometry.coordinates.map((c) => [c[1], c[0]]);
@@ -545,6 +575,7 @@ export default function MapView({
   locationMode = false,
   theme = 'light',
   mapRotation = 0,
+  onUpdatePendingMarkerLocation = () => {},
 }) {
   // Debug: Log received props
   useEffect(() => {
@@ -897,12 +928,8 @@ export default function MapView({
   // Handle map clicks: treat click as destination (location 2) and compute route
   const handleMapClick = async (lat, lng) => {
     if (isPinMode) {
-      // When My Location / locationMode is enabled we prevent placing new markers
-      // to ensure "My Location" is only used to show GPS and not to place pins.
-      if (locationMode) {
-        onSetRouteAdvice('My Location is on — turn it off to add markers.');
-        return;
-      }
+      // If the user is in pin mode, allow placing or moving a pending marker
+      // even when My Location mode is enabled.
       onLocationClick(lat, lng);
       return;
     }
@@ -1176,8 +1203,23 @@ export default function MapView({
           <Marker
             position={[pendingMarkerLocation.lat, pendingMarkerLocation.lng]}
             icon={getDangerIcon({ danger_type: selectedMarkerType || 'Danger Area' }, false)}
+            draggable={true}
+            eventHandlers={{
+              drag: (e) => {
+                try {
+                  const latlng = e.target.getLatLng();
+                  onUpdatePendingMarkerLocation({ lat: latlng.lat, lng: latlng.lng });
+                } catch (err) { /* ignore */ }
+              },
+              dragend: (e) => {
+                try {
+                  const latlng = e.target.getLatLng();
+                  onUpdatePendingMarkerLocation({ lat: latlng.lat, lng: latlng.lng });
+                } catch (err) { /* ignore */ }
+              }
+            }}
           >
-            <Popup>Pending {selectedMarkerType || 'Danger Area'} marker. Click anywhere else on the map to move it.</Popup>
+            <Popup>Pending {selectedMarkerType || 'Danger Area'} marker. Drag or click elsewhere to move it.</Popup>
           </Marker>
         )}
       </MapContainer>

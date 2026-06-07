@@ -10,6 +10,7 @@ import asyncio
 from typing import Any, Dict, List, Optional, Union
 import requests
 import secrets
+import math
  
 
 # Allow running as a top-level script from the backend directory.
@@ -387,6 +388,42 @@ def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: flo
     the user's path instead of those only near the start or finish point.
     """
     relevant = []
+    # small fraction of the route to treat as "endpoint area" (5% of segment)
+    endpoint_fraction_tol = 0.05
+    # small distance in km that counts as "at the endpoint" regardless of projection
+    endpoint_buffer_km = 0.05
+
+    def _proj_fraction_and_perp_dist_km(ax, ay, bx, by, px, py):
+        # convert geographic coordinates to local meters via equirectangular approx
+        R = 6371000.0
+        ref_lat = (ax + bx) / 2.0
+        def to_xy(lat, lng):
+            x = math.radians(lng - ay) * math.cos(math.radians(ref_lat)) * R
+            y = math.radians(lat - ref_lat) * R
+            return x, y
+
+        Ax, Ay = to_xy(ax, ay)
+        Bx, By = to_xy(bx, by)
+        Px, Py = to_xy(px, py)
+
+        ABx = Bx - Ax
+        ABy = By - Ay
+        APx = Px - Ax
+        APy = Py - Ay
+        ab_len2 = ABx * ABx + ABy * ABy
+        if ab_len2 <= 0:
+            t = 0.0
+        else:
+            t = (APx * ABx + APy * ABy) / ab_len2
+
+        t_clamped = max(0.0, min(1.0, t))
+        closest_x = Ax + t_clamped * ABx
+        closest_y = Ay + t_clamped * ABy
+        dx = Px - closest_x
+        dy = Py - closest_y
+        perp_dist_m = math.hypot(dx, dy)
+        return t, perp_dist_m / 1000.0
+
     for pin in pins or []:
         if not isinstance(pin, dict) or _pin_inactive(pin):
             continue
@@ -397,20 +434,37 @@ def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: flo
         except (TypeError, ValueError):
             continue
 
-        # Include ALL pins that pass the route intersection check.
-        # Don't exclude destination pins - if there's danger at the destination,
-        # users need to know! The danger check function will calculate exact distances.
-        # Keep the endpoint exclusion ONLY for pins that are far from the actual route.
-        
-        # Use the pin radius plus a small buffer to decide whether the pin is on/near the route.
-        effective_radius = max(pin_radius_km, route_buffer_km)
-
-        if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
-            continue
-
+        # Compute distance to endpoints first so we don't inflate small pin radii
+        # with the route buffer when the pin is actually at an endpoint.
         start_dist = haversine(start_lat, start_lng, pin_lat, pin_lng)
         end_dist = haversine(end_lat, end_lng, pin_lat, pin_lng)
         min_dist = min(start_dist, end_dist)
+
+        # If the pin is at/near either endpoint, use the pin radius only.
+        if start_dist <= pin_radius_km or end_dist <= pin_radius_km:
+            effective_radius = pin_radius_km
+        else:
+            effective_radius = max(pin_radius_km, route_buffer_km)
+
+        # Quick check using existing helper; skip pins that are clearly off-route.
+        if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
+            continue
+
+        # If the pin is effectively at either endpoint (within the pin radius), always include it
+        if start_dist <= pin_radius_km or end_dist <= pin_radius_km:
+            relevant.append((min_dist, pin))
+            continue
+
+        # Project the pin to the straight-line segment between start and end to determine
+        # whether the pin is genuinely along the route or simply near an endpoint.
+        frac, perp_dist_km = _proj_fraction_and_perp_dist_km(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng)
+
+        # Exclude pins that only intersect because they are near an endpoint but not actually
+        # along the route segment between start and end.
+        if (frac < endpoint_fraction_tol or frac > (1.0 - endpoint_fraction_tol)) and perp_dist_km > effective_radius and min_dist > endpoint_buffer_km:
+            continue
+
+        # Otherwise consider this pin relevant
         relevant.append((min_dist, pin))
 
     relevant.sort(key=lambda item: item[0])
@@ -936,9 +990,16 @@ async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng:
         relevant_pins: List[Dict[str, Any]] = []
         try:
             pins = _fetch_active_danger_pins()
+            # initial relevance uses a small route buffer to surface nearby pins for info
             relevant_pins = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins)
             endpoint_inside_danger = False
-            if avoid_danger and relevant_pins:
+
+            # For avoidance we only want to consider the pin radius itself (no route buffer)
+            relevant_for_avoid: List[Dict[str, Any]] = []
+            if avoid_danger:
+                relevant_for_avoid = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins, route_buffer_km=0.0)
+
+            if avoid_danger and relevant_for_avoid:
                 def _point_in_danger(pin, lat, lng):
                     try:
                         pin_lat = float(pin.get("lat", 0))
@@ -948,8 +1009,9 @@ async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng:
                         return False
                     return haversine(lat, lng, pin_lat, pin_lng) <= pin_radius_km
 
-                start_pins = [pin for pin in relevant_pins if _point_in_danger(pin, float(start_lat), float(start_lng))]
-                end_pins = [pin for pin in relevant_pins if _point_in_danger(pin, float(end_lat), float(end_lng))]
+                # Determine which pins actually encompass the endpoints using the radius-only set
+                start_pins = [pin for pin in relevant_for_avoid if _point_in_danger(pin, float(start_lat), float(start_lng))]
+                end_pins = [pin for pin in relevant_for_avoid if _point_in_danger(pin, float(end_lat), float(end_lng))]
 
                 # If both endpoints are inside danger pins, disable overall avoidance
                 if start_pins and end_pins:
@@ -963,11 +1025,11 @@ async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng:
                     if start_pins or end_pins:
                         endpoint_inside_danger = 'start' if start_pins else 'end'
                         excluded_ids = set(p.get('id') for p in (start_pins + end_pins) if isinstance(p, dict) and p.get('id') is not None)
-                        relevant_for_avoid = [p for p in relevant_pins if p.get('id') not in excluded_ids]
+                        # Exclude endpoint pins from avoidance but keep other radius-only relevant pins
+                        relevant_for_avoid = [p for p in relevant_for_avoid if p.get('id') not in excluded_ids]
                         logger.info(f"Endpoint inside danger; excluding {len(excluded_ids)} endpoint pin(s) from avoidance and avoiding the other relevant pins ({len(relevant_for_avoid)})")
                     else:
                         endpoint_inside_danger = False
-                        relevant_for_avoid = relevant_pins
 
             if avoid_danger and relevant_for_avoid:
                 logger.info(f"Route avoidance: {len(relevant_for_avoid)} relevant danger pin(s) out of {len(pins)} active pin(s) (endpoint pins excluded if any)")

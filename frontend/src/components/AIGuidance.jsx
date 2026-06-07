@@ -4,7 +4,7 @@ import { checkSafety, fetchAdvice } from '../utils/LoadData';
 
 export { checkSafety, fetchAdvice };
 
-export default function AIGuidance({ advice, routeAdvice, nearest }) {
+export default function AIGuidance({ advice, routeAdvice, nearest, loading = false }) {
   const [visible, setVisible] = useState(true);
   const timerRef = useRef(null);
   const prevAdviceRef = useRef(advice);
@@ -32,6 +32,11 @@ export default function AIGuidance({ advice, routeAdvice, nearest }) {
   useEffect(() => {
     // initial setup
     resetIdle();
+
+    // keep the loading message visible while backend data is still being fetched
+    if (loading) {
+      setVisible(true);
+    }
 
     // listen for explicit user clicks dispatched by the app and notifications
     const onUserClick = () => resetIdle();
@@ -81,11 +86,16 @@ export default function AIGuidance({ advice, routeAdvice, nearest }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [advice, routeAdvice]);
 
+  const shouldShow = loading || visible;
+  const message = loading
+    ? 'Information in the area is loading. Please wait while the backend starts up.'
+    : routeAdvice || advice || 'Click the map or select a destination to get AI safety and tourist advice.';
+
   return (
-    <section className={`advice-section ${visible ? '' : 'hidden'}`} aria-hidden={!visible}>
+    <section className={`advice-section ${shouldShow ? '' : 'hidden'}`} aria-hidden={!shouldShow}>
       <div className="ai-card">
         <h2>AI Guidance</h2>
-        <p>{routeAdvice || advice || 'Click the map or select a destination to get AI safety and tourist advice.'}</p>
+        <p>{message}</p>
       </div>
     </section>
   );

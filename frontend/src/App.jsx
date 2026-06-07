@@ -13,8 +13,9 @@ import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommen
 import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
 function App() {
-  const [advice, setAdvice] = useState('Turn on My Location to get your current position and receive the best safety and tourist advice.');
+  const [advice, setAdvice] = useState('Information in the area is loading. Please wait while the backend starts up.');
   const [routeAdvice, setRouteAdvice] = useState('');
+  const [backendLoading, setBackendLoading] = useState(true);
 
   // Wrapper for setAdvice that also notifies the AI guidance to show
   const setAdviceWithNotify = (val) => {
@@ -124,9 +125,14 @@ function App() {
 
   useEffect(() => {
     const loadData = async () => {
+      setBackendLoading(true);
+      setAdviceWithNotify('Information in the area is loading. Please wait while the backend starts up.');
       const hadBackendError = await loadAppData(setDestinations, setDangerPins, setReport);
+      setBackendLoading(false);
       if (hadBackendError) {
         setAdviceWithNotify('There was an error loading the data from the backend. Please refresh the site to fix this.');
+      } else {
+        setAdviceWithNotify('Data is ready. Tap a destination or enable My Location to get nearby safety advice.');
       }
     };
     loadData();
@@ -158,7 +164,9 @@ function App() {
       return;
     }
     setPendingMarkerLocation({ lat, lng });
-    setMarkerForm(DEFAULT_MARKER_FORM);
+    if (!pendingMarkerLocation) {
+      setMarkerForm(DEFAULT_MARKER_FORM);
+    }
   };
 
   const submitMarker = async (e) => {
@@ -248,10 +256,8 @@ function App() {
 
   const handleMapClick = (lat, lng) => {
     if (pinMode) {
-      if (locationMode) {
-        setAdviceWithNotify('My Location is on — turn it off to add markers.');
-        return;
-      }
+      // When in pin mode, always allow placing or moving a pending marker
+      // regardless of My Location being enabled so users can continue adding markers.
       return startMarkerPlacement(lat, lng);
     }
     if (!locationMode) {
@@ -278,7 +284,9 @@ function App() {
       const next = !prev;
       if (next) {
         setPendingMarkerLocation(null);
-        const targetLocation = (locationMode && selectedLocation) ? selectedLocation : lastClickLocation;
+        // Prefer the last clicked map position when starting pin placement so
+        // My Location doesn't override a previously selected spot.
+        const targetLocation = lastClickLocation || ((locationMode && selectedLocation) ? selectedLocation : null);
         if (targetLocation) {
           startMarkerPlacement(targetLocation.lat, targetLocation.lng);
         }
@@ -568,7 +576,7 @@ function App() {
 
         <div className="map-panel">
           <div className="map-card">
-            <AIGuidance advice={advice} routeAdvice={routeAdvice} nearest={nearest} />
+            <AIGuidance advice={advice} routeAdvice={routeAdvice} nearest={nearest} loading={backendLoading} />
             <div className="floating-side-nav-wrapper">
               <MapControlLeft
                 onMyLocation={toggleLocationMode}
@@ -639,6 +647,7 @@ function App() {
               focusLocation={selectedLocation || lastClickLocation}
               userLocation={userLocation}
               locationMode={locationMode}
+              onUpdatePendingMarkerLocation={setPendingMarkerLocation}
             />
           </div>
         </div>

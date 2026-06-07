@@ -509,20 +509,30 @@ const MapControlLeft = ({
                           <label className="form-label">Days</label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            pattern="\d*"
                             className="form-input"
                             placeholder="Days"
                             value={markerForm.duration_days}
-                            onChange={(e) => setMarkerForm({ ...markerForm, duration_days: e.target.value })}
+                            onChange={(e) => {
+                              const digits = String(e.target.value || '').replace(/\D+/g, '');
+                              setMarkerForm({ ...markerForm, duration_days: digits });
+                            }}
                           />
                         </div>
                         <div>
                           <label className="form-label">Hours</label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            pattern="\d*"
                             className="form-input"
                             placeholder="Hours"
                             value={markerForm.duration_hours}
-                            onChange={(e) => setMarkerForm({ ...markerForm, duration_hours: e.target.value })}
+                            onChange={(e) => {
+                              const digits = String(e.target.value || '').replace(/\D+/g, '');
+                              setMarkerForm({ ...markerForm, duration_hours: digits });
+                            }}
                           />
                         </div>
                       </div>
