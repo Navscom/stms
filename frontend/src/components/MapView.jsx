@@ -1,11 +1,12 @@
-import { Fragment, useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMapEvents, useMap } from 'react-leaflet';
+import { Fragment, useState, useEffect, useRef, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMapEvents, useMap, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../css/MapView.css';
 import MapControlRight from './MapControlRight';
 import CommentBox from './Comments';
 import L from 'leaflet';
 import { formatDuration, isPinInactive } from '../utils/pinHelpers';
+import { getDangerPinComments, API } from '../utils';
 
 const phBounds = [[4.0, 116.0], [21.5, 127.0]];
 
@@ -39,18 +40,55 @@ const DARK_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const DESTINATION_ICON = new L.DivIcon({
   html: '<div class="destination-pin"><span>🏛️</span></div>',
   className: 'destination-pin-icon',
-  iconSize: [52, 68],
-  iconAnchor: [26, 68],
-  popupAnchor: [0, -56],
+  iconSize: [52, 64],
+  iconAnchor: [26, 64],
+  popupAnchor: [0, -52],
 });
 
-const getDestinationIcon = (highlighted = false) => new L.DivIcon({
-  html: `<div class="destination-pin${highlighted ? ' destination-pin--highlighted' : ''}"><span>🏛️</span></div>`,
+const START_ICON = new L.DivIcon({
+  html: '<div class="destination-pin"><span>1</span></div>',
   className: 'destination-pin-icon',
-  iconSize: [52, 68],
-  iconAnchor: [26, 68],
-  popupAnchor: [0, -56],
+  iconSize: [52, 64],
+  iconAnchor: [26, 64],
+  popupAnchor: [0, -52],
 });
+
+// Separate icon for the second/route destination pin (location2) so it does
+// not collide visually or semantically with regular destination pins.
+const LOCATION2_ICON = new L.DivIcon({
+  html: '<div class="location2-pin"><span>2</span></div>',
+  className: 'location2-pin-icon',
+  iconSize: [52, 64],
+  iconAnchor: [26, 64],
+  popupAnchor: [0, -52],
+});
+
+// Icon for the first route pin (location 1). Keep design consistent with
+// the 'location2' pin so both routing pins share the same visual language.
+const LOCATION1_ICON = new L.DivIcon({
+  html: '<div class="location1-pin"><span>1</span></div>',
+  className: 'location1-pin-icon',
+  iconSize: [52, 64],
+  iconAnchor: [26, 64],
+  popupAnchor: [0, -52],
+});
+
+const destinationIconCache = new Map();
+const dangerIconCache = new Map();
+
+const getDestinationIcon = (highlighted = false) => {
+  const key = highlighted ? 'highlighted' : 'normal';
+  if (destinationIconCache.has(key)) return destinationIconCache.get(key);
+  const icon = new L.DivIcon({
+    html: `<div class="destination-pin${highlighted ? ' destination-pin--highlighted' : ''}"><span>🏛️</span></div>`,
+    className: 'destination-pin-icon',
+    iconSize: [52, 64],
+    iconAnchor: [26, 64],
+    popupAnchor: [0, -52],
+  });
+  destinationIconCache.set(key, icon);
+  return icon;
+};
 
 const dangerMarkerMeta = {
   'Danger Area': { color: '#dc2626', emoji: '❗', extraClass: 'danger-area' },
@@ -64,14 +102,19 @@ const createDangerIcon = ({ color, emoji, extraClass, isNearby = false, highligh
   html: `<div class="danger-pin danger-pin--${extraClass}${isNearby ? ' danger-pin--nearby' : ''}${highlighted ? ' danger-pin--highlighted' : ''}" style="background: ${color};">` +
     `<span>${emoji}</span></div>`,
   className: 'danger-pin-icon',
-  iconSize: [44, 56],
-  iconAnchor: [22, 56],
-  popupAnchor: [0, -44],
+  iconSize: [48, 62],
+  iconAnchor: [24, 62],
+  popupAnchor: [0, -48],
 });
 
 const getDangerIcon = (pin, isNearby, highlighted = false) => {
-  const meta = dangerMarkerMeta[pin.danger_type] || dangerMarkerMeta['Danger Area'];
-  return createDangerIcon({ ...meta, isNearby, highlighted });
+  const dangerType = pin?.danger_type || 'Danger Area';
+  const meta = dangerMarkerMeta[dangerType] || dangerMarkerMeta['Danger Area'];
+  const cacheKey = `${dangerType}|${isNearby ? '1' : '0'}|${highlighted ? '1' : '0'}`;
+  if (dangerIconCache.has(cacheKey)) return dangerIconCache.get(cacheKey);
+  const icon = createDangerIcon({ ...meta, isNearby, highlighted });
+  dangerIconCache.set(cacheKey, icon);
+  return icon;
 };
 
 const formatTimestamp = (timestamp) => {
@@ -84,41 +127,48 @@ const formatTimestamp = (timestamp) => {
 const PERSON_ICON = new L.DivIcon({
   html: '<div class="person-pin"><span>YOU</span><div class="person-pin-tail"></div></div>',
   className: 'person-pin-icon',
-  iconSize: [54, 74],
-  iconAnchor: [27, 74],
-  popupAnchor: [0, -60],
+  iconSize: [48, 60],
+  iconAnchor: [24, 60],
+  popupAnchor: [0, -48],
 });
 
 const DEFAULT_MAP_CENTER = [14.5994, 120.9842];
 const DEFAULT_MAP_ZOOM = 12;
 const MAP_STATE_KEY = 'stms_map_state';
 
-// Shared canvas renderer for vector layers to reduce SVG overhead during zoom/pan
+// Shared canvas renderer for vector layers to reduce SVG overhead during map interactions
 const SHARED_CANVAS_RENDERER = L.canvas({ padding: 0.5 });
 
 const normalizeLatLng = (lat, lng) => [Number(lat) || 0, Number(lng) || 0];
 const normalizeRadius = (radius) => Math.max(Number(radius) || 0, 0);
 
+const computeDistanceKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+};
+
 // How many pixels above the marker the map center should be (positive moves center up,
 // which places the marker lower on the screen). Adjust this value to taste.
 const DEFAULT_FOCUS_OFFSET_PX = 120;
 
-const centerMapWithOffset = (map, latlng, zoom, offsetY = DEFAULT_FOCUS_OFFSET_PX) => {
+const centerMapWithOffset = (map, latlng, offsetY = DEFAULT_FOCUS_OFFSET_PX) => {
   if (!map || !latlng) return;
-  const targetZoom = typeof zoom === 'number' ? zoom : map.getZoom();
+  const currentZoom = map.getZoom();
   try {
-    const point = map.project(L.latLng(latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]), targetZoom);
+    const point = map.project(L.latLng(latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]), currentZoom);
     const targetPoint = L.point(point.x, point.y - offsetY);
-    const targetLatLng = map.unproject(targetPoint, targetZoom);
-    // Use a slightly quicker, smooth fly animation for focus changes
-    map.flyTo(targetLatLng, targetZoom, { animate: true, duration: 0.45 });
+    const targetLatLng = map.unproject(targetPoint, currentZoom);
+    map.flyTo(targetLatLng, currentZoom, { animate: true, duration: 0.45 });
   } catch (e) {
-    // Fallback to simple setView if projection fails
     try {
-      // Prefer animated setView/flyTo where possible for smooth zooming
-      map.flyTo([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], targetZoom, { animate: true, duration: 0.45 });
+      map.flyTo([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], currentZoom, { animate: true, duration: 0.45 });
     } catch {
-      try { map.setView([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], targetZoom, { animate: true }); } catch { /* ignore */ }
+      try { map.setView([latlng.lat ?? latlng[0], latlng.lng ?? latlng[1]], currentZoom, { animate: true }); } catch { /* ignore */ }
     }
   }
 };
@@ -131,14 +181,7 @@ const loadStoredMapState = () => {
     const center = Array.isArray(parsed?.center) && parsed.center.length === 2
       ? [Number(parsed.center[0]), Number(parsed.center[1])]
       : DEFAULT_MAP_CENTER;
-    const zoom = Number(parsed?.zoom);
-    if (Number.isNaN(zoom)) {
-      return { center, zoom: DEFAULT_MAP_ZOOM };
-    }
-    return {
-      center,
-      zoom: Math.min(Math.max(zoom, 6), 18),
-    };
+    return { center, zoom: DEFAULT_MAP_ZOOM };
   } catch {
     return { center: DEFAULT_MAP_CENTER, zoom: DEFAULT_MAP_ZOOM };
   }
@@ -148,141 +191,128 @@ function MapClickHandler({ onLocationClick }) {
   useMapEvents({
     click(e) {
       try { window.dispatchEvent(new Event('ai:user-click')); } catch (e) { /* ignore */ }
+      // Only pass map background clicks into the map handler. The handler
+      // decides when selection should be cleared versus when route placement
+      // should proceed.
+      if (e.layer) {
+        return;
+      }
       onLocationClick(e.latlng.lat, e.latlng.lng);
     },
   });
   return null;
 }
 
-function ZoomControlHandler() {
-  const map = useMap();
-
-  const controlRef = useRef(null);
-
-  useEffect(() => {
-    if (!map) return undefined;
-
-    const applyZoomTooltips = (zoomControl) => {
-      const zoomInButton = zoomControl._zoomInButton || zoomControl._container?.querySelector('.leaflet-control-zoom-in');
-      const zoomOutButton = zoomControl._zoomOutButton || zoomControl._container?.querySelector('.leaflet-control-zoom-out');
-
-      if (zoomInButton) {
-        zoomInButton.setAttribute('data-tooltip', 'Zoom in');
-        zoomInButton.setAttribute('title', '');
-        zoomInButton.setAttribute('aria-label', 'Zoom in');
-      }
-      if (zoomOutButton) {
-        zoomOutButton.setAttribute('data-tooltip', 'Zoom out');
-        zoomOutButton.setAttribute('title', '');
-        zoomOutButton.setAttribute('aria-label', 'Zoom out');
-      }
-    };
-
-    // If a zoom control already exists on the map (possibly added earlier), keep it.
-    const existingZoom = (map._controls || []).find((c) => c && c instanceof L.Control.Zoom);
-    if (existingZoom) {
-      controlRef.current = existingZoom;
-      // Ensure a convenient reference is available on the map object for legacy code
-      if (!map.zoomControl) map.zoomControl = existingZoom;
-      applyZoomTooltips(existingZoom);
-      return undefined;
-    }
-
-    // Remove any previously-stored zoomControl reference (legacy) before adding ours
-    if (map.zoomControl) {
-      try { map.removeControl(map.zoomControl); } catch (e) { /* ignore */ }
-      map.zoomControl = null;
-    }
-
-    // Add new zoom control to bottom-right and remember we added it
-    const zoomCtrl = L.control.zoom({ position: 'bottomright' });
-    zoomCtrl.addTo(map);
-    applyZoomTooltips(zoomCtrl);
-    controlRef.current = zoomCtrl;
-    map.zoomControl = zoomCtrl;
-
-    // Cleanup: remove the control we added when this component unmounts
-    return () => {
-      if (controlRef.current) {
-        try { map.removeControl(controlRef.current); } catch (e) { /* ignore */ }
-        if (map.zoomControl === controlRef.current) map.zoomControl = null;
-        controlRef.current = null;
-      }
-    };
-  }, [map]);
-
-  return null;
-}
-
-function MapStatePersistence() {
-  const map = useMap();
-
-  const saveMapState = () => {
-    if (!map) return;
-    const center = map.getCenter();
-    const zoom = map.getZoom();
-    try {
-      window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({
-        center: [center.lat, center.lng],
-        zoom,
-      }));
-    } catch {
-      // ignore storage errors
-    }
-  };
-
-  useMapEvents({
-    moveend: saveMapState,
-    zoomend: saveMapState,
-  });
-
-  return null;
-}
 
 function MapResetHandler({ defaultCenter, defaultZoom, resetFlag }) {
   const map = useMap();
-  const hasMounted = useRef(false);
-
   useEffect(() => {
-    if (!map || resetFlag == null) return;
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return;
-    }
-
-    map.setView(defaultCenter, defaultZoom, { animate: false });
+    if (!map) return;
     try {
-      window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({
-        center: defaultCenter,
-        zoom: defaultZoom,
-      }));
-    } catch {
-      // ignore storage errors
-    }
+      map.setView(defaultCenter, defaultZoom, { animate: true });
+      try { window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({ center: defaultCenter, zoom: defaultZoom })); } catch {}
+    } catch (e) { /* ignore */ }
   }, [map, resetFlag, defaultCenter, defaultZoom]);
-
   return null;
 }
 
-function MapFocusHandler({ location, zoom, loading = false }) {
+function MapAutoFocusHandler({ focusLocation, focusBounds, focusZoom = null, loading = false, isPinMode = false, routeStart, routeTarget, routeGeoJson }) {
   const map = useMap();
+  const savedMapStateRef = useRef(null);
+  const hadRouteRef = useRef(false);
 
   useEffect(() => {
-    if (!map || !location) return;
-    console.debug('MapFocusHandler triggered', { location, zoom, loading });
-    if (loading) return; // Wait until loading finishes before moving the map
+    if (!map || loading || isPinMode) return;
+    try {
+      const hasRoute = routeStart && routeTarget;
+      const hadRoute = hadRouteRef.current;
 
-    // Center the map with a vertical offset so the focused marker appears slightly
-    // below the visual center of the map and fly to it so the user sees the zoom
-    // and the selected destination's circle/radius.
-    centerMapWithOffset(map, location, zoom);
-  }, [map, location, zoom, loading]);
+      // If routing just became inactive (route was cleared), restore the saved map state
+      // to preserve zoom/center where the user was before clearing the route.
+      if (hadRoute && !hasRoute && savedMapStateRef.current) {
+        const { center, zoom } = savedMapStateRef.current;
+        try {
+          map.setView(center, zoom, { animate: false });
+        } catch (e) {
+          // ignore restore errors
+        }
+        savedMapStateRef.current = null;
+        hadRouteRef.current = false;
+        return;
+      }
+
+      // If a route is active, save the current map state and then fit the route
+      if (hasRoute) {
+        // Save current map state for later restoration
+        try {
+          savedMapStateRef.current = {
+            center: map.getCenter(),
+            zoom: map.getZoom(),
+          };
+        } catch (e) {
+          // ignore save errors
+        }
+        hadRouteRef.current = true;
+
+        let coords = null;
+        if (routeGeoJson && Array.isArray(routeGeoJson.features) && routeGeoJson.features.length > 0) {
+          coords = routeGeoJson.features[0].geometry.coordinates.map((c) => [c[1], c[0]]);
+        }
+        if (!coords || !coords.length) {
+          coords = [[routeStart.lat, routeStart.lng], [routeTarget.lat, routeTarget.lng]];
+        }
+        const bounds = L.latLngBounds(coords);
+        if (bounds.isValid()) {
+          map.fitBounds(bounds.pad(0.12), { animate: true, duration: 0.45 });
+          return;
+        }
+      }
+
+      // If the user has placed only the route start (location 1), focus to it
+      // without changing zoom so the map centers on the explicitly placed pin.
+      if (routeStart && !routeTarget) {
+        const lat = routeStart.lat ?? routeStart[0];
+        const lng = routeStart.lng ?? routeStart[1];
+        centerMapWithOffset(map, { lat, lng });
+        return;
+      }
+
+      if (focusBounds && Array.isArray(focusBounds.coords) && focusBounds.coords.length > 0) {
+        const coords = focusBounds.coords.map((c) => [Number(c[0]), Number(c[1])]);
+        const bounds = L.latLngBounds(coords);
+        if (!bounds.isValid()) return;
+
+        if (coords.length === 1) {
+          const [lat, lng] = coords[0];
+          if (typeof focusZoom === 'number') {
+            map.setView([lat, lng], focusZoom, { animate: true });
+          } else {
+            centerMapWithOffset(map, { lat, lng });
+          }
+        } else {
+          map.fitBounds(bounds.pad(0.12), { animate: true, duration: 0.45 });
+        }
+        return;
+      }
+
+      if (focusLocation) {
+        const lat = focusLocation.lat ?? focusLocation[0];
+        const lng = focusLocation.lng ?? focusLocation[1];
+        if (typeof focusZoom === 'number') {
+          map.setView([lat, lng], focusZoom, { animate: true });
+        } else {
+          centerMapWithOffset(map, { lat, lng });
+        }
+      }
+    } catch (e) {
+      // ignore focus errors
+    }
+  }, [map, loading, isPinMode, routeStart, routeTarget, routeGeoJson, focusBounds ? JSON.stringify(focusBounds.coords) : null, focusLocation && focusLocation.lat, focusLocation && focusLocation.lng, focusZoom]);
 
   return null;
 }
 
 // Closes any open popups when certain selection-related props change so that
-// previously-selected marker popups don't interfere with new focus/zoom actions.
 function PopupClearHandler({ selectedDestinationId, reportHighlight, focusLocation, resetMapFlag }) {
   const map = useMap();
 
@@ -347,102 +377,6 @@ function MapResizeHandler() {
   return null;
 }
 
-// Defer heavy tile redraws until the user finishes interacting (zooming/panning).
-function TileLoadOnIdle({ tileLayerRef, idleDelay = 200 }) {
-  const map = useMap();
-  const idleTimer = useRef(null);
-
-  useEffect(() => {
-    if (!map) return undefined;
-
-    const scheduleIdle = () => {
-      if (idleTimer.current) window.clearTimeout(idleTimer.current);
-      idleTimer.current = window.setTimeout(() => {
-        try {
-          if (tileLayerRef && tileLayerRef.current && typeof tileLayerRef.current.redraw === 'function') {
-            tileLayerRef.current.redraw();
-          }
-        } catch (e) { /* ignore */ }
-        try { map.invalidateSize(); } catch (e) { /* ignore */ }
-      }, idleDelay);
-    };
-
-    const onInteractionStart = () => {
-      if (idleTimer.current) {
-        window.clearTimeout(idleTimer.current);
-        idleTimer.current = null;
-      }
-    };
-
-    map.on('zoomstart movestart', onInteractionStart);
-    map.on('zoomend moveend', scheduleIdle);
-
-    return () => {
-      map.off('zoomstart movestart', onInteractionStart);
-      map.off('zoomend moveend', scheduleIdle);
-      if (idleTimer.current) window.clearTimeout(idleTimer.current);
-    };
-  }, [map, tileLayerRef, idleDelay]);
-
-  return null;
-}
-
-// Smooth, Apple-Maps-like wheel zoom: intercept wheel and animate fractional zoom
-function SmoothWheelZoom({ sensitivity = 0.0015, easing = 0.18, tileLayerRef }) {
-  const map = useMap();
-  const rafRef = useRef(null);
-  const targetZoomRef = useRef(null);
-  const lastInteractionRef = useRef(0);
-
-  useEffect(() => {
-    if (!map) return undefined;
-
-    // Disable built-in wheel zoom to implement custom smooth zoom
-    try { map.scrollWheelZoom.disable(); } catch { /* ignore */ }
-
-    const clamp = (z) => Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z));
-
-    const step = () => {
-      rafRef.current = null;
-      const target = targetZoomRef.current;
-      if (target == null) return;
-      const curr = map.getZoom();
-      const delta = (target - curr) * easing;
-      if (Math.abs(delta) < 0.0005) {
-        map.setZoom(target, { animate: false });
-        // Fire zoomend so other handlers (TileLoadOnIdle) react
-        try { map.fire('zoomend'); } catch (e) { /* ignore */ }
-        targetZoomRef.current = null;
-        // Do not call tile redraw here — TileLoadOnIdle will handle redraw after idle.
-        return;
-      }
-      map.setZoom(curr + delta, { animate: false });
-      rafRef.current = window.requestAnimationFrame(step);
-    };
-
-    const onWheel = (ev) => {
-      // only handle vertical wheel (pinch/scroll)
-      ev.preventDefault();
-      const delta = ev.deltaY || ev.wheelDelta || 0;
-      const change = -delta * sensitivity; // invert so scroll-up zooms in
-      const currTarget = targetZoomRef.current != null ? targetZoomRef.current : map.getZoom();
-      targetZoomRef.current = clamp(currTarget + change);
-      lastInteractionRef.current = Date.now();
-      if (!rafRef.current) rafRef.current = window.requestAnimationFrame(step);
-    };
-
-    const container = map.getContainer();
-    container.addEventListener('wheel', onWheel, { passive: false });
-
-    return () => {
-      container.removeEventListener('wheel', onWheel);
-      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
-      try { map.scrollWheelZoom.enable(); } catch { /* ignore */ }
-    };
-  }, [map, sensitivity, easing, tileLayerRef]);
-
-  return null;
-}
 
 // TileLayer wrapper that ensures integer zoom in tile URLs (prevents fractional z values)
 function SafeTileLayer({ url, tileLayerRef, options = {}, eventHandlers = {} }) {
@@ -478,6 +412,47 @@ function SafeTileLayer({ url, tileLayerRef, options = {}, eventHandlers = {} }) 
 
 function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComment, onUpdateComment, onDeleteComment, onDeletePin, onLogin }) {
   const map = useMap();
+  const [comments, setComments] = useState(pin.comments || []);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState('');
+  const [commentsLoaded, setCommentsLoaded] = useState(Array.isArray(pin.comments));
+
+  useEffect(() => {
+    setComments(pin.comments || []);
+    setCommentsLoaded(Array.isArray(pin.comments));
+    setCommentsError('');
+  }, [pin.id]);
+
+  const loadComments = async () => {
+    if (commentsLoading) return;
+    setCommentsLoading(true);
+    setCommentsError('');
+    try {
+      const data = await getDangerPinComments(pin.id);
+      setComments(Array.isArray(data) ? data : []);
+      setCommentsLoaded(true);
+    } catch (error) {
+      setCommentsError('Unable to load comments.');
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleAddComment = async (pinId, comment) => {
+    await onAddComment(pinId, comment);
+    await loadComments();
+  };
+
+  const handleUpdateComment = async (pinId, commentId, comment) => {
+    await onUpdateComment(pinId, commentId, comment);
+    await loadComments();
+  };
+
+  const handleDeleteComment = async (pinId, commentId) => {
+    await onDeleteComment(pinId, commentId);
+    await loadComments();
+  };
+
   const center = normalizeLatLng(pin.lat, pin.lng);
   const radiusMeters = normalizeRadius(pin.radius_meters);
 
@@ -498,11 +473,22 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
         icon={icon}
         eventHandlers={{
           click: (event) => {
+            if (typeof event.stopPropagation === 'function') event.stopPropagation();
+            if (event.originalEvent && typeof event.originalEvent.stopPropagation === 'function') {
+              event.originalEvent.stopPropagation();
+            }
             centerMapWithOffset(map, event.latlng || { lat: pin.lat, lng: pin.lng }, 18);
           },
         }}
       >
-        <Popup maxWidth={320}>
+        <Popup
+          maxWidth={320}
+          eventHandlers={{
+            popupopen: () => {
+              loadComments();
+            },
+          }}
+        >
           <div onClick={(e) => e.stopPropagation()}>
             <strong>{pin.danger_type}: {pin.title}</strong><br />
             Severity: <b>{pin.severity}</b><br />
@@ -513,10 +499,13 @@ function DangerMarker({ pin, icon, style, highlighted, isNearby, user, onAddComm
             <p>{pin.description}</p>
             <CommentBox
               pin={pin}
+              comments={comments}
+              commentsLoading={commentsLoading}
+              commentError={commentsError}
               user={user}
-              onAddComment={onAddComment}
-              onUpdateComment={onUpdateComment}
-              onDeleteComment={onDeleteComment}
+              onAddComment={handleAddComment}
+              onUpdateComment={handleUpdateComment}
+              onDeleteComment={handleDeleteComment}
               onLogin={onLogin}
             />
             <DeletePinBox pin={pin} user={user} onDeletePin={onDeletePin} />
@@ -563,6 +552,10 @@ export default function MapView({
   selectedDestinationId,
   reportHighlight,
   onDestinationClick = () => {},
+  onMapBackgroundClick = () => {},
+  onSetAdvice = () => {},
+  onSetRouteAdvice = () => {},
+  isPinMode = false,
   user,
   onLogin,
   onLogout,
@@ -575,11 +568,14 @@ export default function MapView({
   onResetMap,
   resetMapFlag,
   focusLocation,
-  focusZoom,
+  focusBounds = null,
+  focusZoom = null,
   focusLoading = false,
   userLocation,
+  locationMode = false,
   theme = 'light',
   mapRotation = 0,
+  onUpdatePendingMarkerLocation = () => {},
 }) {
   // Debug: Log received props
   useEffect(() => {
@@ -594,9 +590,9 @@ export default function MapView({
 
   
 
-  const nearbyIds = new Set((nearbyDangers || []).map((d) => d.id));
+  const nearbyIds = useMemo(() => new Set((nearbyDangers || []).map((d) => d.id)), [nearbyDangers]);
 
-  const visibleDangerPins = (dangerPins || []).filter((p) => !isPinInactive(p));
+  const visibleDangerPins = useMemo(() => (dangerPins || []).filter((p) => !isPinInactive(p)), [dangerPins]);
 
   const destinationRiskColors = {
     Low: '#16a34a',
@@ -618,7 +614,7 @@ export default function MapView({
   const destinationMarkerRefs = useRef({});
   const tileLayerRef = useRef(null);
   const tileLayerUrl = theme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
-  const totalMarkers = (destinations?.length || 0) + ((dangerPins || []).length || 0);
+  const totalMarkers = useMemo(() => (destinations?.length || 0) + ((dangerPins || []).length || 0), [destinations, dangerPins]);
   // When many markers are present, use canvas-based CircleMarker to reduce DOM nodes
   const useCanvasMarkers = totalMarkers > 150;
   const mapWrapperStyle = {
@@ -626,6 +622,109 @@ export default function MapView({
   };
 
   const wrapperRef = useRef(null);
+  const mapRef = useRef(null);
+  const routeAbortController = useRef(null);
+  const [routeGeoJson, setRouteGeoJson] = useState(null);
+  const [routeTarget, setRouteTarget] = useState(null);
+  const [routeStart, setRouteStart] = useState(null);
+  const [routeStartLocked, setRouteStartLocked] = useState(false);
+  const [routeHidePins, setRouteHidePins] = useState(false);
+  const [routingOpen, setRoutingOpen] = useState(false);
+  const [routingSelecting, setRoutingSelecting] = useState(null); // 'start' | 'end' | null
+  const [avoidDanger, setAvoidDanger] = useState(true);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [location2CooldownActive, setLocation2CooldownActive] = useState(false);
+  const location2CooldownTimer = useRef(null);
+  const hasUserLocation = userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number';
+  const routeStartUsesUserLocation = routeStart && userLocation &&
+    Math.abs(routeStart.lat - userLocation.lat) < 1e-6 &&
+    Math.abs(routeStart.lng - userLocation.lng) < 1e-6;
+
+  const startLocation2Cooldown = () => {
+    setLocation2CooldownActive(true);
+    if (location2CooldownTimer.current) window.clearTimeout(location2CooldownTimer.current);
+    location2CooldownTimer.current = window.setTimeout(() => {
+      setLocation2CooldownActive(false);
+      location2CooldownTimer.current = null;
+    }, 5000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (location2CooldownTimer.current) window.clearTimeout(location2CooldownTimer.current);
+    };
+  }, []);
+
+  // Abort any in-flight route request when the component unmounts
+  useEffect(() => {
+    return () => {
+      try {
+        if (routeAbortController.current) {
+          routeAbortController.current.abort();
+          routeAbortController.current = null;
+        }
+      } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (routeTarget) {
+      startLocation2Cooldown();
+    }
+  }, [routeTarget]);
+
+  // Listen for external routing selection commands dispatched by the left control
+  useEffect(() => {
+    const handler = (e) => {
+      const mode = e?.detail?.mode;
+      const useMyLocation = Boolean(e?.detail?.useMyLocation);
+      if (mode === 'start') {
+        // If left panel requested using the user's GPS as the route start,
+        // lock the start to the current `userLocation` so clicks won't move it.
+        if (useMyLocation) {
+          if (userLocation && typeof userLocation.lat === 'number') {
+            // set the start to the current GPS position and lock it
+            setRouteStart({ lat: userLocation.lat, lng: userLocation.lng });
+            setRouteStartLocked(true);
+            // after setting start, enter destination selection so the user can pick location 2
+            setRoutingSelecting('end');
+            setRoutingOpen(true);
+          } else {
+            onSetRouteAdvice('Enable My Location first to use GPS as the route start.');
+          }
+        } else {
+          // explicit start selection by user: unlock and allow map clicks to set it
+          setRouteStartLocked(false);
+          setRoutingSelecting('start');
+          setRoutingOpen(true);
+        }
+      } else if (mode === 'end') {
+        setRoutingSelecting('end');
+        setRoutingOpen(true);
+      } else if (mode === 'clear') {
+        setRouteStart(null);
+        setRouteTarget(null);
+        setRouteGeoJson(null);
+        setRouteHidePins(false);
+        setRoutingSelecting(null);
+        setRouteStartLocked(false);
+        setRoutingOpen(false);
+      } else if (mode === 'open') {
+        setRoutingOpen(Boolean(e.detail?.open));
+        if (!e.detail?.open) setRoutingSelecting(null);
+      }
+    };
+    window.addEventListener('stms:route-select', handler);
+    return () => window.removeEventListener('stms:route-select', handler);
+  }, [userLocation, onSetRouteAdvice]);
+
+  // Notify external controls (left panel) when routing state changes
+  useEffect(() => {
+    try {
+      const ev = new CustomEvent('stms:route-update', { detail: { routeStart, routeTarget, routingSelecting, routingOpen } });
+      window.dispatchEvent(ev);
+    } catch (e) { /* ignore */ }
+  }, [routeStart, routeTarget, routingSelecting, routingOpen]);
 
   useEffect(() => {
     const adjustHeight = () => {
@@ -701,19 +800,220 @@ export default function MapView({
     return () => clearTimeout(t);
   }, [selectedDestinationId, focusLocation]);
 
+  // Helper to fetch route between two points (lat/lng objects)
+  const fetchRoute = async (start, end) => {
+    setRouteGeoJson(null);
+    // Inform the AI guidance that routing is in progress so the UI
+    // doesn't show stale advice while we wait for the backend.
+    onSetRouteAdvice('Calculating route...');
+    setRouteLoading(true);
+    console.debug('Route request started', { start, end, avoidDanger });
+
+      try {
+        // Abort any previous route request to avoid overlapping slow calls
+        try {
+          if (routeAbortController.current) {
+            routeAbortController.current.abort();
+            routeAbortController.current = null;
+          }
+        } catch (e) { /* ignore */ }
+        routeAbortController.current = new AbortController();
+        const signal = routeAbortController.current.signal;
+
+        // Request routes while asking the backend to avoid known danger pin areas
+        const routePath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=${avoidDanger ? '1' : '0'}`;
+        const routeUrl = `${API}${routePath}`;
+        let resp;
+        try { resp = await fetch(routeUrl, { signal }); } catch (err) {
+          if (err && err.name === 'AbortError') throw err;
+          const fallback = `http://localhost:8000${routePath}`;
+          console.warn('API fetch failed, retrying to', fallback, err);
+          resp = await fetch(fallback, { signal });
+        }
+        if (!resp.ok && avoidDanger) {
+          const fallbackPath = `/route?start_lat=${encodeURIComponent(start.lat)}&start_lng=${encodeURIComponent(start.lng)}&end_lat=${encodeURIComponent(end.lat)}&end_lng=${encodeURIComponent(end.lng)}&avoid_danger=0`;
+          const fallbackUrl = `${API}${fallbackPath}`;
+          console.warn('Safe route failed, retrying normal route', resp.status, resp.statusText);
+          try {
+            resp = await fetch(fallbackUrl, { signal });
+          } catch (err) {
+            if (err && err.name === 'AbortError') throw err;
+            const fallback = `http://localhost:8000${fallbackPath}`;
+            console.warn('Retry normal route failed, retrying to', fallback, err);
+            resp = await fetch(fallback, { signal });
+          }
+        }
+      if (!resp.ok) {
+        let errorMessage = `Routing failed (${resp.status})`;
+        try {
+          const errorBody = await resp.json();
+          if (errorBody && (errorBody.detail || errorBody.message)) {
+            errorMessage = errorBody.detail || errorBody.message;
+          }
+        } catch (_err) {
+          // ignore JSON parsing errors
+        }
+        throw new Error(errorMessage);
+      }
+      const data = await resp.json();
+      setRouteGeoJson(data);
+      onSetRouteAdvice(data?.route_advice || '');
+
+      try {
+        if (mapRef.current && data && data.features && data.features.length) {
+          const coords = data.features[0].geometry.coordinates.map((c) => [c[1], c[0]]);
+          // Align the visible route start/end markers with the snapped
+          // coordinates returned by the routing engine so the blue route
+          // doesn't appear visually offset from `location 1`/`location 2`.
+          if (coords.length) {
+            const snappedStart = { lat: coords[0][0], lng: coords[0][1] };
+            const snappedEnd = { lat: coords[coords.length - 1][0], lng: coords[coords.length - 1][1] };
+            setRouteStart(snappedStart);
+            setRouteTarget(snappedEnd);
+          }
+
+          const bounds = L.latLngBounds(coords);
+          try {
+            const center = bounds.getCenter();
+            centerMapWithOffset(mapRef.current, { lat: center.lat, lng: center.lng });
+          } catch (e) {
+            try {
+              if (typeof bounds.pad === 'function') mapRef.current.fitBounds(bounds.pad(0.12));
+              else mapRef.current.fitBounds(bounds);
+            } catch (_) { /* ignore */ }
+          }
+        }
+      } catch (e) { /* ignore fit errors */ }
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        console.debug('Route fetch aborted');
+        return;
+      }
+      console.error('Route fetch failed', e);
+      const message = e?.message || 'Failed to fetch route.';
+      onSetRouteAdvice(message);
+    } finally {
+      try { if (routeAbortController.current) { routeAbortController.current = null; } } catch {}
+      setRouteLoading(false);
+      console.debug('Route request complete', { start, end, routeLoading: false });
+    }
+  };
+
+  const selectedDestination = useMemo(
+    () => (destinations || []).find((destinationItem) => destinationItem.id === selectedDestinationId) || null,
+    [destinations, selectedDestinationId]
+  );
+
+  useEffect(() => {
+    if (!selectedDestinationId) {
+      setRouteGeoJson(null);
+      setRouteTarget(null);
+      setRouteStart(null);
+      setRouteHidePins(false);
+      return;
+    }
+
+    if (!userLocation || !selectedDestination) {
+      return;
+    }
+
+    const start = { lat: userLocation.lat, lng: userLocation.lng };
+    const target = { lat: selectedDestination.lat, lng: selectedDestination.lng };
+    setRouteStart(start);
+    setRouteTarget(target);
+    setRouteHidePins(true);
+    fetchRoute(start, target);
+  }, [selectedDestinationId, userLocation, selectedDestination]);
+
+  // Handle map clicks: treat click as destination (location 2) and compute route
+  const handleMapClick = async (lat, lng) => {
+    if (isPinMode) {
+      // If the user is in pin mode, allow placing or moving a pending marker
+      // even when My Location mode is enabled.
+      onLocationClick(lat, lng);
+      return;
+    }
+
+    // If My Location mode is enabled, ignore passive map clicks unless the
+    // user explicitly entered routing selection (start/end). This prevents
+    // creating destination/location2 by clicking while GPS mode is active.
+    if (locationMode && !routingSelecting) {
+      onSetRouteAdvice('My Location is enabled. Use the routing controls to select start or destination, or turn My Location off.');
+      return;
+    }
+
+    // If user explicitly opened routing and is selecting start/destination, handle accordingly
+    if (routingSelecting === 'start') {
+      setRouteHidePins(false);
+      setRouteStart({ lat, lng });
+      setRouteTarget(null);
+      setRouteGeoJson(null);
+      setRoutingSelecting('end');
+      return;
+    }
+
+    if (routingSelecting === 'end') {
+      const start = routeStart || userLocation;
+      if (!start) {
+        onSetRouteAdvice('I need your location to provide route guidance. Enable My Location and select a destination.');
+        return;
+      }
+      if (location2CooldownActive) {
+        onSetRouteAdvice('Please wait 5 seconds before placing your destination again as we are calculating the route.');
+        return;
+      }
+      setRouteHidePins(false);
+      setRouteTarget({ lat, lng });
+      // perform routing
+      await fetchRoute(start, { lat, lng });
+      setRoutingSelecting(null);
+      setRoutingOpen(false);
+      return;
+    }
+
+    // If a route is already in progress, update only the destination (location 2)
+    // and preserve the existing start location (location 1)
+    if (routeStart) {
+      if (location2CooldownActive) {
+        onSetRouteAdvice('Please wait 5 seconds before placing your destination again, as we are calculating the route.');
+        return;
+      }
+      setRouteHidePins(false);
+      setRouteTarget({ lat, lng });
+      await fetchRoute(routeStart, { lat, lng });
+      return;
+    }
+
+    // Only auto-create a route using the GPS position when My Location mode is enabled.
+    // If My Location is off, require the user to use the routing controls to select
+    // start/destination explicitly.
+    if (userLocation && locationMode) {
+      const start = userLocation;
+      if (location2CooldownActive) {
+        onSetRouteAdvice('Please wait 5 seconds before placing location 2 again.');
+        return;
+      }
+      setRouteHidePins(false);
+      setRouteStart(start);
+      setRouteTarget({ lat, lng });
+      await fetchRoute(start, { lat, lng });
+      setRoutingOpen(false);
+      return;
+    }
+
+    // No routing selection is active; map background was clicked, clear selection
+    if (onMapBackgroundClick) onMapBackgroundClick();
+  };
+
   // Intentionally not attaching tile loading handlers: let the tile server and
   // browser manage tile loading. This avoids toggling a full-screen overlay
-  // during normal map interactions which can make the UI look white or flash.
-  // Provide an empty handlers object so the TileLayer `eventHandlers` prop
-  // can be safely passed without causing a ReferenceError.
   const tileEventHandlers = {};
-
   return (
     <div ref={wrapperRef} className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
       {/* Removed full-screen loading overlay to avoid white flashes during tile loads.
           Let the browser/OSM handle tile loading; consider a small non-blocking
           indicator elsewhere if needed. */}
-      
+
       <MapControlRight
         user={user}
         onLogin={onLogin}
@@ -722,8 +1022,9 @@ export default function MapView({
         onToggleTheme={onToggleTheme}
         onResetMap={onResetMap}
         theme={theme}
+        avoidDanger={avoidDanger}
+        onToggleAvoidDanger={() => setAvoidDanger((v) => !v)}
       />
-
       <MapContainer
         id="map"
         className="map-container"
@@ -745,6 +1046,7 @@ export default function MapView({
         markerZoomAnimation={true}
         fadeAnimation={true}
         style={{ height: '100%', width: '100%' }}
+        whenCreated={(m) => { mapRef.current = m; }}
       >
         <TileLayer
           ref={tileLayerRef}
@@ -755,15 +1057,22 @@ export default function MapView({
           keepBuffer={2}
           detectRetina={false}
         />
-        <MapClickHandler onLocationClick={onLocationClick} />
-        <ZoomControlHandler />
-        <MapStatePersistence />
+        <MapClickHandler onLocationClick={handleMapClick} />
         <MapResetHandler
           defaultCenter={DEFAULT_MAP_CENTER}
           defaultZoom={DEFAULT_MAP_ZOOM}
           resetFlag={resetMapFlag}
         />
-        <MapFocusHandler location={focusLocation} zoom={focusZoom} loading={focusLoading} />
+        <MapAutoFocusHandler
+          focusLocation={focusLocation}
+          focusBounds={focusBounds}
+          focusZoom={focusZoom}
+          loading={focusLoading}
+          isPinMode={isPinMode}
+          routeStart={routeStart}
+          routeTarget={routeTarget}
+          routeGeoJson={routeGeoJson}
+        />
         <PopupClearHandler
           selectedDestinationId={selectedDestinationId}
           reportHighlight={reportHighlight}
@@ -772,6 +1081,28 @@ export default function MapView({
         />
         <MapSyncHandler theme={theme} />
         <MapResizeHandler />
+
+        {!routeHidePins && routeStart && !routeStartUsesUserLocation && (
+          <Marker position={[routeStart.lat, routeStart.lng]} icon={LOCATION1_ICON}>
+            <Popup>Route start (click again to set destination)</Popup>
+          </Marker>
+        )}
+
+        {!routeHidePins && routeTarget && (
+          <Marker position={[routeTarget.lat, routeTarget.lng]} icon={LOCATION2_ICON}>
+            <Popup>Route destination</Popup>
+          </Marker>
+        )}
+
+        {userLocation && (
+          <Marker position={[userLocation.lat, userLocation.lng]} icon={PERSON_ICON}>
+            <Popup>You are here</Popup>
+          </Marker>
+        )}
+
+        {routeGeoJson && (
+          <GeoJSON data={routeGeoJson} style={{ color: '#2563eb', weight: 5, opacity: 0.95 }} />
+        )}
 
         {destinations.map((d) => {
           const highlightAllDestinations = reportHighlight === 'all-destinations';
@@ -812,6 +1143,10 @@ export default function MapView({
                   icon={getDestinationIcon(isHighlightedDestination || isSelected)}
                   eventHandlers={{
                     click: (e) => {
+                      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+                      if (e.originalEvent && typeof e.originalEvent.stopPropagation === 'function') {
+                        e.originalEvent.stopPropagation();
+                      }
                       try {
                         const map = e?.target?._map;
                         const latlng = e?.latlng || { lat: d.lat, lng: d.lng };
@@ -864,18 +1199,27 @@ export default function MapView({
           );
         })}
 
-        {userLocation && (
-          <Marker position={[userLocation.lat, userLocation.lng]} icon={PERSON_ICON}>
-            <Popup>Your selected location</Popup>
-          </Marker>
-        )}
-
         {pendingMarkerLocation && (
           <Marker
             position={[pendingMarkerLocation.lat, pendingMarkerLocation.lng]}
             icon={getDangerIcon({ danger_type: selectedMarkerType || 'Danger Area' }, false)}
+            draggable={true}
+            eventHandlers={{
+              drag: (e) => {
+                try {
+                  const latlng = e.target.getLatLng();
+                  onUpdatePendingMarkerLocation({ lat: latlng.lat, lng: latlng.lng });
+                } catch (err) { /* ignore */ }
+              },
+              dragend: (e) => {
+                try {
+                  const latlng = e.target.getLatLng();
+                  onUpdatePendingMarkerLocation({ lat: latlng.lat, lng: latlng.lng });
+                } catch (err) { /* ignore */ }
+              }
+            }}
           >
-            <Popup>Pending {selectedMarkerType || 'Danger Area'} marker. Click anywhere else on the map to move it.</Popup>
+            <Popup>Pending {selectedMarkerType || 'Danger Area'} marker. Drag or click elsewhere to move it.</Popup>
           </Marker>
         )}
       </MapContainer>

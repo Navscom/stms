@@ -3,6 +3,16 @@ import '../css/DestinationList.css';
 
 const crowdClass = (level) => `crowd-badge ${String(level || 'low').toLowerCase()}`;
 
+const calculateDistanceKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const radiusKm = 6371;
+  return Number((radiusKm * c).toFixed(2));
+};
+
 const NearestDestination = ({
   nearest = [],
   selectedDestinationId = null,
@@ -11,6 +21,18 @@ const NearestDestination = ({
   onClearNearest = () => {},
 }) => {
   const list = Array.isArray(nearest) ? nearest : [];
+
+  const getDistanceKm = (spot) => {
+    if (selectedLocation && spot?.lat != null && spot?.lng != null) {
+      return calculateDistanceKm(selectedLocation.lat, selectedLocation.lng, spot.lat, spot.lng);
+    }
+    return spot.distance_km;
+  };
+
+  const renderDistance = (spot) => {
+    const distance = getDistanceKm(spot);
+    return distance != null ? <p className="distance">Approx. {distance} km away</p> : null;
+  };
 
   return (
     <div className="destination-panel">
@@ -38,7 +60,7 @@ const NearestDestination = ({
               </div>
               <p>{spot.city}, {spot.province}</p>
               <small>{spot.category || 'Recommended spot'}</small>
-              {spot.distance_km !== undefined && <p className="distance">Approx. {spot.distance_km} km away</p>}
+              {renderDistance(spot)}
             </button>
           ))}
         </div>

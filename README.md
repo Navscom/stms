@@ -4,43 +4,53 @@ Capstone title: **Design and Development of a Smart Tourism Management System wi
 
 ## What the System Can Do
 
-This application provides an integrated safety and tourism experience by combining interactive mapping, crowd monitoring, local hazard reporting, and route guidance.
+This system delivers a smart tourism safety experience using map reporting, crowd-awareness, route planning, and optional AI guidance.
 
-- Interactive safety map
-  - Users can click on the map to set their current location.
-  - The map can display multiple warning markers and active danger zones.
+- User accounts and roles
+  - Visitors can register, login, and delete their account.
+  - Users can have administrator roles for managing destinations, markers, and reports.
 
-- Hazard and incident reporting
-  - Users can add danger pins for areas with hazards, wildlife sightings, dark zones, or other risks.
-  - Each danger report can include type, description, radius, and duration.
-  - The system renders warnings as circles and alerts nearby users when they approach dangerous zones.
+- Interactive map and hazard reporting
+  - Users can tap or click the map to set a location and report hazards.
+  - Danger pins support type, description, severity, radius, and duration.
+  - The map shows active danger zones with warning markers and alert circles.
 
-- Crowd monitoring and predictions
-  - Users can submit crowd reports for destinations.
-  - The backend analyzes recent crowd data to identify patterns and make crowd-level predictions.
-  - This helps tourists avoid crowded or unsafe spots.
+- Crowd reporting and destination insights
+  - Local admin can submit crowd-level updates for destinations.
+  - The backend stores crowd reports and updates destination crowd status.
+  - AI trend detection can identify rising crowd patterns.
+  - The system can automatically create or extend “Crowdy Area” markers when many users are nearby.
 
-- Route safety and detours
-  - The backend can detect whether a planned route intersects a danger zone.
-  - It can suggest safer detours to help users avoid reported risks.
+- Safety checks and nearby warnings
+  - The backend evaluates active danger pins for a user location.
+  - It calculates a risk level and nearby danger details.
 
-- Community feedback and moderation
-  - Users can post comments on markers to share additional context.
-  - The system supports optional AI moderation and translation if the AI client is configured.
+- Route planning with danger avoidance
+  - The backend calculates walking routes through OpenRouteService.
+  - When `avoid_danger=true`, it attempts to plan around active danger zones.
+  - It validates returned routes against reported hazards and appends route advice.
 
-- AI-driven safety guidance
-  - The backend can generate personalized travel and safety advice for a user location.
-  - It can automatically create friendly crowd warning descriptions for busy areas.
-  - It can moderate marker comments for spam/inappropriate content.
-  - It can translate safety alerts into a preferred language.
+- Marker comments and moderation
+  - Users can add, edit, and delete comments on map markers.
+  - Optional AI moderation can flag or remove spam/inappropriate comments.
+  - Administrators can manage marker content and delete pins.
 
-- Admin and role management
-  - Local admin access is available for managing system data and reviewing reports.
-  - User roles can be updated through the database when needed.
+- Optional AI guidance
+  - AI can generate friendly route and safety advice.
+  - AI can summarize crowd or hazard status for nearby locations.
+  - AI can moderate comments and translate alert text.
 
-## AI Requirements
+## Environment Variables
 
-To enable AI features, set one of these environment variables in the backend:
+Required backend variables:
+
+```bash
+set SUPABASE_URL=https://your-project.supabase.co
+set SUPABASE_KEY=your-service-role-key
+set ORS_API_KEY=your-openrouteservice-api-key
+```
+
+Optional AI variables:
 
 ```bash
 set GEMINI_API_KEY=your-gemini-api-key
@@ -48,11 +58,29 @@ set GEMINI_API_KEY=your-gemini-api-key
 set GOOGLE_API_KEY=your-google-genai-api-key
 ```
 
-Optionally, you can set a model name:
+Optional model name:
 
 ```bash
 set GEMINI_MODEL=gemini-3.1-flash
 ```
+
+## System Data Flow
+
+The system is organized into three main layers:
+
+- **Frontend React app**: the user interacts with the map, marker reporting, login, comments, and AI guidance.
+- **FastAPI backend**: receives HTTP requests, enforces validation, applies safety/crowd logic, and queries Supabase.
+- **External services**: Supabase stores persistent data; OpenRouteService provides route directions; Gemini/GenAI powers optional AI advice, moderation, and translation.
+
+Key data flow paths:
+
+- User actions in the frontend call backend endpoints such as `/safety-check`, `/route`, `/ai-advice`, `/danger-pins`, and marker comment APIs.
+- The backend reads and writes to Supabase tables like `users`, `destinations`, `danger_pins`, `crowd_reports`, and `marker_comments`.
+- Routes with `avoid_danger=true` use active danger pins to build `avoid_polygons`, then proxy the request to OpenRouteService.
+- AI flows use optional Gemini/GenAI access to generate advice, moderate comments, translate alerts, and create crowd warning descriptions.
+- Background tasks automatically expire old danger pins and generate Crowdy Area markers from recent crowd reports.
+
+![System Data Flow](SYSTEM_FLOWCHART.png)
 
 ## Backend Setup
 
@@ -109,15 +137,6 @@ npm install
 
 ```bash
 npm run dev
-```
-
-## Local Admin Login
-
-Use the following credentials for local admin access:
-
-```text
-admin@stms.com
-admin123
 ```
 
 ## User Workflow

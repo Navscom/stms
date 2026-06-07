@@ -4,4 +4,15 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      // Proxy routing API requests to the backend during local development
+      '/route': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Add additional API paths here if needed, e.g. '/api': { target: 'http://localhost:8000' }
+    }
+  },
 })

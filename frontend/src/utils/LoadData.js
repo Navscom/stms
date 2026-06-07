@@ -1,31 +1,31 @@
-import { getDestinations, getDangerPins, getReportSummary, getSafetyCheck, getAiAdvice, postAiGenerate } from './index';
+import { getDestinations, getDangerPinMetadata, getReportSummary, getSafetyCheck, getAiAdvice, postAiGenerate } from './index';
 import { filterActivePins } from './pinHelpers';
 
 export async function loadDestinations(setDestinations, { fallbackDestinations } = {}) {
   try {
     const data = await getDestinations();
     setDestinations(data || []);
-    return data || [];
+    return { data: data || [], failed: false };
   } catch (error) {
     console.error('Failed to load destinations:', error);
     if (fallbackDestinations !== undefined) {
       setDestinations(fallbackDestinations);
     }
-    return fallbackDestinations;
+    return { data: fallbackDestinations, failed: true };
   }
 }
 
 export async function loadDangerPins(setDangerPins, { fallbackPins } = {}) {
   try {
-    const data = await getDangerPins();
+    const data = await getDangerPinMetadata();
     setDangerPins(data || []);
-    return data || [];
+    return { data: data || [], failed: false };
   } catch (error) {
-    console.error('Failed to load danger pins:', error);
+    console.error('Failed to load danger pin metadata:', error);
     if (fallbackPins !== undefined) {
       setDangerPins(fallbackPins);
     }
-    return fallbackPins;
+    return { data: fallbackPins, failed: true };
   }
 }
 
@@ -33,22 +33,24 @@ export async function loadReport(setReport, { fallbackReport } = {}) {
   try {
     const data = await getReportSummary();
     setReport(data || null);
-    return data || null;
+    return { data: data || null, failed: false };
   } catch (error) {
     console.error('Failed to load report:', error);
     if (fallbackReport !== undefined) {
       setReport(fallbackReport);
     }
-    return fallbackReport;
+    return { data: fallbackReport, failed: true };
   }
 }
 
 export async function loadAppData(setDestinations, setDangerPins, setReport) {
-  await Promise.allSettled([
+  const [destinationsResult, dangerPinsResult, reportResult] = await Promise.all([
     loadDestinations(setDestinations, { fallbackDestinations: [] }),
     loadDangerPins(setDangerPins, { fallbackPins: [] }),
     loadReport(setReport, { fallbackReport: null }),
   ]);
+
+  return destinationsResult.failed || dangerPinsResult.failed || reportResult.failed;
 }
 
 export async function checkSafety(lat, lng, setNearbyDangers) {
@@ -67,7 +69,7 @@ export async function fetchAdvice(lat, lng, setSelectedLocation, setAdvice, setN
     setNearest(adviceData.nearest_destinations || []);
     setNearbyDangers(filterActivePins(adviceData.nearby_dangers || []));
   } catch (error) {
-    setAdvice('Backend error. Make sure FastAPI is running on http://127.0.0.1:8000');
+    setAdvice('There was an error loading the data from the backend. Please refresh the site to fix this.');
   }
 }
 

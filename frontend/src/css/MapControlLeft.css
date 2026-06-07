@@ -329,6 +329,13 @@
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
 }
 
+/* When routing panel is open, connect button to dropdown visually */
+.control-card-wrapper:has(.routing-content-panel) .tool-btn.active-toggle {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 2px solid #3b82f6;
+}
+
 .controllers-box.collapsed .tool-btn {
   padding: 14px;
   min-width: auto;
@@ -419,15 +426,197 @@
   box-sizing: border-box;
   border-top: 1px solid #e2e8f0;
   pointer-events: none;
+  margin: 0;
+  padding: 0;
 }
 
 .dropdown-panel.open {
-  max-height: none;
+  max-height: 600px;
   opacity: 1;
-  overflow: visible;
+  overflow-y: auto;
   border: none;
   pointer-events: auto;
+  margin: 0;
+  padding: 0;
 }
+
+/* Ensure routing dropdown overlays the map and other content when open */
+.map-controls-left .dropdown-panel.routing-dropdown.open {
+  z-index: 2147483647;
+}
+
+/* Routing content panel - displayed directly inside control-card-wrapper as dropdown */
+.map-controls-left .routing-content-panel {
+  padding: 14px 18px;
+  border-top: 2px solid #3b82f6;
+  border-left: 1px solid rgba(148, 163, 184, 0.12);
+  border-right: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  margin: 0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.map-controls-left .routing-content-panel .panel-main-title {
+  color: #0f172a;
+}
+
+.map-controls-left .routing-content-panel .panel-subtitle {
+  color: #475569;
+}
+
+.map-controls-left .routing-content-panel .form-label {
+  color: #334155;
+}
+
+.map-controls-left .routing-content-panel .routing-hint {
+  color: #64748b;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .panel-main-title {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .panel-subtitle {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .form-label {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .map-controls-left .routing-content-panel .routing-hint {
+  color: #94a3b8;
+}
+
+/* Center routing input boxes within their container */
+.map-controls-left .routing-panel .routing-input {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: var(--bg-primary);
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.08);
+}
+
+.map-controls-left .routing-panel .routing-input input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 0.95rem;
+  background: transparent;
+  color: #0f172a;
+  min-width: 0; /* allow input to shrink to make room for buttons */
+}
+
+.map-controls-left .routing-panel .routing-input input::placeholder {
+  color: #64748b;
+}
+
+.map-controls-left .routing-panel .input-left-icon {
+  color: #64748b;
+}
+
+.map-controls-left .routing-panel .input-clear {
+  color: #64748b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+/* Button to use current GPS location as routing start */
+.map-controls-left .routing-panel .input-action {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 8px; /* reduced padding for shorter label */
+  margin-left: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+.map-controls-left .routing-panel .current-location-inline {
+  display: none;
+  margin-left: 0;
+}
+.map-controls-left .routing-panel .current-location-mobile {
+  display: inline-flex;
+}
+
+.map-controls-left .routing-panel .routing-panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-controls-left .routing-panel .input-action:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* ensure buttons don't overflow their container and that input shrinks properly */
+.map-controls-left .routing-panel .routing-input .input-action,
+.map-controls-left .routing-panel .routing-input .input-clear,
+.map-controls-left .routing-panel .routing-input .input-left-icon {
+  flex: 0 0 auto;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .input-action {
+  background: rgba(59,130,246,0.95);
+  color: #0f172a;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .input-action:hover {
+  background: rgba(37,99,235,0.95);
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .routing-input {
+  background-color: rgba(15, 23, 42, 0.88);
+  border-color: rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .routing-input input {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .routing-input input::placeholder {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .input-left-icon,
+[data-theme='dark'] .map-controls-left .routing-panel .input-clear {
+  color: #94a3b8;
+}
+
+/* Make the routing panel stack children left-aligned and constrain input width */
+.map-controls-left .routing-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+
 
 .dropdown-panel.open.destinations-dropdown {
   max-height: none;
@@ -459,6 +648,31 @@
   .form-submit-btn,
   .spot-center-btn {
     padding: 12px 14px;
+  }
+  .map-controls-left .routing-panel .input-action {
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    margin-left: 6px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 760px) {
+  .map-controls-left .routing-panel .routing-panel-heading {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .map-controls-left .routing-panel .current-location-inline {
+    display: inline-flex;
+  }
+
+  .map-controls-left .routing-panel .current-location-mobile {
+    display: none;
+  }
+
+  .map-controls-left .routing-panel .routing-input {
+    flex-wrap: nowrap;
   }
 }
 

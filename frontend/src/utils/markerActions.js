@@ -40,11 +40,11 @@ export async function submitMarker({
     lat: pendingMarkerLocation.lat,
     lng: pendingMarkerLocation.lng,
     severity: markerForm.severity,
-    radius_meters: Number(markerForm.radius_meters || 300),
+    radius_meters: Number(markerForm.radius_meters || 40),
     duration_hours: totalHours,
     description: markerForm.description,
     user_id: user?.id ?? null,
-    reported_by: user?.name || 'Anonymous Tourist',
+    reported_by: user?.display_name || user?.displayName || user?.name || 'Anonymous Tourist',
   });
 
   await loadDangerPins();
