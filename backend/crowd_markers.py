@@ -253,11 +253,11 @@ def create_auto_crowdy_area_markers(supabase, gemini_client, threshold: int = 10
                 dest_crowd_level = "Low"
 
         level_thresholds = {
-            "Low": 10,
-            "Moderate": 20,
-            "High": 30,
+            "Low": 4,
+            "Moderate": 10,
+            "High": 20,
         }
-        required_users = level_thresholds.get(dest_crowd_level, 10)
+        required_users = level_thresholds.get(dest_crowd_level, 4)
         if len(unique_users) < required_users:
             continue
 
