@@ -124,7 +124,10 @@ function App() {
 
   useEffect(() => {
     const loadData = async () => {
-      await loadAppData(setDestinations, setDangerPins, setReport);
+      const hadBackendError = await loadAppData(setDestinations, setDangerPins, setReport);
+      if (hadBackendError) {
+        setAdviceWithNotify('There was an error loading the data from the backend. Please refresh the site to fix this.');
+      }
     };
     loadData();
   }, []);
@@ -244,10 +247,15 @@ function App() {
   };
 
   const handleMapClick = (lat, lng) => {
-    if (pinMode) return startMarkerPlacement(lat, lng);
+    if (pinMode) {
+      if (locationMode) {
+        setAdviceWithNotify('My Location is on — turn it off to add markers.');
+        return;
+      }
+      return startMarkerPlacement(lat, lng);
+    }
     if (!locationMode) {
-      // Normal map clicks are disabled for location selection until
-      // the user enables My Location.
+      // Normal map clicks are disabled for location selection until the user enables My Location.
       return;
     }
     setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
@@ -315,6 +323,38 @@ function App() {
     );
   };
 
+  const activateCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setAdviceWithNotify('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocationMode(true);
+        try { window.localStorage.setItem('stms_location_mode', 'true'); } catch {}
+        setSelectedDestinationId(null);
+        setFocusBounds(null);
+        setFocusZoom(15);
+        const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(currentLocation);
+        setSelectedLocation(currentLocation);
+        // Dispatch the routing "start using my location" event on the next tick
+        // so MapView has time to receive the updated `userLocation` prop.
+        try {
+          setTimeout(() => {
+            try { window.dispatchEvent(new CustomEvent('stms:route-select', { detail: { mode: 'start', useMyLocation: true } })); } catch (e) { /* ignore */ }
+          }, 0);
+        } catch (e) {
+          // ignore
+        }
+      },
+      () => {
+        setAdviceWithNotify('Location permission denied. You can still click on the map.');
+      }
+    );
+  };
+
   // If location mode was persisted as enabled, attempt to re-acquire position on load
   useEffect(() => {
     if (!locationMode) return;
@@ -335,7 +375,6 @@ function App() {
         const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(currentLocation);
         setSelectedLocation(currentLocation);
-        await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
         setAdviceWithNotify('Location permission denied. You can still click on the map.');
@@ -533,6 +572,7 @@ function App() {
             <div className="floating-side-nav-wrapper">
               <MapControlLeft
                 onMyLocation={toggleLocationMode}
+                onCurrentLocation={activateCurrentLocation}
                 onHazardSubmit={submitMarker}
                 onCenterTouristSpot={toggleDestinationFocus}
                 onSelectDestination={handleSelectDestination}
@@ -547,6 +587,7 @@ function App() {
                 report={report}
                 selectedDestinationId={selectedDestinationId}
                 selectedLocation={userLocation}
+                userLocation={userLocation}
                 locationMode={locationMode}
                 isBoxExpanded={isNavExpanded}
                 setIsBoxExpanded={setIsNavExpanded}
@@ -597,6 +638,7 @@ function App() {
               focusZoom={focusZoom}
               focusLocation={selectedLocation || lastClickLocation}
               userLocation={userLocation}
+              locationMode={locationMode}
             />
           </div>
         </div>

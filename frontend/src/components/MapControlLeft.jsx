@@ -8,6 +8,7 @@ import Safetyalert from './Safetyalert';
 
 const MapControlLeft = ({
   onMyLocation,
+  onCurrentLocation,
   onHazardSubmit,
   onAddMarker,
   onCenterTouristSpot,
@@ -34,6 +35,7 @@ const MapControlLeft = ({
   pendingMarkerLocation,
   captchaChecked,
   setCaptchaChecked,
+  userLocation,
   captchaWarning,
   markerWarning,
 }) => {
@@ -47,6 +49,7 @@ const MapControlLeft = ({
   const [routeTargetLocal, setRouteTargetLocal] = useState(null);
   const [routingSelectingLocal, setRoutingSelectingLocal] = useState(null);
   const [routingOpenLocal, setRoutingOpenLocal] = useState(false);
+  const [currentLocationClicked, setCurrentLocationClicked] = useState(false);
   const [isRoutingOpen, setIsRoutingOpen] = useState(false);
 
   // Store panel states before collapsing to restore them when expanding
@@ -67,6 +70,13 @@ const MapControlLeft = ({
     if (!search) return touristSpots;
     return touristSpots.filter((spot) => spot.name?.toLowerCase().includes(search));
   }, [touristSpots, destinationSearch]);
+
+  const routeStartDisplayLocation = routeStartLocal || (currentLocationClicked && userLocation ? userLocation : null);
+  const routeStartDisplayText = currentLocationClicked
+    ? 'My Location'
+    : routeStartLocal
+      ? `${routeStartLocal.lat.toFixed(4)}, ${routeStartLocal.lng.toFixed(4)}`
+      : '';
 
   useEffect(() => {
     if (!isBoxExpanded) {
@@ -134,7 +144,20 @@ const MapControlLeft = ({
 
   const closeRoutingPanel = () => {
     setIsRoutingOpen(false);
+    setCurrentLocationClicked(false);
     dispatchSelect('clear');
+  };
+
+  const handleCurrentLocationClick = () => {
+    setCurrentLocationClicked(true);
+    if (typeof onCurrentLocation === 'function') {
+      onCurrentLocation();
+    }
+  };
+
+  const handleStartFocus = () => {
+    setCurrentLocationClicked(false);
+    dispatchSelect('start');
   };
 
   // Handlers for collapsed primary icon buttons
@@ -377,17 +400,21 @@ const MapControlLeft = ({
                     <h3 className="panel-main-title">Map Routing</h3>
                     <p className="panel-subtitle">Choose start and destination by clicking on the map, or use GPS.</p>
                     <div className="routing-panel">
-                      <label className="form-label">Choose starting point</label>
+                      <div className="routing-panel-heading">
+                        <label className="form-label">Choose starting point</label>
+                        <button type="button" className="input-action current-location-inline" onClick={handleCurrentLocationClick} title="Use current GPS">Current Location</button>
+                      </div>
                       <div className="routing-input">
                         <button type="button" className="input-left-icon" aria-hidden>📍</button>
                         <input
                           type="text"
                           placeholder="Choose starting point"
-                          value={routeStartLocal ? `${routeStartLocal.lat.toFixed(4)}, ${routeStartLocal.lng.toFixed(4)}` : ''}
+                          value={routeStartDisplayText}
                           readOnly
-                          onFocus={() => dispatchSelect('start')}
+                          onFocus={handleStartFocus}
                         />
-                        <button type="button" className="input-clear" onClick={() => dispatchSelect('clear')} aria-label="Clear start">✖</button>
+                        <button type="button" className="input-action current-location-mobile" onClick={handleCurrentLocationClick} title="Use current GPS">Current Location</button>
+                        <button type="button" className="input-clear" onClick={() => { setCurrentLocationClicked(false); dispatchSelect('clear'); }} aria-label="Clear start">✖</button>
                       </div>
 
                       <label className="form-label">Choose destination</label>
@@ -400,6 +427,7 @@ const MapControlLeft = ({
                           readOnly
                           onFocus={() => dispatchSelect('end')}
                         />
+                        <button type="button" className="input-clear" onClick={() => dispatchSelect('clear', { target: 'end' })} aria-label="Clear destination">✖</button>
                       </div>
 
                       <div className="routing-hint">{routingSelectingLocal ? `Click on the map to set ${routingSelectingLocal}` : 'Click an input then click the map to place a pin.'}</div>

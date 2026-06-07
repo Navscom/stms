@@ -548,7 +548,7 @@ def _generate_route_advice(
                 duration_min=route_info.get("duration_min") or 0.0,
                 danger_nearby=danger_pins or [],
                 avoid_danger=avoid_danger,
-                endpoint_inside_danger=endpoint_inside_danger,
+                endpoint_inside_danger=bool(endpoint_inside_danger),
             )
             if advice_result and isinstance(advice_result, dict):
                 advice_text = advice_result.get("advice")

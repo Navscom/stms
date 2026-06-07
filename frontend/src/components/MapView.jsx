@@ -204,49 +204,15 @@ function MapClickHandler({ onLocationClick }) {
 }
 
 
-function MapStatePersistence() {
-  const map = useMap();
-
-  const saveMapState = () => {
-    if (!map) return;
-    const center = map.getCenter();
-    try {
-      window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({
-        center: [center.lat, center.lng],
-      }));
-    } catch {
-      // ignore storage errors
-    }
-  };
-
-  useMapEvents({
-    moveend: saveMapState,
-  });
-
-  return null;
-}
-
 function MapResetHandler({ defaultCenter, defaultZoom, resetFlag }) {
   const map = useMap();
-  const hasMounted = useRef(false);
-
   useEffect(() => {
-    if (!map || resetFlag == null) return;
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return;
-    }
-
-    map.setView(defaultCenter, defaultZoom, { animate: false });
+    if (!map) return;
     try {
-      window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({
-        center: defaultCenter,
-      }));
-    } catch {
-      // ignore storage errors
-    }
+      map.setView(defaultCenter, defaultZoom, { animate: true });
+      try { window.localStorage.setItem(MAP_STATE_KEY, JSON.stringify({ center: defaultCenter, zoom: defaultZoom })); } catch {}
+    } catch (e) { /* ignore */ }
   }, [map, resetFlag, defaultCenter, defaultZoom]);
-
   return null;
 }
 
@@ -576,6 +542,7 @@ export default function MapView({
   focusZoom = null,
   focusLoading = false,
   userLocation,
+  locationMode = false,
   theme = 'light',
   mapRotation = 0,
 }) {
@@ -629,6 +596,7 @@ export default function MapView({
   const [routeGeoJson, setRouteGeoJson] = useState(null);
   const [routeTarget, setRouteTarget] = useState(null);
   const [routeStart, setRouteStart] = useState(null);
+  const [routeStartLocked, setRouteStartLocked] = useState(false);
   const [routeHidePins, setRouteHidePins] = useState(false);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [routingSelecting, setRoutingSelecting] = useState(null); // 'start' | 'end' | null
@@ -678,9 +646,27 @@ export default function MapView({
   useEffect(() => {
     const handler = (e) => {
       const mode = e?.detail?.mode;
+      const useMyLocation = Boolean(e?.detail?.useMyLocation);
       if (mode === 'start') {
-        setRoutingSelecting('start');
-        setRoutingOpen(true);
+        // If left panel requested using the user's GPS as the route start,
+        // lock the start to the current `userLocation` so clicks won't move it.
+        if (useMyLocation) {
+          if (userLocation && typeof userLocation.lat === 'number') {
+            // set the start to the current GPS position and lock it
+            setRouteStart({ lat: userLocation.lat, lng: userLocation.lng });
+            setRouteStartLocked(true);
+            // after setting start, enter destination selection so the user can pick location 2
+            setRoutingSelecting('end');
+            setRoutingOpen(true);
+          } else {
+            onSetRouteAdvice('Enable My Location first to use GPS as the route start.');
+          }
+        } else {
+          // explicit start selection by user: unlock and allow map clicks to set it
+          setRouteStartLocked(false);
+          setRoutingSelecting('start');
+          setRoutingOpen(true);
+        }
       } else if (mode === 'end') {
         setRoutingSelecting('end');
         setRoutingOpen(true);
@@ -690,6 +676,7 @@ export default function MapView({
         setRouteGeoJson(null);
         setRouteHidePins(false);
         setRoutingSelecting(null);
+        setRouteStartLocked(false);
         setRoutingOpen(false);
       } else if (mode === 'open') {
         setRoutingOpen(Boolean(e.detail?.open));
@@ -698,7 +685,7 @@ export default function MapView({
     };
     window.addEventListener('stms:route-select', handler);
     return () => window.removeEventListener('stms:route-select', handler);
-  }, []);
+  }, [userLocation, onSetRouteAdvice]);
 
   // Notify external controls (left panel) when routing state changes
   useEffect(() => {
@@ -910,7 +897,21 @@ export default function MapView({
   // Handle map clicks: treat click as destination (location 2) and compute route
   const handleMapClick = async (lat, lng) => {
     if (isPinMode) {
+      // When My Location / locationMode is enabled we prevent placing new markers
+      // to ensure "My Location" is only used to show GPS and not to place pins.
+      if (locationMode) {
+        onSetRouteAdvice('My Location is on — turn it off to add markers.');
+        return;
+      }
       onLocationClick(lat, lng);
+      return;
+    }
+
+    // If My Location mode is enabled, ignore passive map clicks unless the
+    // user explicitly entered routing selection (start/end). This prevents
+    // creating destination/location2 by clicking while GPS mode is active.
+    if (locationMode && !routingSelecting) {
+      onSetRouteAdvice('My Location is enabled. Use the routing controls to select start or destination, or turn My Location off.');
       return;
     }
 
@@ -956,7 +957,10 @@ export default function MapView({
       return;
     }
 
-    if (userLocation) {
+    // Only auto-create a route using the GPS position when My Location mode is enabled.
+    // If My Location is off, require the user to use the routing controls to select
+    // start/destination explicitly.
+    if (userLocation && locationMode) {
       const start = userLocation;
       if (location2CooldownActive) {
         onSetRouteAdvice('Please wait 5 seconds before placing location 2 again.');
@@ -976,9 +980,6 @@ export default function MapView({
 
   // Intentionally not attaching tile loading handlers: let the tile server and
   // browser manage tile loading. This avoids toggling a full-screen overlay
-  // during normal map interactions which can make the UI look white or flash.
-  // Provide an empty handlers object so the TileLayer `eventHandlers` prop
-  // can be safely passed without causing a ReferenceError.
   const tileEventHandlers = {};
   return (
     <div ref={wrapperRef} className="map-container-wrapper" data-theme={theme} data-rotation={mapRotation} style={mapWrapperStyle}>
@@ -1030,7 +1031,6 @@ export default function MapView({
           detectRetina={false}
         />
         <MapClickHandler onLocationClick={handleMapClick} />
-        <MapStatePersistence />
         <MapResetHandler
           defaultCenter={DEFAULT_MAP_CENTER}
           defaultZoom={DEFAULT_MAP_ZOOM}
