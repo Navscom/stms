@@ -13,8 +13,9 @@ import { submitMarker as submitMarkerAction, addMarkerComment as addMarkerCommen
 import { DEFAULT_MARKER_FORM } from './utils/markerConstants';
 
 function App() {
-  const [advice, setAdvice] = useState('Turn on My Location to get your current position and receive the best safety and tourist advice.');
+  const [advice, setAdvice] = useState('Information in the area is loading. Please wait while the backend starts up.');
   const [routeAdvice, setRouteAdvice] = useState('');
+  const [backendLoading, setBackendLoading] = useState(true);
 
   // Wrapper for setAdvice that also notifies the AI guidance to show
   const setAdviceWithNotify = (val) => {
@@ -124,7 +125,15 @@ function App() {
 
   useEffect(() => {
     const loadData = async () => {
-      await loadAppData(setDestinations, setDangerPins, setReport);
+      setBackendLoading(true);
+      setAdviceWithNotify('Information in the area is loading. Please wait while the backend starts up.');
+      const hadBackendError = await loadAppData(setDestinations, setDangerPins, setReport);
+      setBackendLoading(false);
+      if (hadBackendError) {
+        setAdviceWithNotify('There was an error loading the data from the backend. Please refresh the site to fix this.');
+      } else {
+        setAdviceWithNotify('Data is ready. Tap a destination or enable My Location to get nearby safety advice.');
+      }
     };
     loadData();
   }, []);
@@ -155,7 +164,9 @@ function App() {
       return;
     }
     setPendingMarkerLocation({ lat, lng });
-    setMarkerForm(DEFAULT_MARKER_FORM);
+    if (!pendingMarkerLocation) {
+      setMarkerForm(DEFAULT_MARKER_FORM);
+    }
   };
 
   const submitMarker = async (e) => {
@@ -244,10 +255,13 @@ function App() {
   };
 
   const handleMapClick = (lat, lng) => {
-    if (pinMode) return startMarkerPlacement(lat, lng);
+    if (pinMode) {
+      // When in pin mode, always allow placing or moving a pending marker
+      // regardless of My Location being enabled so users can continue adding markers.
+      return startMarkerPlacement(lat, lng);
+    }
     if (!locationMode) {
-      // Normal map clicks are disabled for location selection until
-      // the user enables My Location.
+      // Normal map clicks are disabled for location selection until the user enables My Location.
       return;
     }
     setAdviceWithNotify('My Location ON. Turn it off to select another spot.');
@@ -270,7 +284,9 @@ function App() {
       const next = !prev;
       if (next) {
         setPendingMarkerLocation(null);
-        const targetLocation = (locationMode && selectedLocation) ? selectedLocation : lastClickLocation;
+        // Prefer the last clicked map position when starting pin placement so
+        // My Location doesn't override a previously selected spot.
+        const targetLocation = lastClickLocation || ((locationMode && selectedLocation) ? selectedLocation : null);
         if (targetLocation) {
           startMarkerPlacement(targetLocation.lat, targetLocation.lng);
         }
@@ -315,6 +331,38 @@ function App() {
     );
   };
 
+  const activateCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setAdviceWithNotify('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocationMode(true);
+        try { window.localStorage.setItem('stms_location_mode', 'true'); } catch {}
+        setSelectedDestinationId(null);
+        setFocusBounds(null);
+        setFocusZoom(15);
+        const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(currentLocation);
+        setSelectedLocation(currentLocation);
+        // Dispatch the routing "start using my location" event on the next tick
+        // so MapView has time to receive the updated `userLocation` prop.
+        try {
+          setTimeout(() => {
+            try { window.dispatchEvent(new CustomEvent('stms:route-select', { detail: { mode: 'start', useMyLocation: true } })); } catch (e) { /* ignore */ }
+          }, 0);
+        } catch (e) {
+          // ignore
+        }
+      },
+      () => {
+        setAdviceWithNotify('Location permission denied. You can still click on the map.');
+      }
+    );
+  };
+
   // If location mode was persisted as enabled, attempt to re-acquire position on load
   useEffect(() => {
     if (!locationMode) return;
@@ -335,7 +383,6 @@ function App() {
         const currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(currentLocation);
         setSelectedLocation(currentLocation);
-        await fetchAdvice(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
         setAdviceWithNotify('Location permission denied. You can still click on the map.');
@@ -529,10 +576,11 @@ function App() {
 
         <div className="map-panel">
           <div className="map-card">
-            <AIGuidance advice={advice} routeAdvice={routeAdvice} nearest={nearest} />
+            <AIGuidance advice={advice} routeAdvice={routeAdvice} nearest={nearest} loading={backendLoading} />
             <div className="floating-side-nav-wrapper">
               <MapControlLeft
                 onMyLocation={toggleLocationMode}
+                onCurrentLocation={activateCurrentLocation}
                 onHazardSubmit={submitMarker}
                 onCenterTouristSpot={toggleDestinationFocus}
                 onSelectDestination={handleSelectDestination}
@@ -547,6 +595,7 @@ function App() {
                 report={report}
                 selectedDestinationId={selectedDestinationId}
                 selectedLocation={userLocation}
+                userLocation={userLocation}
                 locationMode={locationMode}
                 isBoxExpanded={isNavExpanded}
                 setIsBoxExpanded={setIsNavExpanded}
@@ -597,6 +646,8 @@ function App() {
               focusZoom={focusZoom}
               focusLocation={selectedLocation || lastClickLocation}
               userLocation={userLocation}
+              locationMode={locationMode}
+              onUpdatePendingMarkerLocation={setPendingMarkerLocation}
             />
           </div>
         </div>

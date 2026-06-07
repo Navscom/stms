@@ -6,14 +6,26 @@ const API = import.meta.env.VITE_API_URL || (() => {
   return `http://${host}:8000`;
 })();
 
-async function fetchJson(path, options) {
+const DEFAULT_FETCH_TIMEOUT_MS = 20000;
+
+async function fetchJson(path, options = {}) {
   const shouldRetry = !options || !options.method || options.method.toUpperCase() === 'GET';
   const maxAttempts = shouldRetry ? 3 : 1;
+  const timeout = options.timeout ?? DEFAULT_FETCH_TIMEOUT_MS;
   let lastError;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const abortController = new AbortController();
+    const timer = setTimeout(() => abortController.abort(), timeout);
+    if (options.signal) {
+      options.signal.addEventListener('abort', () => abortController.abort(), { once: true });
+    }
+
     try {
-      const response = await fetch(`${API}${path}`, options);
+      const response = await fetch(`${API}${path}`, {
+        ...options,
+        signal: abortController.signal,
+      });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(payload?.detail || `Server error: ${response.status}`);
@@ -22,9 +34,14 @@ async function fetchJson(path, options) {
     } catch (error) {
       lastError = error;
       if (attempt === maxAttempts) {
+        if (error.name === 'AbortError') {
+          throw new Error('The request timed out while waiting for the backend. Please refresh the page.');
+        }
         throw lastError;
       }
       await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+    } finally {
+      clearTimeout(timer);
     }
   }
 

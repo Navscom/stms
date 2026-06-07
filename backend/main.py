@@ -10,6 +10,7 @@ import asyncio
 from typing import Any, Dict, List, Optional, Union
 import requests
 import secrets
+import math
  
 
 # Allow running as a top-level script from the backend directory.
@@ -186,13 +187,51 @@ def _fetch_active_danger_pin_metadata() -> List[Dict[str, Any]]:
         response = supabase.table("danger_pins").select(
             "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
         ).is_("removed_at", None).execute()
-        pins = safe_data(response)
+        pins = safe_data(response) or []
     except Exception:
         response = supabase.table("danger_pins").select(
             "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
         ).execute()
-        pins = safe_data(response)
-    return [pin for pin in (pins or []) if isinstance(pin, dict) and not _pin_inactive(pin)]
+        pins = safe_data(response) or []
+
+    pins = [pin for pin in pins if isinstance(pin, dict) and not _pin_inactive(pin)]
+    referenced_user_ids = set()
+    for pin in pins:
+        user_id = pin.get("user_id")
+        if user_id is not None:
+            try:
+                referenced_user_ids.add(int(user_id))
+            except Exception:
+                pass
+
+    users_map: Dict[int, Dict[str, Any]] = {}
+    if referenced_user_ids:
+        try:
+            users_resp = supabase.table("users").select("id,name,display_name").in_("id", list(referenced_user_ids)).execute()
+            users_list = safe_data(users_resp) or []
+            for u in users_list:
+                if isinstance(u, dict) and u.get("id") is not None:
+                    try:
+                        users_map[int(u["id"])] = u
+                    except Exception:
+                        pass
+        except Exception:
+            users_map = {}
+
+    for pin in pins:
+        uid = pin.get("user_id")
+        reporter = None
+        if uid is not None:
+            try:
+                uid_key = int(uid)
+            except Exception:
+                uid_key = None
+            else:
+                if uid_key is not None and uid_key in users_map:
+                    reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("displayName") or users_map[uid_key].get("name")
+        pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
+
+    return pins
 
 
 REPORT_SUMMARY_CACHE_KEY = "global_report_summary"
@@ -323,7 +362,7 @@ def _fetch_marker_comments(pin_id: int) -> List[Dict[str, Any]]:
                 user_key = None
             else:
                 if user_key in users_map:
-                    commenter = users_map[user_key].get("display_name") or users_map[user_key].get("name")
+                    commenter = users_map[user_key].get("display_name") or users_map[user_key].get("displayName") or users_map[user_key].get("name")
         c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
 
     return filtered_comments
@@ -349,6 +388,42 @@ def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: flo
     the user's path instead of those only near the start or finish point.
     """
     relevant = []
+    # small fraction of the route to treat as "endpoint area" (5% of segment)
+    endpoint_fraction_tol = 0.05
+    # small distance in km that counts as "at the endpoint" regardless of projection
+    endpoint_buffer_km = 0.05
+
+    def _proj_fraction_and_perp_dist_km(ax, ay, bx, by, px, py):
+        # convert geographic coordinates to local meters via equirectangular approx
+        R = 6371000.0
+        ref_lat = (ax + bx) / 2.0
+        def to_xy(lat, lng):
+            x = math.radians(lng - ay) * math.cos(math.radians(ref_lat)) * R
+            y = math.radians(lat - ref_lat) * R
+            return x, y
+
+        Ax, Ay = to_xy(ax, ay)
+        Bx, By = to_xy(bx, by)
+        Px, Py = to_xy(px, py)
+
+        ABx = Bx - Ax
+        ABy = By - Ay
+        APx = Px - Ax
+        APy = Py - Ay
+        ab_len2 = ABx * ABx + ABy * ABy
+        if ab_len2 <= 0:
+            t = 0.0
+        else:
+            t = (APx * ABx + APy * ABy) / ab_len2
+
+        t_clamped = max(0.0, min(1.0, t))
+        closest_x = Ax + t_clamped * ABx
+        closest_y = Ay + t_clamped * ABy
+        dx = Px - closest_x
+        dy = Py - closest_y
+        perp_dist_m = math.hypot(dx, dy)
+        return t, perp_dist_m / 1000.0
+
     for pin in pins or []:
         if not isinstance(pin, dict) or _pin_inactive(pin):
             continue
@@ -359,20 +434,37 @@ def _filter_relevant_route_pins(start_lat: float, start_lng: float, end_lat: flo
         except (TypeError, ValueError):
             continue
 
-        # Include ALL pins that pass the route intersection check.
-        # Don't exclude destination pins - if there's danger at the destination,
-        # users need to know! The danger check function will calculate exact distances.
-        # Keep the endpoint exclusion ONLY for pins that are far from the actual route.
-        
-        # Use the pin radius plus a small buffer to decide whether the pin is on/near the route.
-        effective_radius = max(pin_radius_km, route_buffer_km)
-
-        if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
-            continue
-
+        # Compute distance to endpoints first so we don't inflate small pin radii
+        # with the route buffer when the pin is actually at an endpoint.
         start_dist = haversine(start_lat, start_lng, pin_lat, pin_lng)
         end_dist = haversine(end_lat, end_lng, pin_lat, pin_lng)
         min_dist = min(start_dist, end_dist)
+
+        # If the pin is at/near either endpoint, use the pin radius only.
+        if start_dist <= pin_radius_km or end_dist <= pin_radius_km:
+            effective_radius = pin_radius_km
+        else:
+            effective_radius = max(pin_radius_km, route_buffer_km)
+
+        # Quick check using existing helper; skip pins that are clearly off-route.
+        if not route_intersects_zone(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng, effective_radius):
+            continue
+
+        # If the pin is effectively at either endpoint (within the pin radius), always include it
+        if start_dist <= pin_radius_km or end_dist <= pin_radius_km:
+            relevant.append((min_dist, pin))
+            continue
+
+        # Project the pin to the straight-line segment between start and end to determine
+        # whether the pin is genuinely along the route or simply near an endpoint.
+        frac, perp_dist_km = _proj_fraction_and_perp_dist_km(start_lat, start_lng, end_lat, end_lng, pin_lat, pin_lng)
+
+        # Exclude pins that only intersect because they are near an endpoint but not actually
+        # along the route segment between start and end.
+        if (frac < endpoint_fraction_tol or frac > (1.0 - endpoint_fraction_tol)) and perp_dist_km > effective_radius and min_dist > endpoint_buffer_km:
+            continue
+
+        # Otherwise consider this pin relevant
         relevant.append((min_dist, pin))
 
     relevant.sort(key=lambda item: item[0])
@@ -548,7 +640,7 @@ def _generate_route_advice(
                 duration_min=route_info.get("duration_min") or 0.0,
                 danger_nearby=danger_pins or [],
                 avoid_danger=avoid_danger,
-                endpoint_inside_danger=endpoint_inside_danger,
+                endpoint_inside_danger=bool(endpoint_inside_danger),
             )
             if advice_result and isinstance(advice_result, dict):
                 advice_text = advice_result.get("advice")
@@ -898,9 +990,16 @@ async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng:
         relevant_pins: List[Dict[str, Any]] = []
         try:
             pins = _fetch_active_danger_pins()
+            # initial relevance uses a small route buffer to surface nearby pins for info
             relevant_pins = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins)
             endpoint_inside_danger = False
-            if avoid_danger and relevant_pins:
+
+            # For avoidance we only want to consider the pin radius itself (no route buffer)
+            relevant_for_avoid: List[Dict[str, Any]] = []
+            if avoid_danger:
+                relevant_for_avoid = _filter_relevant_route_pins(start_lat, start_lng, end_lat, end_lng, pins, route_buffer_km=0.0)
+
+            if avoid_danger and relevant_for_avoid:
                 def _point_in_danger(pin, lat, lng):
                     try:
                         pin_lat = float(pin.get("lat", 0))
@@ -910,8 +1009,9 @@ async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng:
                         return False
                     return haversine(lat, lng, pin_lat, pin_lng) <= pin_radius_km
 
-                start_pins = [pin for pin in relevant_pins if _point_in_danger(pin, float(start_lat), float(start_lng))]
-                end_pins = [pin for pin in relevant_pins if _point_in_danger(pin, float(end_lat), float(end_lng))]
+                # Determine which pins actually encompass the endpoints using the radius-only set
+                start_pins = [pin for pin in relevant_for_avoid if _point_in_danger(pin, float(start_lat), float(start_lng))]
+                end_pins = [pin for pin in relevant_for_avoid if _point_in_danger(pin, float(end_lat), float(end_lng))]
 
                 # If both endpoints are inside danger pins, disable overall avoidance
                 if start_pins and end_pins:
@@ -925,11 +1025,11 @@ async def get_route(start_lat: float, start_lng: float, end_lat: float, end_lng:
                     if start_pins or end_pins:
                         endpoint_inside_danger = 'start' if start_pins else 'end'
                         excluded_ids = set(p.get('id') for p in (start_pins + end_pins) if isinstance(p, dict) and p.get('id') is not None)
-                        relevant_for_avoid = [p for p in relevant_pins if p.get('id') not in excluded_ids]
+                        # Exclude endpoint pins from avoidance but keep other radius-only relevant pins
+                        relevant_for_avoid = [p for p in relevant_for_avoid if p.get('id') not in excluded_ids]
                         logger.info(f"Endpoint inside danger; excluding {len(excluded_ids)} endpoint pin(s) from avoidance and avoiding the other relevant pins ({len(relevant_for_avoid)})")
                     else:
                         endpoint_inside_danger = False
-                        relevant_for_avoid = relevant_pins
 
             if avoid_danger and relevant_for_avoid:
                 logger.info(f"Route avoidance: {len(relevant_for_avoid)} relevant danger pin(s) out of {len(pins)} active pin(s) (endpoint pins excluded if any)")
@@ -1429,7 +1529,7 @@ def get_danger_pins():
         except Exception:
             uid_key = None
         if uid_key is not None and uid_key in users_map:
-            reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("name")
+            reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("displayName") or users_map[uid_key].get("name")
         pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
 
         for c in pin_comments:
@@ -1442,7 +1542,7 @@ def get_danger_pins():
             except Exception:
                 cuid_key = None
             if cuid_key is not None and cuid_key in users_map:
-                commenter = users_map[cuid_key].get("display_name") or users_map[cuid_key].get("name")
+                commenter = users_map[cuid_key].get("display_name") or users_map[cuid_key].get("displayName") or users_map[cuid_key].get("name")
             c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
 
     return visible

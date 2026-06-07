@@ -520,6 +520,7 @@
   font-size: 0.95rem;
   background: transparent;
   color: #0f172a;
+  min-width: 0; /* allow input to shrink to make room for buttons */
 }
 
 .map-controls-left .routing-panel .routing-input input::placeholder {
@@ -536,6 +537,55 @@
   border: none;
   cursor: pointer;
   padding: 0 4px;
+}
+
+/* Button to use current GPS location as routing start */
+.map-controls-left .routing-panel .input-action {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 8px; /* reduced padding for shorter label */
+  margin-left: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+.map-controls-left .routing-panel .current-location-inline {
+  display: none;
+  margin-left: 0;
+}
+.map-controls-left .routing-panel .current-location-mobile {
+  display: inline-flex;
+}
+
+.map-controls-left .routing-panel .routing-panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-controls-left .routing-panel .input-action:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* ensure buttons don't overflow their container and that input shrinks properly */
+.map-controls-left .routing-panel .routing-input .input-action,
+.map-controls-left .routing-panel .routing-input .input-clear,
+.map-controls-left .routing-panel .routing-input .input-left-icon {
+  flex: 0 0 auto;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .input-action {
+  background: rgba(59,130,246,0.95);
+  color: #0f172a;
+}
+
+[data-theme='dark'] .map-controls-left .routing-panel .input-action:hover {
+  background: rgba(37,99,235,0.95);
 }
 
 [data-theme='dark'] .map-controls-left .routing-panel .routing-input {
@@ -598,6 +648,31 @@
   .form-submit-btn,
   .spot-center-btn {
     padding: 12px 14px;
+  }
+  .map-controls-left .routing-panel .input-action {
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    margin-left: 6px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 760px) {
+  .map-controls-left .routing-panel .routing-panel-heading {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .map-controls-left .routing-panel .current-location-inline {
+    display: inline-flex;
+  }
+
+  .map-controls-left .routing-panel .current-location-mobile {
+    display: none;
+  }
+
+  .map-controls-left .routing-panel .routing-input {
+    flex-wrap: nowrap;
   }
 }
 
