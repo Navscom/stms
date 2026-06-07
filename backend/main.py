@@ -186,13 +186,51 @@ def _fetch_active_danger_pin_metadata() -> List[Dict[str, Any]]:
         response = supabase.table("danger_pins").select(
             "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
         ).is_("removed_at", None).execute()
-        pins = safe_data(response)
+        pins = safe_data(response) or []
     except Exception:
         response = supabase.table("danger_pins").select(
             "id,title,danger_type,lat,lng,severity,radius_meters,duration_hours,description,user_id,created_at"
         ).execute()
-        pins = safe_data(response)
-    return [pin for pin in (pins or []) if isinstance(pin, dict) and not _pin_inactive(pin)]
+        pins = safe_data(response) or []
+
+    pins = [pin for pin in pins if isinstance(pin, dict) and not _pin_inactive(pin)]
+    referenced_user_ids = set()
+    for pin in pins:
+        user_id = pin.get("user_id")
+        if user_id is not None:
+            try:
+                referenced_user_ids.add(int(user_id))
+            except Exception:
+                pass
+
+    users_map: Dict[int, Dict[str, Any]] = {}
+    if referenced_user_ids:
+        try:
+            users_resp = supabase.table("users").select("id,name,display_name").in_("id", list(referenced_user_ids)).execute()
+            users_list = safe_data(users_resp) or []
+            for u in users_list:
+                if isinstance(u, dict) and u.get("id") is not None:
+                    try:
+                        users_map[int(u["id"])] = u
+                    except Exception:
+                        pass
+        except Exception:
+            users_map = {}
+
+    for pin in pins:
+        uid = pin.get("user_id")
+        reporter = None
+        if uid is not None:
+            try:
+                uid_key = int(uid)
+            except Exception:
+                uid_key = None
+            else:
+                if uid_key is not None and uid_key in users_map:
+                    reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("displayName") or users_map[uid_key].get("name")
+        pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
+
+    return pins
 
 
 REPORT_SUMMARY_CACHE_KEY = "global_report_summary"
@@ -323,7 +361,7 @@ def _fetch_marker_comments(pin_id: int) -> List[Dict[str, Any]]:
                 user_key = None
             else:
                 if user_key in users_map:
-                    commenter = users_map[user_key].get("display_name") or users_map[user_key].get("name")
+                    commenter = users_map[user_key].get("display_name") or users_map[user_key].get("displayName") or users_map[user_key].get("name")
         c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
 
     return filtered_comments
@@ -1429,7 +1467,7 @@ def get_danger_pins():
         except Exception:
             uid_key = None
         if uid_key is not None and uid_key in users_map:
-            reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("name")
+            reporter = users_map[uid_key].get("display_name") or users_map[uid_key].get("displayName") or users_map[uid_key].get("name")
         pin["reported_by"] = reporter or pin.get("reported_by") or "Unknown"
 
         for c in pin_comments:
@@ -1442,7 +1480,7 @@ def get_danger_pins():
             except Exception:
                 cuid_key = None
             if cuid_key is not None and cuid_key in users_map:
-                commenter = users_map[cuid_key].get("display_name") or users_map[cuid_key].get("name")
+                commenter = users_map[cuid_key].get("display_name") or users_map[cuid_key].get("displayName") or users_map[cuid_key].get("name")
             c["commented_by"] = commenter or c.get("commented_by") or "Unknown"
 
     return visible

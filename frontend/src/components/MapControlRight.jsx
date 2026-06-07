@@ -75,13 +75,13 @@ export default function MapControlRight({ user, onLogin, onLogout, onDeleteAccou
               <div className="profile-header">
                 <div className="avatar-large">
                   {user?.avatarUrl ? (
-                    <img src={user.avatarUrl} alt={user.name || 'User avatar'} />
+                    <img src={user.avatarUrl} alt={user.display_name || user.displayName || user.name || 'User avatar'} />
                   ) : (
-                    <div className="avatar-large-fallback">{initials(user?.name)}</div>
+                    <div className="avatar-large-fallback">{initials(user?.display_name || user?.displayName || user?.name)}</div>
                   )}
                 </div>
                 <div className="profile-info">
-                  <div className="profile-name">{user.name || 'Account'}</div>
+                  <div className="profile-name">{user.display_name || user.displayName || user.name || 'Account'}</div>
                   {user.role && (
                     <div className="profile-badge">
                       {user.role === 'admin'

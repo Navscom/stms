@@ -44,7 +44,7 @@ export async function submitMarker({
     duration_hours: totalHours,
     description: markerForm.description,
     user_id: user?.id ?? null,
-    reported_by: user?.name || 'Anonymous Tourist',
+    reported_by: user?.display_name || user?.displayName || user?.name || 'Anonymous Tourist',
   });
 
   await loadDangerPins();

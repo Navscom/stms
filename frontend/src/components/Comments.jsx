@@ -140,7 +140,7 @@ export default function CommentBox({ pin, comments, commentsLoading, commentErro
                     </div>
                   </div>
                 )}
-                <small>— {c.commented_by}</small>
+                <small>— {c.commented_by || c.display_name || c.displayName || c.name}</small>
               </>
             )}
           </div>
